@@ -2,14 +2,14 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master**입니다. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반을 제공합니다. [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake**입니다. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
 
 ## 설계 기준과 원칙
 
-단일 기준선: [AI_Accounting_Office_v0.2.3_통합설계_구현보강](https://drive.google.com/drive/folders/17FO3EYPA64MItPL-_RQbgg1NhKr4I5mn).
+단일 기준선: [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
 
-- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 22개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
+- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 33개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
 - **정본 분리**: accounting은 회계 장부, tax는 세무 계산·신고, evidence는 증빙/provenance, jobs/agents/tool executions는 실행 이력을 소유합니다.
 - **Agent 경계**: Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repository. Agent는 ORM/Session/SQL/Repository에 직접 접근하지 않습니다.
 - **Deterministic calculation**: 금액·세금·잔액·집계는 Decimal, Domain Rule, Application Service와 결정적 query/calculation이 소유합니다. LLM이 계산하지 않습니다.
@@ -21,7 +21,7 @@
 backend/app/     FastAPI 및 독립적인 업무 모듈 경계
 backend/app/contracts/       ORM에 의존하지 않는 오류·UoW·Repository 계약
 backend/app/core/database/  SQLAlchemy persistence primitive
-backend/migrations/         Alembic 환경과 Identity/Company/Master migration
+backend/migrations/         Alembic 환경과 Identity/Company/Master/Storage/Intake migration
 backend/tests/              unit, PostgreSQL integration, contract, golden
 frontend/src/   app, features, shared
 infra/          PostgreSQL/Redis Docker Compose
@@ -157,7 +157,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `002_tenant_company_rbac`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.3의 `59_Complete_DDL_Migration_Map`을 따릅니다.
+현재 head는 `004_storage_evidence_intake`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.5의 `Complete_DDL_Migration_Map`을 따릅니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -184,9 +184,9 @@ python -m pytest --require-postgres
 
 ## 제외 범위와 다음 구현
 
-Transaction/Journal/세무/증빙 업무, Approval/Audit 전체 Domain, Agent workflow, LLM, 실제 업무 Tool, Idempotency persistence, Excel Import는 미구현입니다. 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
+Transaction/Journal/세무 정본, Onboarding Workspace, Approval/Audit 전체 Domain, Agent workflow, LLM, 실제 업무 Tool, 전역 Governance Idempotency는 미구현입니다. 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
 
-다음 범위는 v0.2.3의 51/57/59 기준 **Storage/Evidence/Import 기본 스키마 → Transaction**입니다. 004_storage_evidence_intake의 Import 물리 모델을 준비하고 005_transactions.import_id FK가 실제 imports를 참조해야 합니다. 후속 작업 시작 시 최신 main/Drive에서 FK 범위를 재확인합니다.
+다음 범위는 v0.2.5 기준 **Onboarding · Data Exchange (005)**이며 이후 **Transaction · Journal Core (006/007)**입니다. ONBOARDING_DRAFT target, 공유 Registry/parser, 원본 Import/Evidence와 digest/Receipt 계약을 연결합니다. 현재 접수는 장부·거래처 정본을 수정하지 않습니다. 후속 작업 시작 시 최신 main/Drive의 migration/FK 범위를 재확인합니다.
 
 회사 선택 후 회계 관리 권한이 있으면 별도 초기 설정으로 기본 COA·12개월 기간·번호 기준을 만듭니다. 초기화는 같은 조건으로 재실행할 수 있습니다. 거래처와 지급조건 API, 번호·정책 규칙과 제외 범위는 [회계 마스터 문서](docs/accounting-master.md)를 참고하세요.
 
@@ -195,3 +195,16 @@ Transaction/Journal/세무/증빙 업무, Approval/Audit 전체 Domain, Agent wo
 직접 작성하는 코드 주석과 docstring은 한글로 작성합니다. 도구가 자동 생성하는 파일과 타입 지시문은 생성 도구의 형식을 유지합니다.
 
 사용자가 읽는 화면·API 메시지는 쉬운 한글로 작성하고, 필요한 경우 다음 행동을 안내합니다. 초기 화면에는 내부 개발 단계명이나 설계 버전을 표시하지 않습니다. 오류 원문이나 내부 구현 정보를 사용자 안내에 넣지 않습니다. API 필드명·오류 코드·환경변수명처럼 프로그램 간 계약에 해당하는 식별자는 유지합니다.
+
+
+## 파일과 자료 가져오기
+
+현재 회사의 ACCOUNTANT/TAX_ACCOUNTANT 중 Intake 권한을 가진 사용자는 화면의 자료 가져오기에서 CSV/XLSX를 올릴 수 있습니다. OWNER 역할만으로 업로드 권한을 자동 부여하지 않습니다.
+원본 열을 회계 항목에 연결하고 검증 결과를 확인한 뒤 명시적으로 접수합니다. 미리보기는 15분간 유효합니다. 접수 완료는 원본 보존과 검증 완료이며 장부 반영을 의미하지 않습니다.
+
+UTF-8 CSV/UTF-8 BOM CSV와 XLSX, 최대 2MB·총 1,000행·40열·5시트를 지원합니다. 수식·매크로·외부 연결·삽입 개체는 제거해 주세요.
+예를 들어 SALES CSV의 필수 header는 `source_id,transaction_date,amount,currency`이며 날짜는 `2026-01-02`, 금액은 `100.0001`, 통화는 `KRW` 형태입니다.
+원본 파일은 backend 실행 기준 `STORAGE_ROOT=../.local/storage` 아래 서버 생성 키로 보관합니다. 이 경로는 Git에서 제외되며 파일 bytes를 PostgreSQL에 저장하지 않습니다.
+
+API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 수 있습니다. 모든 Import 요청은 Bearer와 `X-Company-ID`, 변경 요청은 `X-CSRF-Protection: 1`, Confirm은 `Idempotency-Key`가 필요합니다.
+[구조·API·파일 제한·후속 계약](docs/storage-evidence-intake.md), [실제 참고 파일과 충돌 처리](docs/intake-source-patterns.md), [검증 결과](docs/intake-verification.md)를 참고하세요.

@@ -1,6 +1,7 @@
 "use client";
 
 import { AccountingMaster } from "@/features/accounting/accounting-master";
+import { DataImport } from "@/features/imports/data-import";
 import { useState } from "react";
 import { AuthProvider, useAuth } from "@/features/auth/auth-provider";
 import { AuthForm } from "@/features/auth/auth-form";
@@ -34,6 +35,7 @@ function Office() {
       <p className="muted">선택한 회사의 회계 기준 정보를 확인할 수 있습니다.</p>
     </section>}
     {company.active && <AccountingMaster key={company.active.id} company={company.active} />}
+    {company.active && <DataImport key={company.active.id} company={company.active} />}
     <CompanyCreate />
   </>;
 }

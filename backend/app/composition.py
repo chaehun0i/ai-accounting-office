@@ -1,6 +1,7 @@
 """API와 persistence 구현체를 조립합니다. 생성 시 DB에 연결하지 않습니다."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy import Engine
 
@@ -16,7 +17,11 @@ from app.identity.auth.application.service import AuthService
 from app.identity.infrastructure.unit_of_work import IdentitySQLAlchemyUnitOfWork
 from app.identity.invitations.application.service import InvitationService
 from app.identity.invitations.infrastructure.unit_of_work import InvitationSQLAlchemyUnitOfWork
+from app.intake.application.service import IntakeService
+from app.intake.infrastructure.parser import parse_file
+from app.intake.infrastructure.unit_of_work import IntakeSQLAlchemyUnitOfWork
 from app.master_data.application.service import MasterDataService
+from app.storage.infrastructure.local import LocalObjectStorage
 
 
 @dataclass(frozen=True)
@@ -26,6 +31,7 @@ class Services:
     invitations: InvitationService
     accounting: AccountingMasterService | None = None
     master_data: MasterDataService | None = None
+    intake: IntakeService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -48,4 +54,9 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         InvitationService(lambda: InvitationSQLAlchemyUnitOfWork(sessions)),
         AccountingMasterService(lambda: MasterSQLAlchemyUnitOfWork(sessions)),
         MasterDataService(lambda: MasterSQLAlchemyUnitOfWork(sessions)),
+        IntakeService(
+            lambda: IntakeSQLAlchemyUnitOfWork(sessions),
+            LocalObjectStorage(Path(settings.storage_root)),
+            parse_file,
+        ),
     )

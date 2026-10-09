@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     backend_port: int = Field(default=8000, ge=1, le=65535)
     frontend_origin: HttpUrl = HttpUrl("http://localhost:3000")
 
+    storage_root: str = "../.local/storage"
+
     auth_signing_key: SecretStr | None = None
     access_token_ttl_seconds: int = Field(default=600, ge=60, le=900)
     refresh_token_ttl_seconds: int = Field(default=2592000, ge=3600, le=2592000)

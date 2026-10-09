@@ -1,6 +1,10 @@
 # 설계 추적과 모듈 경계
 
-기준선은 [AI_Accounting_Office_v0.2.3_통합설계_구현보강](https://drive.google.com/drive/folders/17FO3EYPA64MItPL-_RQbgg1NhKr4I5mn)입니다. 이전 버전 fallback 없이 아래 문서를 직접 확인했습니다.
+현재 기준선은 [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf)입니다. fallback 없이 확인한 최신 설계와 적용은 [파일·증빙·인테이크](storage-evidence-intake.md)에 기록했습니다.
+
+## 초기 DB Foundation 설계 추적
+
+아래 v0.2.3 문서는 이전 구현 당시의 이력입니다. 현재 범위에 이전 버전 fallback으로 적용하지 않습니다.
 
 | 문서 | 적용 |
 | --- | --- |
@@ -17,7 +21,7 @@
 
 `core`는 config/errors/logging 등 cross-cutting primitive만 소유합니다. 업무 로직은 두지 않습니다. `health.py`는 업무 모듈이 아닌 process liveness router/schema입니다. application factory는 설정·미들웨어·라우터 조합만 수행합니다.
 
-`identity`, `companies`, `intake`, `accounting`, `finance`, `tax`, `closing`, `reporting`, `evidence`, `approvals`, `audit`, `jobs`, `agents`, `llm`, `tools`중 Identity/Company/Accounting/Master Data는 실제 구현이 있으며 나머지는 Python package 경계입니다. 기능이 생길 때 `domain/application/infrastructure/api`를 추가합니다. 지금 비어 있는 service/repository/model 파일을 미리 만들지 않습니다.
+`identity`, `companies`, `intake`, `accounting`, `finance`, `tax`, `closing`, `reporting`, `evidence`, `approvals`, `audit`, `jobs`, `agents`, `llm`, `tools`중 Identity/Company/Accounting/Master Data/Storage/Evidence/Intake는 실제 구현이 있으며 나머지는 Python package 경계입니다. 기능이 생길 때 `domain/application/infrastructure/api`를 추가합니다. 지금 비어 있는 service/repository/model 파일을 미리 만들지 않습니다.
 
 기본 의존성은 `api → application → domain`이며 infrastructure가 domain interface를 구현합니다. Router는 Repository를 호출하지 않습니다. domain은 FastAPI/ORM/LLM SDK에 의존하지 않습니다. Application Command가 transaction/UoW를 소유하고 Repository는 임의 commit하지 않습니다.
 
@@ -35,7 +39,7 @@ Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repo
 
 SQLAlchemy/Alembic, strict UUID/Decimal/UTC 타입, UoW와 회사 범위를 필수로 받는 Repository Protocol이 존재합니다. baseline 위에 Identity/Company 업무 테이블 10개를 001/002, 회계 마스터 12개를 003 revision으로 등록합니다. 자동 create_all은 없습니다.
 
-[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 현재 Identity/Company 구조와 구현 결정을 [인증·회사 계약](identity-company.md)에 기록했습니다. 회계 마스터는 [현재 구조와 결정](accounting-master.md)을 따릅니다. 다음은 Storage/Evidence/Import 기본 스키마를 준비한 뒤 Transaction FK를 연결하는 범위입니다.
+[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 현재 Identity/Company 구조와 구현 결정을 [인증·회사 계약](identity-company.md)에 기록했습니다. 회계 마스터는 [현재 구조와 결정](accounting-master.md)을 따릅니다. Storage/Evidence/Intake 11개 테이블을 004에 추가했으며 전체 업무 테이블은 33개입니다. 다음은 005 Onboarding/Data Exchange이며 이후 006 Transaction의 FK를 연결합니다. [현재 계약](storage-evidence-intake.md)을 따릅니다.
 
 ## 품질 도구 결정
 

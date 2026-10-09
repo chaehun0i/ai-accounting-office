@@ -1,11 +1,13 @@
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
 export async function request<T>(path: string, init: RequestInit = {}, access?: string | null): Promise<T> {
   try {
     const headers = new Headers(init.headers);
-    if (init.body) headers.set("Content-Type", "application/json");
+    // 파일 업로드의 multipart 경계는 브라우저가 생성합니다.
+    if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
     if (init.method && init.method !== "GET") headers.set("X-CSRF-Protection", "1");
     if (access) headers.set("Authorization", `Bearer ${access}`);
     const response = await fetch(`/api${path}`, { ...init, headers, credentials: "same-origin", cache: "no-store" });

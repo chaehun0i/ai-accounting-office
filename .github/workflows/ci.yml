@@ -1,7 +1,7 @@
 name: Quality
 on:
   push:
-    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master]
+    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master, feat/storage-evidence-intake]
   pull_request:
 permissions:
   contents: read
@@ -26,6 +26,7 @@ jobs:
       - run: python -m ruff check .
       - run: python -m ruff format --check .
       - run: python -m mypy app
+      - run: python -m pip check
       - run: python -m pytest --ignore=tests/integration
   postgresql:
     runs-on: ubuntu-latest

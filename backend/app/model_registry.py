@@ -34,9 +34,14 @@ from app.accounting.periods.infrastructure import models as periods_models  # no
 from app.accounting.sequences.infrastructure import models as sequences_models  # noqa: F401, E402
 from app.accounting.settings.infrastructure import models as settings_models  # noqa: F401, E402
 from app.accounting.templates.infrastructure import models as templates_models  # noqa: F401, E402
+from app.evidence.infrastructure import models as evidence_models  # noqa: F401, E402
+from app.intake.infrastructure import models as intake_models  # noqa: F401, E402
 from app.master_data.counterparties.infrastructure import (  # noqa: E402
     models as counterparties_models,  # noqa: F401, E402
 )
 from app.master_data.payment_terms.infrastructure import (  # noqa: E402
     models as payment_terms_models,  # noqa: F401, E402
 )
+
+# 파일과 증빙·인테이크 메타데이터를 등록합니다.
+from app.storage.infrastructure import models as storage_models  # noqa: F401, E402
