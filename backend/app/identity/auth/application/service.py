@@ -61,7 +61,7 @@ class AuthService:
     def register(self, email: str, password: str, facts: RequestFacts) -> AuthResult:
         email = normalize_email(email)
         with self.factory() as uow:
-            uow.security.limit("REGISTER_ATTEMPT", facts, uow.now())
+            uow.security.limit("REGISTER_ATTEMPT", facts, uow.now(), digest(email))
             uow.security.record("REGISTER_ATTEMPT", facts, email_hash=digest(email))
             # 중복 계정 여부를 공개하지 않는 고정 인증 실패 응답을 사용합니다.
             if uow.users.by_email(email) is not None:
@@ -114,6 +114,7 @@ class AuthService:
                 or session is None
                 or session.revoked_at is not None
                 or session.expires_at <= uow.now()
+                or not hmac.compare_digest(session.jti_hash, digest(claims.jti))
             ):
                 raise AuthenticationRequired()
             return Principal(user.id, session.id, user.email)

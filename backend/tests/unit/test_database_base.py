@@ -1,11 +1,20 @@
+import subprocess
+import sys
+
 from sqlalchemy import CheckConstraint, Column, ForeignKey, Index, Integer, MetaData, Table
 
-from app.core.database.base import Base
 from app.core.database.naming import NAMING_CONVENTION
 
 
 def test_base_has_no_business_tables() -> None:
-    assert not Base.metadata.tables
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.core.database.base import Base; assert not Base.metadata.tables",
+        ],
+        check=True,
+    )
 
 
 def test_constraint_names_are_deterministic() -> None:

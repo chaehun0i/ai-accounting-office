@@ -2,14 +2,22 @@
 
 import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from pydantic import SecretStr
 from sqlalchemy import Connection, Engine, make_url, text
 from sqlalchemy.exc import ArgumentError
+from sqlalchemy.orm import sessionmaker
 
+from app.companies.infrastructure.seed import seed_permissions
 from app.core.config import Settings
 from app.core.database.engine import create_database_engine
+from app.core.security import PasswordSecurity, TokenSecurity
+from app.identity.auth.application.service import AuthService
+from app.identity.infrastructure.unit_of_work import IdentitySQLAlchemyUnitOfWork
 
 
 @pytest.fixture(scope="session")
@@ -51,3 +59,67 @@ def db_connection(db_engine: Engine) -> Iterator[Connection]:
             connection.rollback()
             # 물리 연결을 닫아 테스트에서 만든 모든 임시 테이블을 제거합니다.
             connection.invalidate()
+
+
+@pytest.fixture(scope="session")
+def identity_database(db_engine: Engine) -> Engine:
+    with db_engine.connect() as connection:
+        config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
+    return db_engine
+
+
+@pytest.fixture
+def auth_service(identity_database: Engine) -> Iterator[tuple[AuthService, Connection]]:
+    with identity_database.connect() as connection:
+        transaction = connection.begin()
+        factory = sessionmaker(
+            bind=connection,
+            autoflush=False,
+            expire_on_commit=False,
+            autobegin=False,
+            join_transaction_mode="create_savepoint",
+        )
+        with factory() as seed_session:
+            seed_session.begin()
+            seed_permissions(seed_session)
+            seed_session.commit()
+        service = AuthService(
+            lambda: IdentitySQLAlchemyUnitOfWork(factory),
+            PasswordSecurity(),
+            TokenSecurity("test-only-signing-key-with-at-least-32-bytes"),
+        )
+        try:
+            yield service, connection
+        finally:
+            transaction.rollback()
+
+
+@pytest.fixture
+def api_client(auth_service: tuple[AuthService, Connection], settings: Settings):
+    from fastapi.testclient import TestClient
+
+    from app.companies.application.service import CompanyService
+    from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWork
+    from app.composition import Services
+    from app.identity.invitations.application.service import InvitationService
+    from app.identity.invitations.infrastructure.unit_of_work import InvitationSQLAlchemyUnitOfWork
+    from app.main import create_app
+
+    auth, connection = auth_service
+    factory = sessionmaker(
+        bind=connection,
+        autoflush=False,
+        expire_on_commit=False,
+        autobegin=False,
+        join_transaction_mode="create_savepoint",
+    )
+    app = create_app(settings)
+    app.state.services = Services(
+        auth,
+        CompanyService(lambda: CompanySQLAlchemyUnitOfWork(factory)),
+        InvitationService(lambda: InvitationSQLAlchemyUnitOfWork(factory)),
+    )
+    with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
+        yield client

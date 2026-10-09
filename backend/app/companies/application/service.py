@@ -46,7 +46,11 @@ class CompanyService:
     def list(self, principal: Principal) -> list[CompanyAccess]:
         with self.factory() as uow:
             validate_principal(uow, principal)
-            return uow.companies.list_accessible(principal.user_id)
+            return [
+                access
+                for access in uow.companies.list_accessible(principal.user_id)
+                if "company.read" in access.permissions
+            ]
 
     def get(self, principal: Principal, company_id: UUID) -> CompanyAccess:
         with self.factory() as uow:

@@ -116,7 +116,7 @@ class SecurityEventRepository:
         )
         if count >= (20 if action == "REGISTER_ATTEMPT" else 60):
             raise RateLimited()
-        if action == "login" and email_hash:
+        if action in {"login", "REGISTER_ATTEMPT"} and email_hash:
             key = int(digest(f"email:{email_hash}")[:15], 16)
             self.session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
             failures = (
@@ -131,5 +131,5 @@ class SecurityEventRepository:
                 )
                 or 0
             )
-            if failures >= 10:
+            if action == "login" and failures >= 10:
                 raise RateLimited()

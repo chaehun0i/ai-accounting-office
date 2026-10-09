@@ -1,54 +1,17 @@
-from collections.abc import Iterator
 from datetime import timedelta
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from alembic import command
-from alembic.config import Config
-from sqlalchemy import Connection, Engine, select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Connection, select
 
 from app.contracts.access_errors import AuthenticationRequired
-from app.core.security import PasswordSecurity, TokenSecurity, digest
+from app.core.security import digest
 from app.identity.auth.application.service import AuthService
-from app.identity.infrastructure.unit_of_work import IdentitySQLAlchemyUnitOfWork
 from app.identity.sessions.domain.entities import RequestFacts
 from app.identity.sessions.infrastructure.models import (
     IdentitySecurityEventModel,
     RefreshSessionModel,
 )
-
-
-@pytest.fixture(scope="session")
-def identity_database(db_engine: Engine) -> Engine:
-    with db_engine.connect() as connection:
-        config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
-        config.attributes["connection"] = connection
-        command.upgrade(config, "head")
-    return db_engine
-
-
-@pytest.fixture
-def auth_service(identity_database: Engine) -> Iterator[tuple[AuthService, Connection]]:
-    with identity_database.connect() as connection:
-        transaction = connection.begin()
-        factory = sessionmaker(
-            bind=connection,
-            autoflush=False,
-            expire_on_commit=False,
-            autobegin=False,
-            join_transaction_mode="create_savepoint",
-        )
-        service = AuthService(
-            lambda: IdentitySQLAlchemyUnitOfWork(factory),
-            PasswordSecurity(),
-            TokenSecurity("test-only-signing-key-with-at-least-32-bytes"),
-        )
-        try:
-            yield service, connection
-        finally:
-            transaction.rollback()
 
 
 def facts() -> RequestFacts:
@@ -116,5 +79,36 @@ def test_expiry_and_hash_mismatch(auth_service: tuple[AuthService, Connection]) 
         session.issued_at = uow.now() - timedelta(days=2)
         session.expires_at = uow.now() - timedelta(days=1)
         uow.sessions.save(session)
+    with pytest.raises(AuthenticationRequired):
+        service.refresh(result.refresh_token, facts())
+
+
+def test_logout_all_revokes_multiple_active_families(
+    auth_service: tuple[AuthService, Connection],
+) -> None:
+    service, connection = auth_service
+    first = service.register("multiple@example.com", "correct horse battery staple", facts())
+    second = service.login("multiple@example.com", "correct horse battery staple", facts())
+    third = service.login("multiple@example.com", "correct horse battery staple", facts())
+    service.logout(service.authenticate(first.access_token), facts(), all_sessions=True)
+    for result in (first, second, third):
+        with pytest.raises(AuthenticationRequired):
+            service.authenticate(result.access_token)
+        with pytest.raises(AuthenticationRequired):
+            service.refresh(result.refresh_token, facts())
+    assert set(connection.scalars(select(RefreshSessionModel.status)).all()) == {"REVOKED"}
+
+
+def test_jti_mismatch_is_rejected(auth_service: tuple[AuthService, Connection]) -> None:
+    service, _ = auth_service
+    result = service.register("mismatch@example.com", "correct horse battery staple", facts())
+    claims = service.tokens.read(result.refresh_token, "refresh")
+    with service.factory() as uow:
+        session = uow.sessions.get(claims.user_id, claims.session_id)
+        assert session is not None
+        session.jti_hash = digest("different-jti")
+        uow.sessions.save(session)
+    with pytest.raises(AuthenticationRequired):
+        service.authenticate(result.access_token)
     with pytest.raises(AuthenticationRequired):
         service.refresh(result.refresh_token, facts())
