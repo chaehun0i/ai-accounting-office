@@ -21,14 +21,16 @@ class Settings(BaseSettings):
             try:
                 TypeAdapter(kind).validate_python(value.get_secret_value())
             except ValueError:
-                raise ValueError("Invalid dependency URL") from None
+                raise ValueError("연결 주소의 형식이 올바르지 않습니다.") from None
         origin = self.frontend_origin
         if origin.username or origin.password or origin.query or origin.fragment:
-            raise ValueError("Frontend origin must not contain credentials, query or fragment")
+            raise ValueError(
+                "프론트엔드 주소에는 로그인 정보, 쿼리 또는 프래그먼트를 넣을 수 없습니다."
+            )
         if origin.path not in (None, "/"):
-            raise ValueError("Frontend origin must not contain a path")
+            raise ValueError("프론트엔드 주소는 경로 없이 입력해 주세요.")
         if self.app_environment in ("staging", "production") and origin.scheme != "https":
-            raise ValueError("Deployed frontend origin must use HTTPS")
+            raise ValueError("스테이징과 운영 환경의 프론트엔드 주소는 HTTPS를 사용해야 합니다.")
         return self
 
 
@@ -36,5 +38,7 @@ def load_settings() -> Settings:
     try:
         return Settings()
     except ValueError:
-        # Do not let Pydantic/uvicorn startup diagnostics reveal input credentials.
-        raise RuntimeError("Invalid configuration; check the environment contract") from None
+        # 시작 실패 진단에 입력된 비밀번호 등 민감정보가 노출되지 않도록 합니다.
+        raise RuntimeError(
+            "설정을 확인해 주세요. 필수 환경변수와 값의 형식은 docs/environment.md를 참고해 주세요."
+        ) from None

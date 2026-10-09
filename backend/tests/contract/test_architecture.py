@@ -1,4 +1,4 @@
-"""Static dependency guard; dynamic imports are forbidden in agents/llm."""
+"""Agent/LLM의 정적 의존성 경계를 검사하며 동적 import를 금지합니다."""
 
 import ast
 from pathlib import Path

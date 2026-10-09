@@ -1,4 +1,4 @@
-# Pinned development/runtime dependencies; refresh intentionally with pip freeze.
+# 개발·실행 의존성의 버전을 고정합니다. 갱신할 때 pip freeze 결과를 검토하세요.
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1

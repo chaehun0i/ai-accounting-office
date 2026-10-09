@@ -42,7 +42,7 @@ def test_invalid_configuration(monkeypatch: pytest.MonkeyPatch, key: str, value:
     monkeypatch.setenv(key, value)
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
-    with pytest.raises(RuntimeError, match="Invalid configuration") as caught:
+    with pytest.raises(RuntimeError, match="설정을 확인해 주세요") as caught:
         load_settings()
     assert "private-password" not in str(caught.value)
 

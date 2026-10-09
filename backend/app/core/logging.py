@@ -2,7 +2,7 @@ import logging
 
 
 def configure_logging() -> None:
-    # Application events contain only fixed messages and generated request IDs.
+    # 앱 로그에는 고정된 메시지와 서버가 생성한 요청 ID만 기록합니다.
     logger = logging.getLogger("accounting_office")
     if not logger.handlers:
         handler = logging.StreamHandler()

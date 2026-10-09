@@ -1,4 +1,4 @@
-"""Cross-platform entry points. Run from repository root."""
+"""운영체제에 관계없이 사용할 수 있는 개발 명령입니다. 저장소 루트에서 실행하세요."""
 
 import argparse
 import shutil
@@ -18,7 +18,9 @@ def main() -> None:
     if args.command == "env":
         target = ROOT / ".env"
         if target.exists():
-            parser.exit(message=".env already exists; no changes made\n")
+            parser.exit(
+                message=".env 파일이 이미 있어 기존 설정을 그대로 사용합니다.\n"
+            )
         shutil.copyfile(ROOT / ".env.example", target)
         return
     if args.command.startswith("infra-"):
@@ -34,7 +36,7 @@ def main() -> None:
         subprocess.run(command, cwd=ROOT, check=True)
         return
     sys.path.insert(0, str(ROOT / "backend"))
-    # Settings resolves root .env relative to the backend working directory.
+    # backend 작업 디렉터리를 기준으로 루트의 .env 파일을 읽습니다.
     import os
 
     import uvicorn

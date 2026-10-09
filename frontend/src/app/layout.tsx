@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "AI Accounting Office",
-  description: "회계·세무 업무를 위한 개발 기반",
+  description: "회계와 세무 업무를 한곳에서 관리하는 서비스",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

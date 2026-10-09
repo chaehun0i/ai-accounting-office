@@ -1,1 +1,1 @@
-"""jobs: reserved module boundary; no business implementation yet."""
+"""작업 실행 이력 모듈의 경계입니다. 업무 기능은 아직 구현하지 않았습니다."""

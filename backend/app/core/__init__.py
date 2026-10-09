@@ -1,1 +1,1 @@
-"""core: reserved module boundary; no business implementation yet."""
+"""환경 설정, 오류 처리, 로깅 등 공통 기반을 제공합니다."""

@@ -1,1 +1,1 @@
-"""companies: reserved module boundary; no business implementation yet."""
+"""회사 모듈의 경계입니다. 업무 기능은 아직 구현하지 않았습니다."""
