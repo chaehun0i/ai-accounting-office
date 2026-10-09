@@ -15,6 +15,7 @@ from app.core.logging import configure_logging
 from app.health import router as health_router
 from app.identity.auth.api.router import router as auth_router
 from app.identity.invitations.api.router import router as invitations_router
+from app.intake.api.router import router as intake_router
 
 
 class RequestIdMiddleware:
@@ -78,10 +79,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[str(settings.frontend_origin).rstrip("/")],
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Protection", "X-Company-ID"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-CSRF-Protection",
+            "X-Company-ID",
+            "Idempotency-Key",
+        ],
         allow_credentials=True,
     )
+    app.include_router(intake_router)
     app.include_router(accounting_router)
     app.include_router(health_router)
     app.include_router(auth_router)
