@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ai-accounting-office-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["fastapi>=0.115,<1", "pydantic-settings>=2.8,<3", "uvicorn>=0.34,<1"]
+dependencies = ["fastapi>=0.115,<1", "pydantic-settings>=2.8,<3", "uvicorn>=0.34,<1", "sqlalchemy>=2.0,<2.1", "alembic>=1.16,<2", "psycopg[binary]>=3.2,<4"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
