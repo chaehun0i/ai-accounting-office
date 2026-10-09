@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from app.intake.domain.canonical_fields import SourceType, TargetContext
 
@@ -52,7 +51,14 @@ class PreviewCommand(Command):
 
 class ConfirmCommand(PreviewCommand):
     preview_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
-    confirmed: Literal[True]
+    confirmed: StrictBool
+
+    @field_validator("confirmed")
+    @classmethod
+    def require_consent(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("자료 확인 후 동의해 주세요.")
+        return value
 
 
 class MappingRead(BaseModel):

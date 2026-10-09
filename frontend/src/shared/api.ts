@@ -1,5 +1,6 @@
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
 export async function request<T>(path: string, init: RequestInit = {}, access?: string | null): Promise<T> {

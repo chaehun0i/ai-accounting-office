@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 from starlette.requests import Request as FormRequest
@@ -28,7 +29,7 @@ from app.intake.api.schemas import (
     ValidationErrorRead,
 )
 from app.intake.application.service import IntakeService
-from app.intake.domain.canonical_fields import SCHEMAS, Mapping
+from app.intake.domain.canonical_fields import SCHEMAS, Mapping, SourceType, TargetContext
 from app.intake.domain.errors import IntakeFileError
 
 router = APIRouter(prefix="/imports", tags=["자료 가져오기"])
@@ -46,7 +47,43 @@ def intake(container: Container) -> IntakeService:
 Service = Annotated[IntakeService, Depends(intake)]
 
 
-@router.post("", response_model=ImportRead, status_code=201, dependencies=[Depends(csrf)])
+@router.post(
+    "",
+    response_model=ImportRead,
+    status_code=201,
+    dependencies=[Depends(csrf)],
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["file", "source_type"],
+                        "additionalProperties": False,
+                        "properties": {
+                            "file": {"type": "string", "format": "binary"},
+                            "source_type": {
+                                "type": "string",
+                                "enum": [s.value for s in SourceType],
+                            },
+                            "target_context": {
+                                "type": "string",
+                                "enum": [s.value for s in TargetContext],
+                                "default": "TRANSACTION_CANONICAL",
+                            },
+                            "source_system": {
+                                "type": "string",
+                                "default": "FILE_UPLOAD",
+                                "pattern": "^[A-Za-z0-9_.:-]{1,80}$",
+                            },
+                        },
+                    },
+                }
+            },
+        }
+    },
+)
 async def upload(
     request: Request, actor: Actor, company_id: CompanyScope, service: Service
 ) -> ImportRead:
@@ -69,7 +106,8 @@ async def upload(
                 raise InvalidInput()
             fields = {k: v for k, v in form.items() if k != "file"}
             command = UploadCommand.model_validate(fields)
-            value = service.upload(
+            value = await run_in_threadpool(
+                service.upload,
                 actor,
                 company_id,
                 source=command.source_type,

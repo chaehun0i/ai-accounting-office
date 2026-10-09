@@ -37,7 +37,11 @@ class LocalObjectStorage:
             with path.open("xb") as stream:
                 stream.write(content)
         except OSError:
-            path.unlink(missing_ok=True)
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                # 정리도 불가능하면 원문 경로 없이 안전한 오류만 반환합니다.
+                pass
             raise StorageUnavailable() from None
         return key
 

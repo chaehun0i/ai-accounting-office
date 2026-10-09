@@ -81,3 +81,70 @@ def test_unsafe_input_is_rejected(filename: str, content: bytes, mime: str) -> N
 def test_workbook_security_preflight(extra: dict[str, bytes], cell: str) -> None:
     with pytest.raises(IntakeFileError):
         parse_file("data.xlsx", workbook(extra, cell), XLSX_MIME)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"a\n" + b"1\n" * 1001,
+        b",".join(f"c{i}".encode() for i in range(41)) + b"\n" + b",".join([b"1"] * 41),
+        b"a\n" + b"x" * 4001,
+        b"=CMD()\nvalue",
+        b"a\n1,2",
+    ],
+    ids=["rows", "columns", "cell", "header-formula", "width"],
+)
+def test_csv_resource_limits(content: bytes) -> None:
+    with pytest.raises(IntakeFileError):
+        parse_file("data.csv", content, "text/csv")
+
+
+def test_zip_entry_limit_and_utf16_entity_declaration() -> None:
+    with pytest.raises(IntakeFileError):
+        parse_file("data.xlsx", workbook({f"entry{i}.txt": b"x" for i in range(101)}), XLSX_MIME)
+    with pytest.raises(IntakeFileError):
+        parse_file(
+            "data.xlsx", workbook({"utf16.xml": "<!DOCTYPE x><x/>".encode("utf-16")}), XLSX_MIME
+        )
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {
+            "safe.rels": (
+                b'<Relationships><Relationship Type="x/oleObject" '
+                b'Target="object.bin"/></Relationships>'
+            )
+        },
+        {"safe.xml": b"<root><oleObject/></root>"},
+        {"nodes.xml": b"<root>" + b"<x/>" * 500_001 + b"</root>"},
+    ],
+    ids=["ole-relation", "ole-element", "xml-node-limit"],
+)
+def test_nonstandard_embedded_objects_and_xml_node_exhaustion(extra: dict[str, bytes]) -> None:
+    with pytest.raises(IntakeFileError):
+        parse_file("data.xlsx", workbook(extra), XLSX_MIME)
+
+
+@pytest.mark.parametrize(
+    "epoch,value,expected",
+    [
+        (False, "61", "1900-03-01"),
+        (True, "60", "1904-03-01"),
+    ],
+)
+def test_excel_date_epoch_is_deterministic(epoch: bool, value: str, expected: str) -> None:
+    original = workbook(cell=f"<v>{value}</v>")
+    output = BytesIO()
+    with ZipFile(BytesIO(original)) as source, ZipFile(output, "w") as target:
+        for entry in source.infolist():
+            data = source.read(entry)
+            if entry.filename == "xl/workbook.xml" and epoch:
+                data = data.replace(b"<sheets>", b'<workbookPr date1904="1"/><sheets>')
+            target.writestr(entry.filename, data)
+        target.writestr(
+            "xl/styles.xml",
+            '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs><xf numFmtId="14"/></cellXfs></styleSheet>',
+        )  # noqa: E501
+    assert parse_file("dates.xlsx", output.getvalue(), XLSX_MIME).sheets[0].rows[0][0] == expected

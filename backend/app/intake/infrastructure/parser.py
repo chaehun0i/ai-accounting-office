@@ -20,6 +20,7 @@ MAX_SHEETS = 5
 MAX_CELL = 4000
 MAX_ENTRIES = 100
 MAX_EXPANDED_BYTES = 20_000_000
+MAX_XML_MARKUP = 500_000
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -51,7 +52,7 @@ def safe_cell(value: str) -> str:
 def table(index: int, name: str, rows: list[list[str]]) -> Sheet:
     if len(rows) < 2 or len(rows) > MAX_ROWS + 1:
         raise IntakeFileError()
-    headers = tuple(v.strip() for v in rows[0])
+    headers = tuple(safe_cell(v.strip()) for v in rows[0])
     if (
         not headers
         or len(headers) > MAX_COLUMNS
@@ -100,6 +101,7 @@ def parse_xlsx(content: bytes) -> Workbook:
         ):
             raise IntakeFileError()
         documents: dict[str, ET.Element] = {}
+        markup_count = 0
         for entry in entries:
             path = entry.filename
             low = path.lower()
@@ -109,15 +111,57 @@ def parse_xlsx(content: bytes) -> Workbook:
                 or path.startswith("/")
                 or ".." in PurePosixPath(path).parts
                 or ":" in path
-                or any(v in low for v in ("vba", "macro", "externallink", "embeddings", "activex"))
+                or any(
+                    v in low
+                    for v in (
+                        "vba",
+                        "macro",
+                        "externallink",
+                        "embeddings",
+                        "activex",
+                        "connections",
+                        "querytables",
+                        "drawings",
+                        "media/",
+                        "customxml",
+                    )
+                )
             ):
                 raise IntakeFileError()
             if low.endswith((".xml", ".rels")):
-                root = xml(archive.read(entry))
+                data = archive.read(entry)
+                markup_count += data.count(b"<")
+                if markup_count > MAX_XML_MARKUP:
+                    raise IntakeFileError()
+                root = xml(data)
                 if "macroenabled" in ET.tostring(root, encoding="unicode").lower():
                     raise IntakeFileError()
                 if low.endswith(".rels") and any(
-                    item.get("TargetMode", "").lower() == "external" for item in root
+                    item.get("TargetMode", "").lower() == "external"
+                    or any(
+                        kind in item.get("Type", "").lower()
+                        for kind in (
+                            "oleobject",
+                            "activex",
+                            "vbaproject",
+                            "externallink",
+                            "/package",
+                            "/control",
+                        )
+                    )
+                    for item in root
+                ):
+                    raise IntakeFileError()
+                if any(
+                    node.tag.rsplit("}", 1)[-1]
+                    in {
+                        "oleObject",
+                        "oleObjects",
+                        "control",
+                        "controls",
+                        "externalReference",
+                    }
+                    for node in root.iter()
                 ):
                     raise IntakeFileError()
                 documents[path] = root
@@ -160,7 +204,7 @@ def parse_xlsx(content: bytes) -> Workbook:
                 values: dict[int, str] = {}
                 for cell in row.findall(f"{NS}c"):
                     reference = cell.get("r", "")
-                    if not reference.endswith(str(row_no)):
+                    if not re.fullmatch(r"[A-Z]{1,3}" + str(row_no), reference):
                         raise IntakeFileError()
                     col = column_number(reference)
                     if col in values:
@@ -178,7 +222,11 @@ def parse_xlsx(content: bytes) -> Workbook:
                         raise IntakeFileError()
                     elif kind == "n" and value and int(cell.get("s", "0")) in date_styles:
                         serial = Decimal(value)
-                        if serial != serial.to_integral_value() or serial < 0 or serial == 60:
+                        if (
+                            serial != serial.to_integral_value()
+                            or serial < 0
+                            or (not is_1904 and serial == 60)
+                        ):
                             raise IntakeFileError()
                         days = int(serial)
                         origin = date(1904, 1, 1) if is_1904 else date(1899, 12, 31)
@@ -203,7 +251,13 @@ def parse_file(filename: str, content: bytes, content_type: str) -> Workbook:
     extension = PurePosixPath(filename).suffix.lower()
     try:
         if extension == ".csv":
-            if content_type not in {"text/csv", "text/plain", "application/octet-stream"}:
+            if content.startswith(b"PK") or content_type not in {
+                "text/csv",
+                "text/plain",
+                "application/octet-stream",
+                "application/csv",
+                "application/vnd.ms-excel",
+            }:
                 raise IntakeFileError()
             reader = csv.reader(StringIO(content.decode("utf-8-sig"), newline=""), strict=True)
             rows: list[list[str]] = []
