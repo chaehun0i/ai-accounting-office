@@ -35,3 +35,8 @@ Backend 필수값 누락/잘못된 설정은 application factory에서 고정 �
 Alembic은 backend에서 실행하며 같은 환경변수 우선순위와 `.env`를 사용합니다. ini에는 접속 주소를 넣지 않습니다. 통합 검사는 `.env`의 개발 DB를 자동 재사용하지 않으며 OS의 TEST_POSTGRES_URL을 별도로 요구합니다. 테스트 주소에 실제 운영 credential을 쓰지 마세요.
 
 인증 키가 없는 local/test에서는 /health가 정상 동작하고 인증 요청은 안전한 503을 반환합니다. 기존 .env에는 `python scripts/dev.py auth-key`로 키를 추가하세요. 운영은 HTTPS, Secure cookie와 별도 비밀 관리가 필요합니다. 자세한 전송 정책은 [Identity/Company](identity-company.md)를 참고하세요.
+
+
+## 원본 파일 저장 위치
+
+`STORAGE_ROOT`는 backend 실행 경로 기준 로컬 저장소 디렉터리이며 기본값은 `../.local/storage`입니다. 생성 시 디렉터리를 만들지 않고 실제 업로드 때만 생성합니다. 애플리케이션 운영 계정만 쓸 수 있는 위치를 지정하고 별도 백업·보존 정책을 적용하세요. 원본 파일은 DB 외부에 보관하며 key에 사용자 filename을 사용하지 않습니다. [.env.example](../.env.example)은 로컬 placeholder만 포함합니다.
