@@ -1,0 +1,1 @@
+"""AI Accounting Office backend."""
