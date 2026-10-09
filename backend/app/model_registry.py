@@ -27,3 +27,16 @@ __all__ += [
     "MembershipModel",
     "InvitationModel",
 ]
+
+# 회계 Master 모델은 명시적으로 등록하고 import 시 연결하지 않습니다.
+from app.accounting.accounts.infrastructure import models as accounts_models  # noqa: F401, E402
+from app.accounting.periods.infrastructure import models as periods_models  # noqa: F401, E402
+from app.accounting.sequences.infrastructure import models as sequences_models  # noqa: F401, E402
+from app.accounting.settings.infrastructure import models as settings_models  # noqa: F401, E402
+from app.accounting.templates.infrastructure import models as templates_models  # noqa: F401, E402
+from app.master_data.counterparties.infrastructure import (  # noqa: E402
+    models as counterparties_models,  # noqa: F401, E402
+)
+from app.master_data.payment_terms.infrastructure import (  # noqa: E402
+    models as payment_terms_models,  # noqa: F401, E402
+)
