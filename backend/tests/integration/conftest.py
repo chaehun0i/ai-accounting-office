@@ -100,12 +100,15 @@ def auth_service(identity_database: Engine) -> Iterator[tuple[AuthService, Conne
 def api_client(auth_service: tuple[AuthService, Connection], settings: Settings):
     from fastapi.testclient import TestClient
 
+    from app.accounting.application.service import AccountingMasterService
+    from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
     from app.companies.application.service import CompanyService
     from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWork
     from app.composition import Services
     from app.identity.invitations.application.service import InvitationService
     from app.identity.invitations.infrastructure.unit_of_work import InvitationSQLAlchemyUnitOfWork
     from app.main import create_app
+    from app.master_data.application.service import MasterDataService
 
     auth, connection = auth_service
     factory = sessionmaker(
@@ -120,6 +123,8 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings)
         auth,
         CompanyService(lambda: CompanySQLAlchemyUnitOfWork(factory)),
         InvitationService(lambda: InvitationSQLAlchemyUnitOfWork(factory)),
+        AccountingMasterService(lambda: MasterSQLAlchemyUnitOfWork(factory)),
+        MasterDataService(lambda: MasterSQLAlchemyUnitOfWork(factory)),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
         yield client

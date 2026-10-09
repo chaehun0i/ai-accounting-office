@@ -42,3 +42,21 @@ def seed_default_coa(session: Session) -> None:
         )
         if saved is None or any(getattr(saved, k) != v for k, v in asdict(row).items()):
             raise StateConflict()
+
+
+def main() -> None:
+    from app.core.config import load_settings
+    from app.core.database.engine import create_database_engine
+    from app.core.database.session import create_session_factory
+    from app.core.database.unit_of_work import SQLAlchemyUnitOfWork
+
+    engine = create_database_engine(load_settings())
+    try:
+        with SQLAlchemyUnitOfWork(create_session_factory(engine)) as uow:
+            seed_default_coa(uow.session)
+    finally:
+        engine.dispose()
+
+
+if __name__ == "__main__":
+    main()

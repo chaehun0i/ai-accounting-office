@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from sqlalchemy import Engine
 
+from app.accounting.application.service import AccountingMasterService
+from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
 from app.companies.application.service import CompanyService
 from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWork
 from app.core.config import Settings
@@ -14,6 +16,7 @@ from app.identity.auth.application.service import AuthService
 from app.identity.infrastructure.unit_of_work import IdentitySQLAlchemyUnitOfWork
 from app.identity.invitations.application.service import InvitationService
 from app.identity.invitations.infrastructure.unit_of_work import InvitationSQLAlchemyUnitOfWork
+from app.master_data.application.service import MasterDataService
 
 
 @dataclass(frozen=True)
@@ -21,6 +24,8 @@ class Services:
     auth: AuthService | None
     companies: CompanyService
     invitations: InvitationService
+    accounting: AccountingMasterService | None = None
+    master_data: MasterDataService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -41,4 +46,6 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         auth,
         CompanyService(lambda: CompanySQLAlchemyUnitOfWork(sessions)),
         InvitationService(lambda: InvitationSQLAlchemyUnitOfWork(sessions)),
+        AccountingMasterService(lambda: MasterSQLAlchemyUnitOfWork(sessions)),
+        MasterDataService(lambda: MasterSQLAlchemyUnitOfWork(sessions)),
     )
