@@ -145,6 +145,7 @@ def test_excel_date_epoch_is_deterministic(epoch: bool, value: str, expected: st
             target.writestr(entry.filename, data)
         target.writestr(
             "xl/styles.xml",
-            '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs><xf numFmtId="14"/></cellXfs></styleSheet>',
+            '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            '<cellXfs><xf numFmtId="14"/></cellXfs></styleSheet>',
         )  # noqa: E501
     assert parse_file("dates.xlsx", output.getvalue(), XLSX_MIME).sheets[0].rows[0][0] == expected

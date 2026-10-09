@@ -97,7 +97,7 @@ def auth_service(identity_database: Engine) -> Iterator[tuple[AuthService, Conne
 
 
 @pytest.fixture
-def api_client(auth_service: tuple[AuthService, Connection], settings: Settings):
+def api_client(auth_service: tuple[AuthService, Connection], settings: Settings, tmp_path: Path):
     from fastapi.testclient import TestClient
 
     from app.accounting.application.service import AccountingMasterService
@@ -107,8 +107,12 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings)
     from app.composition import Services
     from app.identity.invitations.application.service import InvitationService
     from app.identity.invitations.infrastructure.unit_of_work import InvitationSQLAlchemyUnitOfWork
+    from app.intake.application.service import IntakeService
+    from app.intake.infrastructure.parser import parse_file
+    from app.intake.infrastructure.unit_of_work import IntakeSQLAlchemyUnitOfWork
     from app.main import create_app
     from app.master_data.application.service import MasterDataService
+    from app.storage.infrastructure.local import LocalObjectStorage
 
     auth, connection = auth_service
     factory = sessionmaker(
@@ -125,6 +129,9 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings)
         InvitationService(lambda: InvitationSQLAlchemyUnitOfWork(factory)),
         AccountingMasterService(lambda: MasterSQLAlchemyUnitOfWork(factory)),
         MasterDataService(lambda: MasterSQLAlchemyUnitOfWork(factory)),
+        IntakeService(
+            lambda: IntakeSQLAlchemyUnitOfWork(factory), LocalObjectStorage(tmp_path), parse_file
+        ),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
         yield client
