@@ -59,3 +59,16 @@ def test_cors_is_explicit(settings: Settings) -> None:
             ]
             == "http://localhost:3000"
         )
+
+
+def test_unhandled_error_does_not_escape(settings: Settings) -> None:
+    app = create_app(settings)
+
+    @app.get("/failure")
+    def failure() -> None:
+        raise RuntimeError("private-password")
+
+    with TestClient(app) as client:
+        response = client.get("/failure")
+        assert response.status_code == 500
+        assert "private-password" not in response.text
