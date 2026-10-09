@@ -1,7 +1,7 @@
 name: Quality
 on:
   push:
-    branches: [main, feat/repository-skeleton, feat/database-foundation]
+    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company]
   pull_request:
 permissions:
   contents: read
@@ -65,6 +65,9 @@ jobs:
       - run: python -m alembic current --check-heads
       - run: python -m alembic check
       - run: python -m pytest tests/integration --require-postgres
+      - run: python -m app.companies.infrastructure.seed
+      - run: python -m app.companies.infrastructure.seed
+      - run: python -m alembic check
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -81,6 +84,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run typecheck
       - run: npm run build
   infrastructure:

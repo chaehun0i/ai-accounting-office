@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     backend_port: int = Field(default=8000, ge=1, le=65535)
     frontend_origin: HttpUrl = HttpUrl("http://localhost:3000")
 
+    auth_signing_key: SecretStr | None = None
+    access_token_ttl_seconds: int = Field(default=600, ge=60, le=900)
+    refresh_token_ttl_seconds: int = Field(default=2592000, ge=3600, le=2592000)
+
     @model_validator(mode="after")
     def validate_connection_urls(self) -> Self:
         for value, kind in [(self.postgres_url, PostgresDsn), (self.redis_url, RedisDsn)]:
@@ -31,6 +35,19 @@ class Settings(BaseSettings):
             raise ValueError("프론트엔드 주소는 경로 없이 입력해 주세요.")
         if self.app_environment in ("staging", "production") and origin.scheme != "https":
             raise ValueError("스테이징과 운영 환경의 프론트엔드 주소는 HTTPS를 사용해야 합니다.")
+        if (
+            self.auth_signing_key is not None
+            and len(self.auth_signing_key.get_secret_value().encode()) < 32
+        ):
+            raise ValueError("인증 서명 키는 32바이트 이상으로 설정해 주세요.")
+        if self.app_environment in ("staging", "production") and self.auth_signing_key is None:
+            raise ValueError("운영 인증 서명 키를 설정해 주세요.")
+        if (
+            self.app_environment in ("staging", "production")
+            and self.auth_signing_key is not None
+            and "placeholder" in self.auth_signing_key.get_secret_value().lower()
+        ):
+            raise ValueError("운영 인증에는 예제 서명 키를 사용할 수 없습니다.")
         return self
 
 

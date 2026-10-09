@@ -33,9 +33,9 @@ Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repo
 
 ## 데이터베이스와 후속 범위
 
-SQLAlchemy/Alembic, strict UUID/Decimal/UTC 타입, UoW와 회사 범위를 필수로 받는 Repository Protocol이 존재합니다. 업무 테이블은 없으며 baseline은 Alembic의 version 상태만 관리합니다. 자동 create_all은 없습니다.
+SQLAlchemy/Alembic, strict UUID/Decimal/UTC 타입, UoW와 회사 범위를 필수로 받는 Repository Protocol이 존재합니다. baseline 위에 Identity/Company 업무 테이블 10개를 001/002 revision으로 등록합니다. 자동 create_all은 없습니다.
 
-[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 다음 범위는 Identity/Company입니다.
+[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 현재 Identity/Company 구조와 구현 결정을 [인증·회사 계약](identity-company.md)에 기록했습니다. 다음 범위는 Accounting Master입니다.
 
 ## 품질 도구 결정
 

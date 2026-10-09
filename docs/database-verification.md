@@ -1,3 +1,5 @@
+> 이전 구현 범위의 기록입니다. 현재 상태는 [Identity/Company](identity-company.md)와 [현재 검증](identity-verification.md)을 참고하세요.
+
 # DB Foundation 검증 기록
 
 검증일: 2026-10-09 (Asia/Seoul). 기준 main `f8125cd3e3fc724616eabf8142466c868fe12a82`, 작업 branch `feat/database-foundation`. 원격 fetch/pull 후 PR #1 병합과 열린 PR/Issue 없음을 확인했습니다.

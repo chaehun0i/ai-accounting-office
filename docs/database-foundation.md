@@ -1,3 +1,5 @@
+> 이전 구현 범위의 기록입니다. 현재 상태는 [Identity/Company](identity-company.md)와 [현재 검증](identity-verification.md)을 참고하세요.
+
 # DB Foundation 구조와 마이그레이션 정책
 
 단일 기준선은 [AI_Accounting_Office_v0.2.3_통합설계_구현보강](https://drive.google.com/drive/folders/17FO3EYPA64MItPL-_RQbgg1NhKr4I5mn)입니다. Repository Skeleton 다음 단계까지만 구현하며 업무 Entity/API/테이블은 없습니다.
