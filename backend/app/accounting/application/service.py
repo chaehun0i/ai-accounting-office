@@ -1,0 +1,157 @@
+from collections.abc import Callable
+from dataclasses import replace
+from uuid import UUID, uuid4
+
+from app.accounting.accounts.domain.entities import Account
+from app.accounting.application.contracts import MasterUnitOfWork
+from app.accounting.domain.rules import monthly_periods, validate_account, validate_hierarchy
+from app.accounting.periods.domain.entities import Period
+from app.accounting.settings.domain.entities import AccountingSettings
+from app.accounting.templates.domain.entities import Template
+from app.companies.application.service import require_company
+from app.contracts.access_errors import ResourceNotFound, StateConflict, VersionConflict
+from app.identity.users.domain.entities import Principal
+from app.master_data.domain.rules import validate_currency
+
+
+class AccountingMasterService:
+    def __init__(self, factory: Callable[[], MasterUnitOfWork]) -> None:
+        self.factory = factory
+
+    def settings(self, principal: Principal, company_id: UUID) -> AccountingSettings:
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "account.read")
+            value = uow.settings.get(company_id)
+            if value is None:
+                raise ResourceNotFound()
+            return value
+
+    def initialize(
+        self,
+        principal: Principal,
+        company_id: UUID,
+        *,
+        fiscal_year: int,
+        template_id: UUID,
+        functional_currency_code: str = "KRW",
+        fiscal_year_start_month: int = 1,
+    ) -> AccountingSettings:
+        validate_currency(functional_currency_code)
+        dates = monthly_periods(fiscal_year, fiscal_year_start_month)
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "company.accounting_settings.update")
+            current = uow.settings.get(company_id)
+            if current:
+                accounts = uow.accounts.list(company_id)
+                source_ids = {row.id for row in uow.templates.accounts(template_id)}
+                years = {row.fiscal_year for row in uow.periods.list(company_id)}
+                if (
+                    current.functional_currency_code != functional_currency_code
+                    or current.fiscal_year_start_month != fiscal_year_start_month
+                    or fiscal_year not in years
+                    or not accounts
+                    or any(row.template_account_id not in source_ids for row in accounts)
+                ):
+                    raise StateConflict()
+                return current
+            template = next((row for row in uow.templates.list() if row.id == template_id), None)
+            if template is None or template.valid_from > dates[0][1]:
+                raise ResourceNotFound()
+            source = uow.templates.accounts(template.id)
+            if not source:
+                raise StateConflict()
+            validate_hierarchy({row.account_code: row.parent_code for row in source})
+            current = AccountingSettings(
+                company_id=company_id,
+                functional_currency_code=functional_currency_code,
+                fiscal_year_start_month=fiscal_year_start_month,
+                created_at=uow.now(),
+                updated_at=uow.now(),
+            )
+            uow.settings.add(current)
+            ids = {row.account_code: uuid4() for row in source}
+            remaining = list(source)
+            inserted: set[str] = set()
+            while remaining:
+                for row in remaining[:]:
+                    if row.parent_code is not None and row.parent_code not in inserted:
+                        continue
+                    validate_account(row.account_type, row.normal_balance, row.is_contra)
+                    uow.accounts.add(
+                        Account(
+                            id=ids[row.account_code],
+                            company_id=company_id,
+                            template_account_id=row.id,
+                            account_code=row.account_code,
+                            account_name=row.account_name,
+                            account_type=row.account_type,
+                            normal_balance=row.normal_balance,
+                            posting_allowed=row.posting_allowed,
+                            is_contra=row.is_contra,
+                            parent_account_id=ids.get(row.parent_code or ""),
+                            created_at=uow.now(),
+                            updated_at=uow.now(),
+                        )
+                    )
+                    inserted.add(row.account_code)
+                    remaining.remove(row)
+            for no, start, end in dates:
+                uow.periods.add(
+                    Period(
+                        company_id=company_id,
+                        fiscal_year=fiscal_year,
+                        period_no=no,
+                        start_date=start,
+                        end_date=end,
+                        created_at=uow.now(),
+                        updated_at=uow.now(),
+                    )
+                )
+            uow.sequences.ensure(company_id, fiscal_year, "JOURNAL")
+            return current
+
+    def update_settings(
+        self,
+        principal: Principal,
+        company_id: UUID,
+        expected_version: int,
+        *,
+        journal_number_prefix: str | None = None,
+        allow_manual_journal: bool | None = None,
+    ) -> AccountingSettings:
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "company.accounting_settings.update")
+            current = uow.settings.get(company_id)
+            if current is None:
+                raise ResourceNotFound()
+            if current.version != expected_version:
+                raise VersionConflict()
+            value = replace(
+                current,
+                journal_number_prefix=journal_number_prefix
+                if journal_number_prefix is not None
+                else current.journal_number_prefix,
+                allow_manual_journal=allow_manual_journal
+                if allow_manual_journal is not None
+                else current.allow_manual_journal,
+                version=current.version + 1,
+                updated_at=uow.now(),
+            )
+            if not uow.settings.update(value, expected_version):
+                raise VersionConflict()
+            return value
+
+    def accounts(self, principal: Principal, company_id: UUID) -> list[Account]:
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "account.read")
+            return uow.accounts.list(company_id)
+
+    def periods(self, principal: Principal, company_id: UUID) -> list[Period]:
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "period.read")
+            return uow.periods.list(company_id)
+
+    def templates(self, principal: Principal, company_id: UUID) -> list[Template]:
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "account.read")
+            return uow.templates.list()
