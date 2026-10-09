@@ -6,7 +6,9 @@ from app.core.config import Settings, load_settings
 
 def test_environment_parsing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("APP_ENVIRONMENT", "test")
-    monkeypatch.setenv("POSTGRES_URL", "postgresql://local:private-password@localhost:5432/accounting")
+    monkeypatch.setenv(
+        "POSTGRES_URL", "postgresql://local:private-password@localhost:5432/accounting"
+    )
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("BACKEND_PORT", "8100")
     settings = Settings(_env_file=None)
@@ -22,11 +24,17 @@ def test_missing_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
         Settings(_env_file=None)
 
 
-@pytest.mark.parametrize("key,value", [
-    ("APP_ENVIRONMENT", "unknown"), ("BACKEND_PORT", "0"),
-    ("BACKEND_PORT", "65536"), ("POSTGRES_URL", "https://private-password.example"),
-    ("REDIS_URL", "not-a-url"), ("FRONTEND_ORIGIN", "http://localhost:3000/path"),
-])
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("APP_ENVIRONMENT", "unknown"),
+        ("BACKEND_PORT", "0"),
+        ("BACKEND_PORT", "65536"),
+        ("POSTGRES_URL", "https://private-password.example"),
+        ("REDIS_URL", "not-a-url"),
+        ("FRONTEND_ORIGIN", "http://localhost:3000/path"),
+    ],
+)
 def test_invalid_configuration(monkeypatch: pytest.MonkeyPatch, key: str, value: str) -> None:
     monkeypatch.setenv("APP_ENVIRONMENT", "test")
     monkeypatch.setenv("POSTGRES_URL", "postgresql://local:placeholder@localhost:5432/accounting")

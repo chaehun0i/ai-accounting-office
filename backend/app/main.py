@@ -23,7 +23,12 @@ class RequestIdMiddleware:
 
         async def send_with_id(message: Message) -> None:
             if message["type"] == "http.response.start":
-                message.setdefault("headers", []).append((b"x-request-id", request_id.encode()))
+                message["headers"] = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower() != b"x-request-id"
+                ]
+                message["headers"].append((b"x-request-id", request_id.encode()))
             await send(message)
 
         await self.app(scope, receive, send_with_id)
