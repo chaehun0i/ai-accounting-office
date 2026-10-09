@@ -42,6 +42,12 @@ class Settings(BaseSettings):
             raise ValueError("인증 서명 키는 32바이트 이상으로 설정해 주세요.")
         if self.app_environment in ("staging", "production") and self.auth_signing_key is None:
             raise ValueError("운영 인증 서명 키를 설정해 주세요.")
+        if (
+            self.app_environment in ("staging", "production")
+            and self.auth_signing_key is not None
+            and "placeholder" in self.auth_signing_key.get_secret_value().lower()
+        ):
+            raise ValueError("운영 인증에는 예제 서명 키를 사용할 수 없습니다.")
         return self
 
 
