@@ -2,14 +2,14 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company**입니다. 관계형 사용자·세션·회사·권한·초대, refresh rotation/reuse detection과 회사 선택 UI를 제공합니다. [인증·회사 구조와 보안 계약](docs/identity-company.md), [기존 코드 활용 기록](docs/source-patterns.md)을 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master**입니다. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반을 제공합니다. [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
 
 ## 설계 기준과 원칙
 
 단일 기준선: [AI_Accounting_Office_v0.2.3_통합설계_구현보강](https://drive.google.com/drive/folders/17FO3EYPA64MItPL-_RQbgg1NhKr4I5mn).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
 
-- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. Identity/Company 업무 테이블 10개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
+- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 22개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
 - **정본 분리**: accounting은 회계 장부, tax는 세무 계산·신고, evidence는 증빙/provenance, jobs/agents/tool executions는 실행 이력을 소유합니다.
 - **Agent 경계**: Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repository. Agent는 ORM/Session/SQL/Repository에 직접 접근하지 않습니다.
 - **Deterministic calculation**: 금액·세금·잔액·집계는 Decimal, Domain Rule, Application Service와 결정적 query/calculation이 소유합니다. LLM이 계산하지 않습니다.
@@ -21,7 +21,7 @@
 backend/app/     FastAPI 및 독립적인 업무 모듈 경계
 backend/app/contracts/       ORM에 의존하지 않는 오류·UoW·Repository 계약
 backend/app/core/database/  SQLAlchemy persistence primitive
-backend/migrations/         Alembic 환경과 Identity/Company migration
+backend/migrations/         Alembic 환경과 Identity/Company/Master migration
 backend/tests/              unit, PostgreSQL integration, contract, golden
 frontend/src/   app, features, shared
 infra/          PostgreSQL/Redis Docker Compose
@@ -95,6 +95,7 @@ python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 python -m alembic upgrade head
 python -m app.companies.infrastructure.seed
+python -m app.accounting.templates.infrastructure.seed
 cd ..
 python scripts/dev.py backend-run
 ```
@@ -183,9 +184,11 @@ python -m pytest --require-postgres
 
 ## 제외 범위와 다음 구현
 
-회계·세무·증빙 업무, Approval/Audit 전체 Domain, Agent workflow, LLM, 실제 업무 Tool, Idempotency persistence, Excel Import는 미구현입니다. 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
+Transaction/Journal/세무/증빙 업무, Approval/Audit 전체 Domain, Agent workflow, LLM, 실제 업무 Tool, Idempotency persistence, Excel Import는 미구현입니다. 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
 
-다음 범위는 v0.2.3 Bootstrap 기준 **Accounting Master / Master·Accounting Policy**입니다. Counterparty, Payment Term, Accounting Settings, COA, Accounting Period, Journal Sequence 등은 이번 범위에서 구현하지 않습니다.
+다음 범위는 v0.2.3의 51/57/59 기준 **Storage/Evidence/Import 기본 스키마 → Transaction**입니다. 004_storage_evidence_intake의 Import 물리 모델을 준비하고 005_transactions.import_id FK가 실제 imports를 참조해야 합니다. 후속 작업 시작 시 최신 main/Drive에서 FK 범위를 재확인합니다.
+
+회사 선택 후 회계 관리 권한이 있으면 별도 초기 설정으로 기본 COA·12개월 기간·번호 기준을 만듭니다. 초기화는 같은 조건으로 재실행할 수 있습니다. 거래처와 지급조건 API, 번호·정책 규칙과 제외 범위는 [회계 마스터 문서](docs/accounting-master.md)를 참고하세요.
 
 ## 주석과 사용자 안내 문구
 

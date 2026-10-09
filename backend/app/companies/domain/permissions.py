@@ -13,6 +13,10 @@ ROLES = {
 
 PERMISSION_GRANTS: dict[str, tuple[str, ...]] = {
     "company.read": tuple(ROLES),
+    "counterparty.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
+    "counterparty.create": ("OWNER", "ADMIN", "ACCOUNTANT"),
+    "counterparty.update": ("OWNER", "ADMIN", "ACCOUNTANT"),
+    "counterparty.merge": (),
     "company.update": ("OWNER", "ADMIN"),
     "company.members.manage": ("OWNER", "ADMIN"),
     "company.accounting_settings.update": ("OWNER", "ADMIN"),

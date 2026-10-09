@@ -35,3 +35,19 @@ CommitLens [docs/current-status.md](https://github.com/chaehun0i/gitproject/blob
 7. ESG 회사 입력의 세무·ESG 속성과 conflict marker가 있는 repository는 회사 정본에 부적합합니다. 허용된 회사 필드만 신규 DTO에 반영하고 Tax Profile/ESG context/JSON은 제외했습니다.
 
 전송 방식, 신규 Tenant 생성 정책, 조건부 권한의 보수적 seed와 초대 OWNER 승격 제한은 [구현 계약](identity-company.md)에 기록했습니다. 이전 구현의 편의를 이유로 Drive 설계를 변경하지 않았습니다.
+
+
+## Accounting Master 범위의 신규 구현 판단
+
+49 File Level Migration Map의 Counterparty/Journal Sequence/기본 COA/Opening Balance는 NEW입니다. 이번에는 회계 Master만 신규 작성했고 Opening Balance는 제외했습니다. COPY/ADAPT로 가져온 Accounting Master 코드는 0개입니다.
+
+| 후보 | 분류 | 이번 판단과 실제 신규 대상 |
+| --- | --- | --- |
+| WITH ESG backend/src/models/model.py | DROP/PATTERN | 위 고정 SHA의 SignUpModel을 다시 확인했습니다. Company profile의 businessNumber/companyName/taxName/licensefileId/industryList는 Counterparty aggregate가 아닙니다. 회사와 거래처 분리 원칙만 확인하고 master_data/counterparties를 새로 작성했습니다. |
+| 햇들농산 Finance | DROP for current scope | 사용자가 제공한 조사에서 직접 대응 코드가 없다는 판단을 채택했습니다. 이번에는 새 파일을 가져오거나 추가 조사하지 않았고 AR/AP/Treasury 후속에서 재검토합니다. |
+| ServIQ | DROP for current scope | 현재 범위에서 참조하지 않았습니다. Intake 후속에서 검토합니다. |
+| CommitLens | DROP for current scope | 인증 패턴은 기존 Identity baseline에만 남습니다. Master 구현에서 참조하지 않았습니다. |
+| Payment Term/Counterparty | NEW | master_data의 domain/application/infrastructure 및 accounting/api의 typed REST 계약 |
+| Settings/COA/Period/Sequence | NEW | accounting의 각 domain/infrastructure와 application 초기화/UoW 계약 |
+
+ESG의 회사 signup 결합·int 식별자·세무 명칭을 제거한 새 관계형 거래처 의미를 사용합니다. 기존 회사 모델을 거래처로 복제하지 않았고 과거 finance/history를 merge/subtree하지 않았습니다. 58의 초기화 시점, 41의 period 필드명, 차감계정·신규 거래처 permission 결정은 accounting-master.md에 명시했습니다.

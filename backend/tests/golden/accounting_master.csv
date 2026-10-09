@@ -1,0 +1,3 @@
+fixture_code,company_code,display_name,legal_name,business_number,role_code
+CUSTOMER_A,GOLDEN_CORP_001,고객 A,고객 A,1111111111,CUSTOMER
+SUPPLIER_B,GOLDEN_CORP_001,공급자 B,공급자 B,2222222222,SUPPLIER

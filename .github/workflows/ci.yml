@@ -1,7 +1,7 @@
 name: Quality
 on:
   push:
-    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company]
+    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master]
   pull_request:
 permissions:
   contents: read
@@ -67,6 +67,8 @@ jobs:
       - run: python -m pytest tests/integration --require-postgres
       - run: python -m app.companies.infrastructure.seed
       - run: python -m app.companies.infrastructure.seed
+      - run: python -m app.accounting.templates.infrastructure.seed
+      - run: python -m app.accounting.templates.infrastructure.seed
       - run: python -m alembic check
   frontend:
     runs-on: ubuntu-latest

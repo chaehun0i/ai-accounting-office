@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.accounting.api.router import router as accounting_router
 from app.companies.api.router import router as companies_router
 from app.composition import create_services
 from app.core.config import Settings, load_settings
@@ -78,9 +79,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=[str(settings.frontend_origin).rstrip("/")],
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Protection"],
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Protection", "X-Company-ID"],
         allow_credentials=True,
     )
+    app.include_router(accounting_router)
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(companies_router)
