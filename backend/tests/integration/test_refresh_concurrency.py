@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from uuid import uuid4
 
-from sqlalchemy import Engine, delete, select
+from sqlalchemy import Engine, delete, or_, select
 
 from app.contracts.access_errors import AuthenticationRequired
 from app.core.database.session import create_session_factory
@@ -24,17 +24,20 @@ def test_concurrent_refresh_preserves_family_history(identity_database: Engine) 
         PasswordSecurity(),
         TokenSecurity("concurrency-test-signing-key-at-least-32-bytes"),
     )
+    requests = [uuid4(), uuid4(), uuid4()]
     result = service.register(
         f"{uuid4()}@example.com",
         "correct horse battery staple",
-        RequestFacts(uuid4(), "198.51.100.0/24"),
+        RequestFacts(requests[0], "198.51.100.0/24"),
     )
     barrier = Barrier(2)
 
     def refresh(index: int) -> str:
         barrier.wait(timeout=10)
         try:
-            service.refresh(result.refresh_token, RequestFacts(uuid4(), f"192.0.{index}.0/24"))
+            service.refresh(
+                result.refresh_token, RequestFacts(requests[index], f"192.0.{index}.0/24")
+            )
             return "rotated"
         except AuthenticationRequired:
             return "reused"
@@ -65,6 +68,15 @@ def test_concurrent_refresh_preserves_family_history(identity_database: Engine) 
     finally:
         # 이 검사에서 생성한 전용 계정의 테스트 데이터만 정리합니다.
         with identity_database.begin() as connection:
-            for model in (IdentitySecurityEventModel, RefreshSessionModel):
-                connection.execute(delete(model).where(model.user_id == result.user.id))
+            connection.execute(
+                delete(IdentitySecurityEventModel).where(
+                    or_(
+                        IdentitySecurityEventModel.user_id == result.user.id,
+                        IdentitySecurityEventModel.request_id.in_(requests),
+                    )
+                )
+            )
+            connection.execute(
+                delete(RefreshSessionModel).where(RefreshSessionModel.user_id == result.user.id)
+            )
             connection.execute(delete(UserModel).where(UserModel.id == result.user.id))

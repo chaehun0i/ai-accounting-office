@@ -247,3 +247,123 @@ def test_invitation_lifecycle_and_company_switch(api_client: TestClient, auth_se
         client.post(f"/invitations/{expired['invite_token']}/accept", headers=member).status_code
         == 409
     )
+
+
+def test_company_creation_rolls_back_without_owner_role(
+    api_client: TestClient, auth_service
+) -> None:
+    from sqlalchemy import delete, func
+
+    from app.companies.infrastructure.models import (
+        CompanyModel,
+        RoleModel,
+        RolePermissionModel,
+        TenantModel,
+    )
+
+    headers = register(api_client, "atomic@example.com")
+    _, connection = auth_service
+    connection.execute(delete(RolePermissionModel).where(RolePermissionModel.role_code == "OWNER"))
+    connection.execute(delete(RoleModel).where(RoleModel.code == "OWNER"))
+    response = api_client.post("/companies", json=COMPANY, headers=headers)
+    assert response.status_code == 422
+    assert response.json()["code"] == "BUSINESS_RULE_VIOLATION"
+    assert connection.scalar(select(func.count()).select_from(CompanyModel)) == 0
+    assert connection.scalar(select(func.count()).select_from(TenantModel)) == 0
+
+
+def test_permission_changes_are_enforced_from_database(
+    api_client: TestClient, auth_service
+) -> None:
+    from sqlalchemy import delete
+
+    from app.companies.infrastructure.models import RolePermissionModel
+
+    headers = register(api_client, "permissions@example.com")
+    company = api_client.post("/companies", json=COMPANY, headers=headers).json()
+    _, connection = auth_service
+    connection.execute(
+        delete(RolePermissionModel).where(
+            RolePermissionModel.role_code == "OWNER",
+            RolePermissionModel.permission_code == "company.update",
+        )
+    )
+    assert (
+        api_client.patch(
+            f"/companies/{company['id']}",
+            headers=headers,
+            json={"company_name": "수정", "expected_version": 1},
+        ).status_code
+        == 403
+    )
+
+
+def test_password_and_tokens_never_enter_database_or_logs(
+    api_client: TestClient, auth_service, caplog
+) -> None:
+    import logging
+
+    from app.core.security import digest
+    from app.identity.sessions.infrastructure.models import RefreshSessionModel
+
+    caplog.set_level(logging.INFO)
+    response = api_client.post(
+        "/auth/register", json={"email": "secret@example.com", "password": PASSWORD}
+    )
+    assert response.status_code == 201
+    refresh = api_client.cookies.get("aao-refresh")
+    access = response.json()["access_token"]
+    _, connection = auth_service
+    password_hash = connection.scalar(select(UserModel.password_hash))
+    token_hash = connection.scalar(select(RefreshSessionModel.refresh_token_hash))
+    assert password_hash != PASSWORD and password_hash.startswith("$argon2id$")
+    assert token_hash == digest(refresh) and token_hash != refresh
+    api_client.post(
+        "/invitations/" + "a" * 43 + "/accept", headers={"Authorization": f"Bearer {access}"}
+    )
+    for secret in (PASSWORD, refresh, access, "a" * 43):
+        assert secret not in caplog.text
+
+
+def test_admin_cannot_invite_owner(api_client: TestClient, auth_service) -> None:
+    headers = register(api_client, "admin@example.com")
+    company = api_client.post("/companies", json=COMPANY, headers=headers).json()
+    _, connection = auth_service
+    connection.execute(update(MembershipModel).values(role_code="ADMIN"))
+    response = api_client.post(
+        f"/companies/{company['id']}/invitations",
+        headers=headers,
+        json={"email": "invited@example.com", "role_code": "OWNER"},
+    )
+    assert response.status_code == 403
+
+
+def test_invitation_cannot_restore_revoked_membership(api_client: TestClient, auth_service) -> None:
+    from sqlalchemy import insert
+
+    owner = register(api_client, "owner@example.com")
+    company = api_client.post("/companies", json=COMPANY, headers=owner).json()
+    member = register(api_client, "revoked@example.com")
+    user = api_client.get("/auth/me", headers=member).json()
+    _, connection = auth_service
+    now = datetime.now(UTC)
+    connection.execute(
+        insert(MembershipModel).values(
+            id=uuid4(),
+            company_id=UUID(company["id"]),
+            user_id=UUID(user["id"]),
+            role_code="VIEWER",
+            status="REVOKED",
+            joined_at=now,
+            revoked_at=now,
+            version=1,
+        )
+    )
+    invitation = api_client.post(
+        f"/companies/{company['id']}/invitations",
+        headers=owner,
+        json={"email": "revoked@example.com", "role_code": "VIEWER"},
+    )
+    assert invitation.status_code == 201
+    token = invitation.json()["invite_token"]
+    assert api_client.post(f"/invitations/{token}/accept", headers=member).status_code == 403
