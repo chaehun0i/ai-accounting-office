@@ -20,6 +20,8 @@ class UploadCommand(Command):
 class ImportRead(BaseModel):
     id: UUID
     company_id: UUID
+    storage_object_id: UUID
+    requested_by: UUID
     source_type: SourceType
     target_context: TargetContext
     source_system: str
