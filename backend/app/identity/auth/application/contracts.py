@@ -45,8 +45,11 @@ class SecurityEvents(Protocol):
 
 
 class IdentityUnitOfWork(UnitOfWork, Protocol):
-    users: Users
-    sessions: Sessions
-    security: SecurityEvents
+    @property
+    def users(self) -> Users: ...
+    @property
+    def sessions(self) -> Sessions: ...
+    @property
+    def security(self) -> SecurityEvents: ...
 
     def now(self) -> datetime: ...
