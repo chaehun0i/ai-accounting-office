@@ -40,8 +40,12 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def internal_error(request: Request, exc: Exception) -> JSONResponse:
-        logging.getLogger("accounting_office").error(
-            "Unhandled request failure request_id=%s",
-            getattr(request.state, "request_id", "unknown"),
-        )
-        return error_response(request, 500, "INTERNAL_ERROR", "Internal server error")
+        return internal_error_response(request)
+
+
+def internal_error_response(request: Request) -> JSONResponse:
+    logging.getLogger("accounting_office").error(
+        "Unhandled request failure request_id=%s",
+        getattr(request.state, "request_id", "unknown"),
+    )
+    return error_response(request, 500, "INTERNAL_ERROR", "Internal server error")

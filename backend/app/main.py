@@ -1,11 +1,11 @@
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import Settings, load_settings
-from app.core.errors import register_error_handlers
+from app.core.errors import internal_error_response, register_error_handlers
 from app.core.logging import configure_logging
 from app.health import router as health_router
 
@@ -21,8 +21,12 @@ class RequestIdMiddleware:
         request_id = str(uuid4())
         scope.setdefault("state", {})["request_id"] = request_id
 
+        response_started = False
+
         async def send_with_id(message: Message) -> None:
+            nonlocal response_started
             if message["type"] == "http.response.start":
+                response_started = True
                 message["headers"] = [
                     (key, value)
                     for key, value in message.get("headers", [])
@@ -31,7 +35,14 @@ class RequestIdMiddleware:
                 message["headers"].append((b"x-request-id", request_id.encode()))
             await send(message)
 
-        await self.app(scope, receive, send_with_id)
+        try:
+            await self.app(scope, receive, send_with_id)
+        except Exception:
+            # Prevent the ASGI server from logging exception text containing secrets.
+            if response_started:
+                raise RuntimeError("Response interrupted") from None
+            response = internal_error_response(Request(scope))
+            await response(scope, receive, send_with_id)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
