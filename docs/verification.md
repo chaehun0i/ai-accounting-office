@@ -1,3 +1,5 @@
+> 이전 구현 범위의 기록입니다. 현재 상태는 [Identity/Company](identity-company.md)와 [현재 검증](identity-verification.md)을 참고하세요.
+
 # 실행 검증 기록
 
 이 문서는 PR #1 Repository Skeleton의 당시 검증 기록입니다. 최신 DB Foundation 결과는 [별도 검증 기록](database-verification.md)을 참고하세요.
