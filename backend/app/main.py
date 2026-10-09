@@ -7,6 +7,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from app.core.config import Settings, load_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
+from app.health import router as health_router
 
 
 class RequestIdMiddleware:
@@ -40,5 +41,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET"],
         allow_headers=[],
     )
+    app.include_router(health_router)
     register_error_handlers(app)
     return app
