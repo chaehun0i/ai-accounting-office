@@ -7,3 +7,23 @@ from app.identity.sessions.infrastructure.models import (
 from app.identity.users.infrastructure.models import UserModel
 
 __all__ = ["UserModel", "RefreshSessionModel", "IdentitySecurityEventModel"]
+
+from app.companies.infrastructure.models import (
+    CompanyModel,
+    InvitationModel,
+    MembershipModel,
+    PermissionModel,
+    RoleModel,
+    RolePermissionModel,
+    TenantModel,
+)
+
+__all__ += [
+    "CompanyModel",
+    "TenantModel",
+    "RoleModel",
+    "PermissionModel",
+    "RolePermissionModel",
+    "MembershipModel",
+    "InvitationModel",
+]
