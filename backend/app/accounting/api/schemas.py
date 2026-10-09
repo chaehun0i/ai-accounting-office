@@ -19,6 +19,7 @@ class InitializeAccountingMaster(Command):
         "KRW", "USD", "EUR", "JPY", "GBP", "CAD", "AUD", "CHF", "CNY", "SGD", "HKD"
     ] = "KRW"
     fiscal_year_start_month: int = Field(default=1, ge=1, le=12)
+    numbering_reset_policy: Literal["FISCAL_YEAR", "NEVER"] = "FISCAL_YEAR"
 
 
 class SettingsUpdate(Command):
@@ -95,6 +96,10 @@ class RoleCreate(Command):
     role_code: CounterpartyRole
     effective_from: date
     effective_to: date | None = None
+
+
+class RoleAddCommand(RoleCreate):
+    expected_version: int = Field(ge=1)
 
 
 class RoleRead(RoleCreate):

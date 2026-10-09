@@ -19,7 +19,7 @@ from app.accounting.api.schemas import (
     PaymentTermCreate,
     PaymentTermRead,
     PeriodRead,
-    RoleCreate,
+    RoleAddCommand,
     RoleRead,
     SettingsRead,
     SettingsUpdate,
@@ -231,7 +231,7 @@ def change_counterparty_status(
 )
 def add_role(
     resource_id: UUID,
-    payload: RoleCreate,
+    payload: RoleAddCommand,
     actor: Actor,
     company_id: CompanyScope,
     service: MasterData,
@@ -239,7 +239,12 @@ def add_role(
     return RoleRead.model_validate(
         asdict(
             service.add_role(
-                actor, company_id, Role(counterparty_id=resource_id, **payload.model_dump())
+                actor,
+                company_id,
+                Role(
+                    counterparty_id=resource_id, **payload.model_dump(exclude={"expected_version"})
+                ),
+                expected_version=payload.expected_version,
             )
         )
     )

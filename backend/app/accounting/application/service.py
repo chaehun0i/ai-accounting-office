@@ -4,12 +4,23 @@ from uuid import UUID, uuid4
 
 from app.accounting.accounts.domain.entities import Account
 from app.accounting.application.contracts import MasterUnitOfWork
-from app.accounting.domain.rules import monthly_periods, validate_account, validate_hierarchy
+from app.accounting.domain.rules import (
+    ResetPolicy,
+    journal_number,
+    monthly_periods,
+    validate_account,
+    validate_hierarchy,
+)
 from app.accounting.periods.domain.entities import Period
 from app.accounting.settings.domain.entities import AccountingSettings
 from app.accounting.templates.domain.entities import Template
 from app.companies.application.service import require_company
-from app.contracts.access_errors import ResourceNotFound, StateConflict, VersionConflict
+from app.contracts.access_errors import (
+    InvalidInput,
+    ResourceNotFound,
+    StateConflict,
+    VersionConflict,
+)
 from app.identity.users.domain.entities import Principal
 from app.master_data.domain.rules import validate_currency
 
@@ -35,8 +46,11 @@ class AccountingMasterService:
         template_id: UUID,
         functional_currency_code: str = "KRW",
         fiscal_year_start_month: int = 1,
+        numbering_reset_policy: str = "FISCAL_YEAR",
     ) -> AccountingSettings:
         validate_currency(functional_currency_code)
+        if numbering_reset_policy not in ResetPolicy:
+            raise InvalidInput()
         dates = monthly_periods(fiscal_year, fiscal_year_start_month)
         with self.factory() as uow:
             require_company(uow, principal, company_id, "company.accounting_settings.update")
@@ -48,6 +62,7 @@ class AccountingMasterService:
                 if (
                     current.functional_currency_code != functional_currency_code
                     or current.fiscal_year_start_month != fiscal_year_start_month
+                    or current.numbering_reset_policy != numbering_reset_policy
                     or fiscal_year not in years
                     or not accounts
                     or any(row.template_account_id not in source_ids for row in accounts)
@@ -65,6 +80,7 @@ class AccountingMasterService:
                 company_id=company_id,
                 functional_currency_code=functional_currency_code,
                 fiscal_year_start_month=fiscal_year_start_month,
+                numbering_reset_policy=numbering_reset_policy,
                 created_at=uow.now(),
                 updated_at=uow.now(),
             )
@@ -107,7 +123,9 @@ class AccountingMasterService:
                         updated_at=uow.now(),
                     )
                 )
-            uow.sequences.ensure(company_id, fiscal_year, "JOURNAL")
+            uow.sequences.ensure(
+                company_id, fiscal_year if numbering_reset_policy == "FISCAL_YEAR" else 0, "JOURNAL"
+            )
             return current
 
     def update_settings(
@@ -119,6 +137,8 @@ class AccountingMasterService:
         journal_number_prefix: str | None = None,
         allow_manual_journal: bool | None = None,
     ) -> AccountingSettings:
+        if journal_number_prefix is not None:
+            journal_number(journal_number_prefix, 2026, 1)
         with self.factory() as uow:
             require_company(uow, principal, company_id, "company.accounting_settings.update")
             current = uow.settings.get(company_id)

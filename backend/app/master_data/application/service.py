@@ -155,11 +155,23 @@ class MasterDataService:
                 raise VersionConflict()
             return value
 
-    def add_role(self, principal: Principal, company_id: UUID, value: Role) -> Role:
+    def add_role(
+        self, principal: Principal, company_id: UUID, value: Role, expected_version: int
+    ) -> Role:
         self._role(value)
         with self.factory() as uow:
             require_company(uow, principal, company_id, "counterparty.update")
+            current = uow.counterparties.get(
+                company_id=company_id, resource_id=value.counterparty_id
+            )
+            if current is None:
+                raise ResourceNotFound()
+            if current.version != expected_version:
+                raise VersionConflict()
             uow.counterparties.add_role(company_id, value)
+            updated = replace(current, version=current.version + 1, updated_at=uow.now())
+            if not uow.counterparties.update(updated, expected_version):
+                raise VersionConflict()
             return value
 
     @staticmethod
