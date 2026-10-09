@@ -143,3 +143,9 @@ GitHub Actions가 동일한 명령으로 backend/frontend를 독립 검증합니
 users/tenants/companies/memberships, 인증/RBAC, 회계·세무·증빙 업무, Approval/Audit, Agent workflow, LLM, 실제 업무 Tool, Idempotency persistence, Excel Import, Alembic migration은 미구현입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
 
 다음 설계 범위는 **DB Foundation**입니다. SQLAlchemy/Alembic, UUID/Decimal convention, Unit of Work, base repository, error base 및 JSON/JSONB column 금지 migration/schema test를 후속으로 구현합니다. 이번 저장소는 이를 선행 구현하지 않습니다.
+
+## 주석과 사용자 안내 문구
+
+직접 작성하는 코드 주석과 docstring은 한글로 작성합니다. 도구가 자동 생성하는 파일과 타입 지시문은 생성 도구의 형식을 유지합니다.
+
+사용자가 읽는 화면·API 메시지는 쉬운 한글로 작성하고, 필요한 경우 다음 행동을 안내합니다. 초기 화면에는 내부 개발 단계명이나 설계 버전을 표시하지 않습니다. 오류 원문이나 내부 구현 정보를 사용자 안내에 넣지 않습니다. API 필드명·오류 코드·환경변수명처럼 프로그램 간 계약에 해당하는 식별자는 유지합니다.

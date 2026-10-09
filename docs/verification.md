@@ -68,3 +68,9 @@ frontend 디렉터리에서 실행했습니다. NEXT_TELEMETRY_DISABLED=1로 빌
 Starlette TestClient의 httpx deprecation warning은 upstream 테스트 도구의 전환 대상으로 남아 있습니다. 테스트는 통과하며 warning을 숨기지 않았습니다.
 
 현재 architecture guard는 정적 import 계약이며 runtime sandbox가 아닙니다. DB Foundation에서 실제 migration/schema guard를 추가하고, Agent runtime 범위에서 capability/side-effect 제한을 검증해야 합니다. 인증/승인/업무 기능은 아직 없으며 이번 완료 범위가 아닙니다.
+
+## 주석과 안내 문구 후속 검증
+
+직접 작성한 주석/docstring과 설정·로그 안내를 한글로 정리했습니다. 초기 화면의 개발 단계명·설계 버전을 제거하고 준비 상태를 쉬운 표현으로 안내합니다. API 오류는 사용자가 이해할 수 있는 한글 메시지를 사용하며 필드명·오류 코드·health status 계약은 유지합니다.
+
+변경 후 pytest 23개, Ruff lint/format, mypy, frontend lint/typecheck/production build가 모두 통과했습니다. 개발 명령의 기존 .env 보존 안내도 확인했습니다. 자동 생성되는 next-env.d.ts와 라이브러리 자체 문구는 생성 도구가 관리합니다.
