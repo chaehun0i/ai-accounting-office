@@ -9,6 +9,7 @@ from app.core.config import load_settings
 from app.core.database.base import Base
 from app.core.database.engine import create_database_engine
 from app.core.database.errors import map_database_error
+from app.core.database.schema import SchemaPolicyError, assert_relational_schema
 
 config = context.config
 
@@ -21,7 +22,9 @@ def run_migrations(connection: Connection) -> None:
         compare_server_default=True,
     )
     with context.begin_transaction():
+        assert_relational_schema(connection)
         context.run_migrations()
+        assert_relational_schema(connection)
 
 
 if context.is_offline_mode():
@@ -46,5 +49,7 @@ else:
                     run_migrations(connection)
             finally:
                 engine.dispose()
+    except SchemaPolicyError as error:
+        raise CommandError(str(error)) from None
     except SQLAlchemyError as error:
         raise CommandError(map_database_error(error).message) from None

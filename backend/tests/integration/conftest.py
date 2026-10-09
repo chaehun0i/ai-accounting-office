@@ -6,6 +6,7 @@ from collections.abc import Iterator
 import pytest
 from pydantic import SecretStr
 from sqlalchemy import Connection, Engine, make_url, text
+from sqlalchemy.exc import ArgumentError
 
 from app.core.config import Settings
 from app.core.database.engine import create_database_engine
@@ -22,7 +23,7 @@ def db_engine(pytestconfig: pytest.Config) -> Iterator[Engine]:
         url = make_url(raw_url)
         assert url.get_backend_name() in {"postgres", "postgresql"}
         assert url.database and url.database.endswith("_test")
-    except (ValueError, AssertionError):
+    except (ValueError, AssertionError, ArgumentError):
         pytest.fail("테스트 DB는 PostgreSQL이며 이름이 _test로 끝나야 합니다.", pytrace=False)
     settings = Settings(
         _env_file=None,
