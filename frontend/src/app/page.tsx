@@ -1,5 +1,6 @@
 "use client";
 
+import { AccountingMaster } from "@/features/accounting/accounting-master";
 import { useState } from "react";
 import { AuthProvider, useAuth } from "@/features/auth/auth-provider";
 import { AuthForm } from "@/features/auth/auth-form";
@@ -30,8 +31,9 @@ function Office() {
     {company.active && <section className="panel active-company" key={company.active.id} aria-live="polite">
       <p className="eyebrow">현재 선택한 회사</p><h2>{company.active.company_name}</h2>
       <p>{company.active.permissions.includes("company.update") ? "회사 정보를 관리할 수 있는 권한으로 접속했습니다." : "현재 회사 정보를 조회할 수 있습니다. 정보 수정은 회사 관리자에게 요청해 주세요."}</p>
-      <p className="muted">회계·세무 업무 기능은 준비 중입니다.</p>
+      <p className="muted">선택한 회사의 회계 기준 정보를 확인할 수 있습니다.</p>
     </section>}
+    {company.active && <AccountingMaster key={company.active.id} company={company.active} />}
     <CompanyCreate />
   </>;
 }
