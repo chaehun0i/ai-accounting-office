@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException
 
+from app.contracts.errors import ApplicationError
+
 
 class FieldError(BaseModel):
     field: str
@@ -29,6 +31,10 @@ def error_response(request: Request, status: int, code: str, message: str) -> JS
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(ApplicationError)
+    async def application_error(request: Request, exc: ApplicationError) -> JSONResponse:
+        return error_response(request, exc.status_code, exc.code, exc.message)
+
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
         code = "RESOURCE_NOT_FOUND" if exc.status_code == 404 else "HTTP_ERROR"

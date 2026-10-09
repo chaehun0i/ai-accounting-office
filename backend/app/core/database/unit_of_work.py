@@ -3,7 +3,10 @@
 from types import TracebackType
 from typing import Self
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
+
+from app.core.database.errors import map_database_error
 
 
 class SQLAlchemyUnitOfWork:
@@ -24,15 +27,23 @@ class SQLAlchemyUnitOfWork:
             raise RuntimeError("작업 범위를 중첩해서 시작할 수 없습니다.")
         self._session = self._session_factory()
         self._finished = False
-        self._session.begin()
+        try:
+            self._session.begin()
+        except SQLAlchemyError as error:
+            self._session.close()
+            self._session = None
+            raise map_database_error(error) from None
         return self
 
     def commit(self) -> None:
         session = self.session
         try:
             session.commit()
+        except SQLAlchemyError as error:
+            self.rollback()
+            raise map_database_error(error) from None
         except BaseException:
-            session.rollback()
+            self.rollback()
             raise
         finally:
             self._finished = True
@@ -41,6 +52,8 @@ class SQLAlchemyUnitOfWork:
         session = self.session
         try:
             session.rollback()
+        except SQLAlchemyError as error:
+            raise map_database_error(error) from None
         finally:
             self._finished = True
 
@@ -56,7 +69,13 @@ class SQLAlchemyUnitOfWork:
                     self.commit()
                 else:
                     self.rollback()
+                    if isinstance(exc, SQLAlchemyError):
+                        raise map_database_error(exc) from None
         finally:
             if self._session is not None:
-                self._session.close()
-            self._session = None
+                try:
+                    self._session.close()
+                except SQLAlchemyError as error:
+                    raise map_database_error(error) from None
+                finally:
+                    self._session = None
