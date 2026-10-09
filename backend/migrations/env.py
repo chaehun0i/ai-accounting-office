@@ -6,6 +6,7 @@ from sqlalchemy import Connection
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import load_settings
+from app.core.database import model_registry  # noqa: F401
 from app.core.database.base import Base
 from app.core.database.engine import create_database_engine
 from app.core.database.errors import map_database_error
