@@ -1,18 +1,17 @@
 # 설계 추적과 모듈 경계
 
-기준선은 [AI_Accounting_Office_v0.2.2_통합설계_구현명세](https://drive.google.com/drive/folders/1bJVY8fPsIw3iEaMeQZQJEsOjWpV5fMQ8)입니다. 아래 문서를 직접 읽고 skeleton 범위에 적용했습니다.
+기준선은 [AI_Accounting_Office_v0.2.3_통합설계_구현보강](https://drive.google.com/drive/folders/17FO3EYPA64MItPL-_RQbgg1NhKr4I5mn)입니다. 이전 버전 fallback 없이 아래 문서를 직접 확인했습니다.
 
 | 문서 | 적용 |
 | --- | --- |
-| [Bootstrap 초기개발 순서](https://docs.google.com/document/d/1ncDLHkVhaGNJsjEJfRGF6JXdnM-6IDufukfjVgxJgEU/edit) | 실행 기반만 구현, 업무 테이블/DB Foundation 보류 |
-| [Repository Module Architecture](https://docs.google.com/document/d/1T6cyaFtBqbHVgwwjirk1cU4mT5wYPX7l82sq1OnbgpU/edit) | root, backend module, frontend feature, test 경계 |
-| [File Level Migration Map](https://docs.google.com/document/d/1mt7Muxcfd98OXMA6RWolKrDL8YSVZEMatbzZ9J1yLvA/edit) | 기존 프로젝트 코드를 복사하지 않음 |
-| [PostgreSQL DDL SQL Skeleton](https://docs.google.com/document/d/1Jwkd3Wjp8TiJYD2J3ESqlmH9nVmYmkABq2JQDMTQWaY/edit) | 후속 migration의 기준, 현재 SQL 없음 |
-| [ADR Relational First No JSONB](https://docs.google.com/document/d/1vZrpygREDJltPy7ZZTse0FIbwMl50kOt_buZPzRsQ7U/edit) | 업무 PostgreSQL JSON/JSONB column 0개, 예외는 ADR |
-| [Implementation DoD Review Checklist](https://docs.google.com/document/d/1jxhbyYgNEioeTns7uO0hhh88_AoydPvP6Ulm3JL1TXs/edit) | 적용 가능한 API/observability/security/test 기준만 검증 |
-| [API Pydantic Contract](https://docs.google.com/document/d/1S90s8NzYyQX5clZSFmQ8b8U4eyodkqytBqVUff9TIVM/edit) | typed health response, 공통 typed 오류 |
-| [Error Idempotency Concurrency Contract](https://docs.google.com/document/d/1y1sXqZro-tYwxqpDaE785fmEg3RKYiaFYP6hx-k0py8/edit) | stable code/request ID, traceback 비노출; persistence 보류 |
-| [Agent Tool Contract](https://docs.google.com/document/d/1D5BHcn7iC0KlSDJRqU9_l6oYDEXB7AkGqSHGNX3HsPI/edit) | tools 경유, 직접 DB/Repository import 차단 |
+| [51 Bootstrap](https://docs.google.com/document/d/1z73FQSN4SZ3mNRm42-8k3umUfJFXfVjedH75bpTad1s/edit) | Skeleton 다음 DB Foundation만 구현 |
+| [59 Complete DDL Migration Map](https://docs.google.com/document/d/1A_JnJ_-arKHFakEsQAo-El0RpwxVKW1R_jjnqx2O518/edit) | 후속 001_identity/002_tenant_company_rbac 번호 보존 |
+| [53 PostgreSQL DDL Skeleton](https://docs.google.com/document/d/1arwJGAxHJY2oWQfK9EOFKjl_n6iE4hTS-P0txr4Q67g/edit) | UUID, NUMERIC(19,4), TIMESTAMPTZ convention |
+| [42 Relational First 정책](https://docs.google.com/document/d/12Aplp-KL-P9H_Har_wAWm6ZYN7ljJVERgnG8SxiupSk/edit) | JSON/JSONB 금지, 관계 ARRAY 금지 |
+| [48 Repository Architecture](https://docs.google.com/document/d/1LcVMzK_CUeXzhyiWjOmXKpvNZ65HiZ_qisbMAs8EQ1Q/edit) | ORM 없는 Application 계약, 정본·모듈 경계 |
+| [52 DoD](https://docs.google.com/document/d/1EekWD2gPPJ0nzNpopBD31hKy9BsfOvyLxxYIGFjO1CE/edit) | 실제 PostgreSQL·회귀·보안 검사 |
+| [41 Physical ERD](https://docs.google.com/document/d/1mfHCGFCCJqhQ4VEWd04PSgQSBNHZaXOUDSbgUp9EEYk/edit) | 물리 타입 확인, 업무 테이블 선행 구현 금지 |
+| [46 Error/Idempotency/Concurrency](https://docs.google.com/document/d/1oNaQ-Hep-VsRwksEIP-8owfVsafUYY8kup-TdzBmnFc/edit) | 안전한 오류 코드와 concurrency 분류 |
 
 ## Backend 책임
 
@@ -20,7 +19,7 @@
 
 `identity`, `companies`, `intake`, `accounting`, `finance`, `tax`, `closing`, `reporting`, `evidence`, `approvals`, `audit`, `jobs`, `agents`, `llm`, `tools`는 docstring만 있는 Python package 경계입니다. 기능이 생길 때 `domain/application/infrastructure/api`를 추가합니다. 지금 비어 있는 service/repository/model 파일을 미리 만들지 않습니다.
 
-기본 의존성은 `api → application → domain`이며 infrastructure가 domain interface를 구현합니다. Router는 Repository를 호출하지 않습니다. domain은 FastAPI/ORM/LLM SDK에 의존하지 않습니다. 후속 Application Command가 transaction/UoW를 소유하고 Repository는 임의 commit하지 않습니다.
+기본 의존성은 `api → application → domain`이며 infrastructure가 domain interface를 구현합니다. Router는 Repository를 호출하지 않습니다. domain은 FastAPI/ORM/LLM SDK에 의존하지 않습니다. Application Command가 transaction/UoW를 소유하고 Repository는 임의 commit하지 않습니다.
 
 accounting은 장부 정본, tax는 세무 계산·신고 정본, evidence는 provenance를 소유합니다. jobs/agents/tools 실행 이력이나 LLM 출력이 정본을 대체하지 않습니다. generic entity/payload/settings model을 만들지 않습니다. 숫자는 Decimal/Domain Rule/Application Service/deterministic query가 계산합니다.
 
@@ -30,13 +29,13 @@ Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repo
 
 `backend/tests/contract/test_architecture.py`가 agents/llm의 Python AST를 검사합니다. 다른 app 모듈 import는 app.tools만 허용하며 상대 import, app에서의 import, ORM/DB driver, importlib와 직접 __import__/eval/exec 우회를 검사합니다. 금지 예제도 테스트합니다.
 
-이는 정적 import 계약이며 Python sandbox가 아닙니다. 별칭·간접 호출·외부 라이브러리를 통한 동적 실행의 모든 경우를 증명하지 않습니다. Agent runtime을 구현할 때 capability/runtime 제한과 실제 side-effect 테스트를 추가해야 합니다. API/domain 내부의 전체 의존 방향 검사는 해당 계층 구현 시 확장합니다.
+이는 정적 import 계약이며 Python sandbox가 아닙니다. 별칭·간접 호출·외부 라이브러리를 통한 동적 실행의 모든 경우를 증명하지 않습니다. Agent runtime을 구현할 때 capability/runtime 제한과 실제 side-effect 테스트를 추가해야 합니다. Domain/Application/contracts의 SQLAlchemy/FastAPI/DB infrastructure 의존을 추가 검사합니다. Repository 파일의 commit/rollback/begin/begin_nested 호출도 금지합니다. 실제 모듈에 더해 금지 예제를 검증하며 향후 계층이 추가되면 자동 검사 대상이 됩니다.
 
 ## 데이터베이스와 후속 범위
 
-현재 ORM, SQL, migration, DB 연결 primitive, create_all이 없습니다. 업무 테이블과 PostgreSQL JSON/JSONB column은 모두 0개입니다. API JSON serialization은 저장 형식과 별개입니다.
+SQLAlchemy/Alembic, strict UUID/Decimal/UTC 타입, UoW와 회사 범위를 필수로 받는 Repository Protocol이 존재합니다. 업무 테이블은 없으며 baseline은 Alembic의 version 상태만 관리합니다. 자동 create_all은 없습니다.
 
-다음 DB Foundation에서 SQLAlchemy/Alembic, UUID/Decimal convention, UoW/base repository/error base와 실제 migration/schema guard를 구현합니다. PostgreSQL catalog 검사로 JSON/JSONB column 금지를 증명하고 migration 검토에 ADR을 연결합니다. 이번 범위에서는 이를 선행 구현하지 않습니다.
+[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 다음 범위는 Identity/Company입니다.
 
 ## 품질 도구 결정
 

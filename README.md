@@ -2,11 +2,11 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton**입니다. FastAPI, Next.js + TypeScript, PostgreSQL/Redis 로컬 의존성, 품질 검사와 CI만 제공합니다. 업무 데이터와 인증은 아직 없습니다.
+현재 구현 범위는 **Repository Skeleton + DB Foundation**입니다. 기존 실행 기반 위에 SQLAlchemy/Alembic, 관계형 타입 규칙, Unit of Work, Repository 계약과 실제 PostgreSQL 검증을 제공합니다. 업무 테이블과 인증은 아직 없습니다.
 
 ## 설계 기준과 원칙
 
-단일 기준선: [AI_Accounting_Office_v0.2.2_통합설계_구현명세](https://drive.google.com/drive/folders/1bJVY8fPsIw3iEaMeQZQJEsOjWpV5fMQ8).
+단일 기준선: [AI_Accounting_Office_v0.2.3_통합설계_구현보강](https://drive.google.com/drive/folders/17FO3EYPA64MItPL-_RQbgg1NhKr4I5mn).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
 
 - **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**이며 이번 범위는 테이블 자체를 만들지 않습니다. 예외는 별도 ADR이 필요합니다.
@@ -19,7 +19,10 @@
 
 ```text
 backend/app/     FastAPI 및 독립적인 업무 모듈 경계
-backend/tests/   unit, integration, contract, golden
+backend/app/contracts/       ORM에 의존하지 않는 오류·UoW·Repository 계약
+backend/app/core/database/  SQLAlchemy persistence primitive
+backend/migrations/         Alembic 환경과 비업무 baseline
+backend/tests/              unit, PostgreSQL integration, contract, golden
 frontend/src/   app, features, shared
 infra/          PostgreSQL/Redis Docker Compose
 scripts/        플랫폼 공통 개발 진입점
@@ -102,7 +105,7 @@ curl http://localhost:8000/health
 
 기대 응답: HTTP 200, `{"status":"ok"}`. 변경한 포트를 사용하세요. PowerShell에서는 `curl.exe` 또는 `Invoke-RestMethod`를 사용할 수 있습니다.
 
-`/health`는 **liveness**입니다. DB/Redis 연결이나 업무 데이터 존재를 검사하지 않습니다. 시작 시 필수 설정은 검증하지만 실제 DB 연결은 시도하지 않으므로 의존 서비스가 내려가도 앱은 시작합니다. DB readiness 정책은 DB Foundation에서 정합니다. import 시 DB side effect나 자동 schema 생성은 없습니다.
+`/health`는 **liveness**입니다. DB/Redis 연결이나 업무 데이터 존재를 검사하지 않습니다. 시작 시 필수 설정은 검증하지만 실제 DB 연결은 시도하지 않으므로 의존 서비스가 내려가도 앱은 시작합니다. DB Foundation도 이 계약을 유지합니다. DB 연결은 migration 또는 명시적인 persistence 사용 시 수행하며 실패는 안전한 공통 오류로 변환합니다. import 시 DB side effect나 자동 schema 생성은 없습니다.
 
 ## Frontend
 
@@ -136,13 +139,50 @@ npm run typecheck
 npm run build
 ```
 
-GitHub Actions가 동일한 명령으로 backend/frontend를 독립 검증합니다. 업무 integration이 없으므로 DB service container를 띄우지 않습니다. Compose 설정도 별도 검사합니다. 실제 실행 기록은 [검증 문서](docs/verification.md)를 참고하세요.
+GitHub Actions가 backend/frontend를 독립 검증하고, 별도 PostgreSQL 17 service job에서 migration 및 schema/transaction/type integration을 필수 실행합니다. DB 없이 실행하는 pytest에서는 integration만 명시적으로 skip됩니다. Compose 설정도 별도 검사합니다. 이번 검증 기록은 [DB Foundation 검증](docs/database-verification.md), 기존 실행 기반 기록은 [Skeleton 검증](docs/verification.md)을 참고하세요.
+
+## Migration과 PostgreSQL 통합 검사
+
+가상환경을 활성화하고 backend에서 실행합니다. Alembic은 기존 typed settings의 `POSTGRES_URL`을 읽습니다.
+
+```sh
+cd backend
+python -m alembic current
+python -m alembic upgrade head
+python -m alembic current --check-heads
+python -m alembic check
+```
+
+현재 head는 `db_foundation`이며 업무 DDL은 없습니다. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.3의 `59_Complete_DDL_Migration_Map`을 따릅니다.
+
+통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
+
+```sh
+docker compose --env-file .env -f infra/docker-compose.yml exec -T postgres psql -U accounting_local -d postgres -c "CREATE DATABASE accounting_foundation_test;"
+```
+
+이미 있으면 다시 만들지 마세요. 계정과 포트는 자신의 `.env`에 맞추세요. backend에서 테스트 주소를 설정합니다.
+
+```powershell
+$env:TEST_POSTGRES_URL='postgresql://accounting_local:local_placeholder_change_me@localhost:5432/accounting_foundation_test'
+```
+
+```sh
+# Unix
+export TEST_POSTGRES_URL='postgresql://accounting_local:local_placeholder_change_me@localhost:5432/accounting_foundation_test'
+```
+
+```sh
+python -m pytest --require-postgres
+```
+
+`--require-postgres`는 설정 누락을 실패로 처리합니다. 테스트는 전용 DB의 migration 상태를 초기화하고 복구하므로 공유·개발·운영 DB를 지정하지 마세요. 업무 테이블을 발견하면 삭제하지 않고 중단합니다. [DB 구조와 정책](docs/database-foundation.md)에 lifecycle, 타입, 오류 및 schema guard를 설명합니다.
 
 ## 제외 범위와 다음 구현
 
-users/tenants/companies/memberships, 인증/RBAC, 회계·세무·증빙 업무, Approval/Audit, Agent workflow, LLM, 실제 업무 Tool, Idempotency persistence, Excel Import, Alembic migration은 미구현입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
+users/tenants/companies/memberships, 인증/RBAC, 회계·세무·증빙 업무, Approval/Audit, Agent workflow, LLM, 실제 업무 Tool, Idempotency persistence, Excel Import는 미구현입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
 
-다음 설계 범위는 **DB Foundation**입니다. SQLAlchemy/Alembic, UUID/Decimal convention, Unit of Work, base repository, error base 및 JSON/JSONB column 금지 migration/schema test를 후속으로 구현합니다. 이번 저장소는 이를 선행 구현하지 않습니다.
+다음 범위는 v0.2.3 기준 **Identity/Company**입니다. users/refresh_sessions/security events, tenants/companies, roles/permissions, memberships/invitations, auth/session/RBAC와 active company context를 후속으로 구현합니다.
 
 ## 주석과 사용자 안내 문구
 

@@ -1,5 +1,7 @@
 # 실행 검증 기록
 
+이 문서는 PR #1 Repository Skeleton의 당시 검증 기록입니다. 최신 DB Foundation 결과는 [별도 검증 기록](database-verification.md)을 참고하세요.
+
 검증 환경: Windows, Python 3.14.2, Node.js 24.12.0, npm 11.6.2, Docker Desktop Linux Engine 29.5.3.
 원격 main을 fetch/pull하여 `e7282bc481dd17782b577613e13acbb41392f605`와 README만 있는 상태를 확인했습니다. 기존 PR은 없었습니다. 작업은 `feat/repository-skeleton`에서 수행했습니다.
 
