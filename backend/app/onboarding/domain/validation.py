@@ -61,7 +61,8 @@ def validate(cells: list[Cell]) -> list[Issue]:
                     section,
                     "PENDING_DOMAIN_SUPPORT",
                     "ERROR",
-                    "초안에 보존했습니다. 정본 반영 기능이 준비되면 완료할 수 있습니다.",
+                    "초안을 안전하게 보관했습니다. "
+                    "이 항목의 회계정보 반영 기능이 준비되면 완료할 수 있습니다.",
                 )
             )
     # 계정 유형과 정상 잔액의 불일치는 사용자가 검토할 수 있도록 차단합니다.

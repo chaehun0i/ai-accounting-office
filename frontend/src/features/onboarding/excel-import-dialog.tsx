@@ -54,7 +54,7 @@ export function ExcelImportDialog({ workspace, onApplied, onClose }: { workspace
     <button onClick={upload} disabled={busy || !file || !!receipt}>{busy ? "처리 중…" : "업로드 후 미리보기"}</button>
     {error && <p role="alert" className="error">{error}</p>}
     {preview && !receipt && <section aria-label="병합 검토">
-      <p>신규 {preview.counts.APPLY} · 동일 {preview.counts.UNCHANGED} · 충돌 {preview.counts.CONFLICT} · 오류 {preview.counts.ERROR}</p>
+      <p>새 입력값 {preview.counts.APPLY} · 동일 {preview.counts.UNCHANGED} · 충돌 {preview.counts.CONFLICT} · 오류 {preview.counts.ERROR}</p>
       {preview.errors.map((e, i) => <p key={i} className="error">{e.message} ({e.row_key})</p>)}
       {conflicts.map(item => <label key={conflictKey(item.incoming)}>
         {workspace.fields.find(f => f.field_code === item.incoming.field_code)?.label} — {item.incoming.row_key}
@@ -65,7 +65,7 @@ export function ExcelImportDialog({ workspace, onApplied, onClose }: { workspace
       </label>)}
       <button onClick={apply} disabled={busy || preview.errors.length > 0 || conflicts.some(i => !choices[conflictKey(i.incoming)])}>선택한 내용 초안에 적용</button>
     </section>}
-    {receipt && <p role="status">초안에 적용했습니다. 신규 {receipt.new_count}, 변경 {receipt.changed_count}, 동일 {receipt.unchanged_count}. 정본 반영은 최종 완료 시 진행됩니다.</p>}
+    {receipt && <p role="status">초안에 적용했습니다. 새 입력값 {receipt.new_count}, 변경 {receipt.changed_count}, 동일 {receipt.unchanged_count}. 실제 회사 회계정보는 최종 완료 시 반영됩니다.</p>}
     <button onClick={onClose} disabled={busy}>닫기</button>
   </dialog>;
 }

@@ -59,8 +59,8 @@ async function main() {
     await workspace.getByText("초안을 저장했습니다.", { exact: true }).waitFor();
     await workspace.getByRole("button", { name: "검증하고 다시 계산", exact: true }).click();
     await workspace.getByRole("region", { name: "검증 결과" }).waitFor();
-    assert.ok(await workspace.getByRole("button", { name: "준비 완료 및 정본 반영", exact: true }).isDisabled());
-    assert.ok(await workspace.getByText(/정본 반영 기능이 준비되면/).count() > 0);
+    assert.ok(await workspace.getByRole("button", { name: "준비 완료 및 회계정보 반영", exact: true }).isDisabled());
+    assert.ok(await workspace.getByText(/회계정보 반영 기능이 준비되면/).count() > 0);
     assert.equal(consoleErrors.filter(message => /same key|unique.*key/i.test(message)).length, 0);
     console.log("브라우저 검증 통과: 인증, 회사 선택, 직접 입력 복구, Excel 충돌 해결, 초안 적용, 수동 수정, 검증, 미지원 승격 차단");
   } catch (error) {
