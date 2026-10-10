@@ -1,10 +1,10 @@
 from typing import Self
-from app.onboarding.infrastructure.repository import OnboardingRepository
-from app.accounting.opening_balances.infrastructure.repository import OpeningRepository
 
 from app.accounting.journals.infrastructure.unit_of_work import JournalSQLAlchemyUnitOfWork
 from app.accounting.ledger.infrastructure.repository import LedgerRepository
+from app.accounting.opening_balances.infrastructure.repository import OpeningRepository
 from app.approvals.infrastructure.repository import GovernanceRepository
+from app.onboarding.infrastructure.repository import OnboardingRepository
 
 
 class AccountingSQLAlchemyUnitOfWork(JournalSQLAlchemyUnitOfWork):

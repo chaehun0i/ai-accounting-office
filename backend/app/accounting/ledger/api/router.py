@@ -33,6 +33,7 @@ class LedgerRead(BaseModel):
     account_name: str
     normal_balance: str
     counterparty_id: UUID | None
+    counterparty_name: str | None
     description: str
     debit_amount: Decimal
     credit_amount: Decimal

@@ -81,7 +81,6 @@ class OpeningService:
             if not keys:
                 raise AccountingError("BUSINESS_RULE_VIOLATION", "입력된 기초잔액이 없습니다.")
             accounts = {a.account_code: a for a in uow.accounts.list(company)}
-            counterparties = {c.counterparty_code: c for c in uow.counterparties.list(company)}
             lines: list[JournalLine] = []
             dates: set[date] = set()
             for key in keys:
@@ -100,14 +99,17 @@ class OpeningService:
                     raise AccountingError("FX_NOT_SUPPORTED", "기초잔액은 원화만 지원합니다.")
                 dates.add(day)
                 cp = value("counterparty_code")
-                if cp and str(cp) not in counterparties:
+                counterparty = (
+                    uow.counterparties.by_code(company_id=company, code=str(cp)) if cp else None
+                )
+                if cp and counterparty is None:
                     raise ResourceNotFound()
                 lines.append(
                     JournalLine(
                         id=uuid4(),
                         line_no=len(lines) + 1,
                         account_id=account.id,
-                        counterparty_id=counterparties[str(cp)].id if cp else None,
+                        counterparty_id=counterparty.id if counterparty else None,
                         debit_amount=debit,
                         credit_amount=credit,
                         memo="온보딩 기초잔액",

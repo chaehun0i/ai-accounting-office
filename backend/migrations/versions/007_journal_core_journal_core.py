@@ -468,8 +468,22 @@ def upgrade() -> None:
         unique=False,
     )
 
+    op.create_index(
+        "ix_journal_entries_company_date", "journal_entries", ["company_id", "entry_date", "status"]
+    )
+
+    op.create_index(
+        "uq_journal_posted_source",
+        "journal_entries",
+        ["company_id", "source_transaction_id"],
+        unique=True,
+        postgresql_where=sa.text("status='POSTED' AND source_transaction_id IS NOT NULL"),
+    )
+
 
 def downgrade() -> None:
+    op.drop_index("uq_journal_posted_source", table_name="journal_entries")
+    op.drop_index("ix_journal_entries_company_date", table_name="journal_entries")
     # 기초잔액 입력 스냅샷은 전표와 관계형으로 연결합니다.
     op.drop_index(
         op.f("ix_opening_balance_lines_opening_balance_import_id"),

@@ -24,6 +24,7 @@ class LedgerFact:
     credit_amount: Decimal
     source_transaction_id: UUID | None
     import_id: UUID | None
+    counterparty_name: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

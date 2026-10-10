@@ -7,6 +7,8 @@ from app.master_data.counterparties.domain.entities import Counterparty
 
 
 class Counterparties(Protocol):
+    def by_code(self, *, company_id: UUID, code: str) -> Counterparty | None: ...
+
     def get(self, *, company_id: UUID, resource_id: UUID) -> Counterparty | None: ...
     def list(
         self,

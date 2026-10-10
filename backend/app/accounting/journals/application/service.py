@@ -6,7 +6,7 @@ from datetime import date
 from uuid import UUID
 
 from app.accounting.journals.application.contracts import JournalUnitOfWork
-from app.accounting.journals.domain.entities import Journal, validate_lines
+from app.accounting.journals.domain.entities import Journal, totals, validate_lines
 from app.accounting.journals.domain.errors import AccountingError
 from app.companies.application.service import require_company
 from app.contracts.access_errors import ResourceNotFound, VersionConflict
@@ -53,6 +53,10 @@ def validate_journal(uow: JournalUnitOfWork, value: Journal, *, balanced: bool =
         source = uow.transactions.get(value.company_id, value.source_transaction_id, lock=True)
         if source is None:
             raise ResourceNotFound()
+        if balanced and totals(value.lines)[0] != source.amount:
+            raise AccountingError(
+                "BUSINESS_RULE_VIOLATION", "전표 합계가 연결된 거래 금액과 일치하지 않습니다."
+            )
         if source.status != "READY_FOR_ACCOUNTING":
             raise AccountingError(
                 "BUSINESS_RULE_VIOLATION", "회계 처리 준비가 된 거래만 연결할 수 있습니다."
@@ -96,6 +100,12 @@ class JournalService:
                     raise AccountingError(
                         "POSTED_JOURNAL_IMMUTABLE",
                         "확정된 전표는 수정할 수 없습니다. 역분개를 이용해 주세요.",
+                        409,
+                    )
+                if old.source_type in ("OPENING", "REVERSAL"):
+                    raise AccountingError(
+                        "BUSINESS_RULE_VIOLATION",
+                        "원천에서 생성된 기초·역분개 초안은 직접 수정할 수 없습니다.",
                         409,
                     )
                 if old.status != "DRAFT":

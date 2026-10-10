@@ -126,8 +126,13 @@ def upgrade() -> None:
         op.f("ix_transactions_transaction_date"), "transactions", ["transaction_date"], unique=False
     )
 
+    op.create_index(
+        "ix_transactions_company_date", "transactions", ["company_id", "transaction_date"]
+    )
+
 
 def downgrade() -> None:
+    op.drop_index("ix_transactions_company_date", table_name="transactions")
     # 회사 범위와 출처 무결성을 명시적인 제약으로 생성합니다.
     op.drop_index(op.f("ix_transactions_transaction_date"), table_name="transactions")
     op.drop_index(op.f("ix_transactions_status"), table_name="transactions")

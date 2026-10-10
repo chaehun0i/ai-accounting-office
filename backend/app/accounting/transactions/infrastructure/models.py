@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     String,
     Text,
     UniqueConstraint,
@@ -43,6 +44,7 @@ class TransactionModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     import_id: Mapped[UUID | None] = mapped_column(index=True)
     evidence_id: Mapped[UUID | None] = mapped_column(index=True)
     __table_args__ = (
+        Index("ix_transactions_company_date", "company_id", "transaction_date"),
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "source_system", "source_id"),
         ForeignKeyConstraint(

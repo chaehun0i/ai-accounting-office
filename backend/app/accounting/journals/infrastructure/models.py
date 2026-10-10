@@ -8,9 +8,11 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,6 +47,14 @@ class JournalModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     )
     posted_at: Mapped[datetime | None]
     __table_args__ = (
+        Index(
+            "uq_journal_posted_source",
+            "company_id",
+            "source_transaction_id",
+            unique=True,
+            postgresql_where=text("status='POSTED' AND source_transaction_id IS NOT NULL"),
+        ),
+        Index("ix_journal_entries_company_date", "company_id", "entry_date", "status"),
         UniqueConstraint("company_id", "id"),
         ForeignKeyConstraint(
             ["company_id", "approval_id"],
