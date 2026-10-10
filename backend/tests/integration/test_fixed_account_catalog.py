@@ -44,7 +44,9 @@ def test_company_accounts_are_prepared_before_fiscal_setup(master):
     assert not accounting.accounts(principal, first.id)
     onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(factory))
     workspace = onboarding.get(principal, second.id)
-    assert len([cell for cell in workspace.cells if cell.field_code == "COA.account_code"]) == 25
+    assert len([cell for cell in workspace.cells if cell.field_code == "COA.account_code"]) == len(
+        DEFAULT_ACCOUNTS
+    )
     with pytest.raises(InvalidValue):
         onboarding.save(
             principal, second.id, workspace.version, [("COA.account_name", "1020", "변경")]
@@ -77,3 +79,39 @@ def test_account_preparation_failure_rolls_back_company_and_membership(master):
             address="테스트 주소",
         )
     assert companies.list(principal) == before
+
+
+def test_catalog_upgrade_preserves_existing_account_ids_and_template_references(master):
+    from sqlalchemy import delete
+    from sqlalchemy.orm import Session
+
+    from app.accounting.accounts.infrastructure.models import AccountModel
+    from app.accounting.templates.domain.defaults import LEGACY_ACCOUNTS
+
+    principal, company, accounting, _, factory, _ = master
+    settings = accounting.initialize(principal, company.id, fiscal_year=2026)
+    legacy = {row.account_code: row for row in LEGACY_ACCOUNTS}
+    with Session(factory.kw["bind"], join_transaction_mode="create_savepoint") as session:
+        session.execute(
+            delete(AccountModel).where(
+                AccountModel.company_id == company.id,
+                AccountModel.account_code.not_in(legacy),
+            )
+        )
+        from sqlalchemy import select
+
+        for account in session.scalars(
+            select(AccountModel).where(AccountModel.company_id == company.id)
+        ):
+            account.template_account_id = legacy[account.account_code].id
+        session.commit()
+    before = {row.account_code: row for row in accounting.accounts(principal, company.id)}
+    assert len(before) == len(LEGACY_ACCOUNTS)
+    with MasterSQLAlchemyUnitOfWork(factory) as uow:
+        assert prepare_accounts(uow, company.id) == len(DEFAULT_ACCOUNTS) - len(LEGACY_ACCOUNTS)
+    after = {row.account_code: row for row in accounting.accounts(principal, company.id)}
+    for code, account in before.items():
+        assert after[code] == account
+    assert accounting.initialize(principal, company.id, fiscal_year=2026) == settings
+    with MasterSQLAlchemyUnitOfWork(factory) as uow:
+        assert prepare_accounts(uow, company.id) == 0

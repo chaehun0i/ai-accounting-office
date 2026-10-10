@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import func, update
 from sqlalchemy.orm import sessionmaker
 
+from app.accounting.templates.domain.defaults import DEFAULT_ACCOUNTS
 from app.accounting.templates.infrastructure.seed import seed_default_coa
 from app.companies.infrastructure.models import MembershipModel
 
@@ -39,7 +40,7 @@ def test_master_api_security_and_typed_contract(api_client, auth_service, caplog
     assert templates.status_code == 200, templates.text
     payload = {"fiscal_year": 2026, "template_id": templates.json()[0]["id"]}
     assert client.post("/accounting/initialize", json=payload, headers=headers).status_code == 200
-    assert len(client.get("/accounts", headers=headers).json()) == 25
+    assert len(client.get("/accounts", headers=headers).json()) == len(DEFAULT_ACCOUNTS)
     assert len(client.get("/accounting/periods", headers=headers).json()) == 12
     assert (
         client.patch(

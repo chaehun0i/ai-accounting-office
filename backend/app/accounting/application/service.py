@@ -13,7 +13,12 @@ from app.accounting.domain.rules import (
 )
 from app.accounting.periods.domain.entities import Period
 from app.accounting.settings.domain.entities import AccountingSettings
-from app.accounting.templates.domain.defaults import DEFAULT_TEMPLATE
+from app.accounting.templates.domain.defaults import (
+    DEFAULT_ACCOUNTS,
+    DEFAULT_TEMPLATE,
+    LEGACY_ACCOUNTS,
+    LEGACY_TEMPLATE,
+)
 from app.accounting.templates.domain.entities import Template
 from app.companies.application.service import require_company
 from app.contracts.access_errors import (
@@ -55,12 +60,12 @@ class AccountingMasterService:
         dates = monthly_periods(fiscal_year, fiscal_year_start_month)
         with self.factory() as uow:
             require_company(uow, principal, company_id, "company.accounting_settings.update")
-            if template_id != DEFAULT_TEMPLATE.id:
+            if template_id not in {DEFAULT_TEMPLATE.id, LEGACY_TEMPLATE.id}:
                 raise InvalidInput()
             current = uow.settings.get(company_id)
             if current:
                 accounts = uow.accounts.list(company_id)
-                source_ids = {row.id for row in uow.templates.accounts(template_id)}
+                source_ids = {row.id for row in (*DEFAULT_ACCOUNTS, *LEGACY_ACCOUNTS)}
                 years = {row.fiscal_year for row in uow.periods.list(company_id)}
                 if (
                     current.functional_currency_code != functional_currency_code

@@ -7,27 +7,35 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.accounting.domain.rules import validate_account, validate_hierarchy
-from app.accounting.templates.domain.defaults import DEFAULT_ACCOUNTS, DEFAULT_TEMPLATE
+from app.accounting.templates.domain.defaults import (
+    DEFAULT_ACCOUNTS,
+    DEFAULT_TEMPLATE,
+    LEGACY_ACCOUNTS,
+    LEGACY_TEMPLATE,
+)
+from app.accounting.templates.domain.entities import Template, TemplateAccount
 from app.accounting.templates.infrastructure.models import COATemplateAccountModel, COATemplateModel
 from app.contracts.access_errors import StateConflict
 
 
-def seed_default_coa(session: Session) -> None:
-    validate_hierarchy({row.account_code: row.parent_code for row in DEFAULT_ACCOUNTS})
+def _seed_version(
+    session: Session, template: Template, accounts: tuple[TemplateAccount, ...]
+) -> None:
+    validate_hierarchy({row.account_code: row.parent_code for row in accounts})
     session.execute(
         insert(COATemplateModel)
-        .values(**asdict(DEFAULT_TEMPLATE))
+        .values(**asdict(template))
         .on_conflict_do_nothing(index_elements=["template_code", "version"])
     )
     actual = session.scalar(
         select(COATemplateModel).where(
-            COATemplateModel.template_code == DEFAULT_TEMPLATE.template_code,
-            COATemplateModel.version == DEFAULT_TEMPLATE.version,
+            COATemplateModel.template_code == template.template_code,
+            COATemplateModel.version == template.version,
         )
     )
-    if actual is None or any(getattr(actual, k) != v for k, v in asdict(DEFAULT_TEMPLATE).items()):
+    if actual is None or any(getattr(actual, k) != v for k, v in asdict(template).items()):
         raise StateConflict()
-    for row in DEFAULT_ACCOUNTS:
+    for row in accounts:
         validate_account(row.account_type, row.normal_balance, row.is_contra)
         session.execute(
             insert(COATemplateAccountModel)
@@ -42,6 +50,11 @@ def seed_default_coa(session: Session) -> None:
         )
         if saved is None or any(getattr(saved, k) != v for k, v in asdict(row).items()):
             raise StateConflict()
+
+
+def seed_default_coa(session: Session) -> None:
+    _seed_version(session, LEGACY_TEMPLATE, LEGACY_ACCOUNTS)
+    _seed_version(session, DEFAULT_TEMPLATE, DEFAULT_ACCOUNTS)
 
 
 def main() -> None:
