@@ -46,6 +46,7 @@ class CompanyModel(Base):
     )
     company_name: Mapped[str] = mapped_column(String(200))
     business_number: Mapped[str] = mapped_column(String(10))
+    timezone: Mapped[str] = mapped_column(String(40), server_default="Asia/Seoul")
     corporation_number: Mapped[str | None] = mapped_column(String(13))
     taxpayer_type: Mapped[str] = mapped_column(String(16))
     opening_date: Mapped[date]

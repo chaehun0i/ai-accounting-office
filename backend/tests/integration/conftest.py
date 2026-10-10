@@ -122,6 +122,12 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         autobegin=False,
         join_transaction_mode="create_savepoint",
     )
+    from app.onboarding.application.merge import OnboardingImportService
+    from app.onboarding.application.service import OnboardingService
+    from app.onboarding.infrastructure.template import parse_onboarding
+    from app.onboarding.infrastructure.unit_of_work import OnboardingSQLAlchemyUnitOfWork
+
+    onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(factory))
     app = create_app(settings)
     app.state.services = Services(
         auth,
@@ -131,6 +137,15 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         MasterDataService(lambda: MasterSQLAlchemyUnitOfWork(factory)),
         IntakeService(
             lambda: IntakeSQLAlchemyUnitOfWork(factory), LocalObjectStorage(tmp_path), parse_file
+        ),
+        onboarding,
+        OnboardingImportService(
+            onboarding,
+            IntakeService(
+                lambda: IntakeSQLAlchemyUnitOfWork(factory),
+                LocalObjectStorage(tmp_path),
+                parse_onboarding,
+            ),
         ),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:

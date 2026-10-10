@@ -26,12 +26,12 @@ export function recoverSession(): Promise<AuthResponse> {
   return recovery;
 }
 
-export async function authenticatedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function authenticatedRequest<T>(path: string, init: RequestInit = {}, decode?: (response: Response) => Promise<T>): Promise<T> {
   if (!access) await recoverSession();
-  try { return await request<T>(path, init, access); }
+  try { return await request<T>(path, init, access, decode); }
   catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
     await recoverSession();
-    return request<T>(path, init, access);
+    return request<T>(path, init, access, decode);
   }
 }

@@ -17,6 +17,7 @@ class Company:
     version: int = 1
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    timezone: str = "Asia/Seoul"
 
 
 @dataclass(frozen=True)

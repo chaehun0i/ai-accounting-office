@@ -95,8 +95,16 @@ class IntakeService:
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", source_system):
             raise InvalidInput()
         with self.factory() as uow:
-            require_company(uow, actor, company, "import.create")
-            require_company(uow, actor, company, "evidence.upload")
+            require_company(
+                uow,
+                actor,
+                company,
+                "onboarding.import"
+                if source == SourceType.ONBOARDING_TEMPLATE
+                else "import.create",
+            )
+            if source != SourceType.ONBOARDING_TEMPLATE:
+                require_company(uow, actor, company, "evidence.upload")
         workbook = self.parser(filename, content, content_type)
         mappings = [
             m for sheet in workbook.sheets for m in suggest(source, sheet.index, sheet.headers)
@@ -104,8 +112,16 @@ class IntakeService:
         key = self.storage.put(company, content)
         try:
             with self.factory() as uow:
-                require_company(uow, actor, company, "import.create")
-                require_company(uow, actor, company, "evidence.upload")
+                require_company(
+                    uow,
+                    actor,
+                    company,
+                    "onboarding.import"
+                    if source == SourceType.ONBOARDING_TEMPLATE
+                    else "import.create",
+                )
+                if source != SourceType.ONBOARDING_TEMPLATE:
+                    require_company(uow, actor, company, "evidence.upload")
                 value = Import(
                     uuid4(),
                     company,
@@ -260,6 +276,8 @@ class IntakeService:
         fingerprint = digest([str(identifier), preview_digest, expected_version, confirmed])
         with self.factory() as uow:
             value = self._get(uow, actor, company, identifier, "import.confirm")
+            if value.target_context == TargetContext.ONBOARDING_DRAFT:
+                raise StateConflict()
             replay = uow.imports.replay(company, actor.user_id, idempotency_key)
             if replay:
                 if replay.fingerprint != fingerprint:

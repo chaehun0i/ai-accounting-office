@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 class Counterparty:
     id: UUID = field(default_factory=uuid4)
     company_id: UUID
+    counterparty_code: str | None = None
     display_name: str
     legal_name: str
     normalized_legal_name: str

@@ -39,7 +39,7 @@ Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repo
 
 SQLAlchemy/Alembic, strict UUID/Decimal/UTC 타입, UoW와 회사 범위를 필수로 받는 Repository Protocol이 존재합니다. baseline 위에 Identity/Company 업무 테이블 10개를 001/002, 회계 마스터 12개를 003 revision으로 등록합니다. 자동 create_all은 없습니다.
 
-[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 현재 Identity/Company 구조와 구현 결정을 [인증·회사 계약](identity-company.md)에 기록했습니다. 회계 마스터는 [현재 구조와 결정](accounting-master.md)을 따릅니다. Storage/Evidence/Intake 11개 테이블을 004에 추가했으며 전체 업무 테이블은 33개입니다. 다음은 005 Onboarding/Data Exchange이며 이후 006 Transaction의 FK를 연결합니다. [현재 계약](storage-evidence-intake.md)을 따릅니다.
+[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 현재 Identity/Company 구조와 구현 결정을 [인증·회사 계약](identity-company.md)에 기록했습니다. 회계 마스터는 [현재 구조와 결정](accounting-master.md)을 따릅니다. Storage/Evidence/Intake 11개 테이블을 004에 추가했으며 005 Onboarding/Data Exchange의 10개 관계형 테이블을 추가하여 전체 업무 테이블은 43개입니다. 이후 006 Transaction의 FK를 연결합니다. [온보딩 계약](onboarding-data-exchange.md)을 따릅니다. [현재 계약](storage-evidence-intake.md)을 따릅니다.
 
 ## 품질 도구 결정
 

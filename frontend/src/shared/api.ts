@@ -3,7 +3,7 @@ export class ApiError extends Error {
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
-export async function request<T>(path: string, init: RequestInit = {}, access?: string | null): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}, access?: string | null, decode?: (response: Response) => Promise<T>): Promise<T> {
   try {
     const headers = new Headers(init.headers);
     // 파일 업로드의 multipart 경계는 브라우저가 생성합니다.
@@ -15,7 +15,7 @@ export async function request<T>(path: string, init: RequestInit = {}, access?: 
       const error = await response.json().catch(() => null);
       throw new ApiError(response.status, error?.message ?? "요청을 처리하지 못했습니다. 다시 시도해 주세요.");
     }
-    return await response.json() as T;
+    return decode ? await decode(response) : await response.json() as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError(0, "서비스에 연결하지 못했습니다. 연결 상태를 확인한 후 다시 시도해 주세요.");

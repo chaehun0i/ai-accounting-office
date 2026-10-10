@@ -30,7 +30,7 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     command.current(config, check_heads=True)
     command.check(config)
     migration = MigrationContext.configure(db_connection, opts={"compare_type": True})
-    assert migration.get_current_heads() == ("004_storage_evidence_intake",)
+    assert migration.get_current_heads() == ("005_onboarding_data_exchange",)
     assert compare_metadata(migration, Base.metadata) == []
     assert_relational_schema(db_connection)
     assert set(inspect(db_connection).get_table_names(schema="public")) == expected
@@ -54,6 +54,11 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     assert len(inspect(db_connection).get_table_names(schema="public")) == 11
     db_connection.commit()
     command.upgrade(config, "head")
+    command.downgrade(config, "004_storage_evidence_intake")
+    assert "onboarding_sessions" not in inspect(db_connection).get_table_names(schema="public")
+    db_connection.commit()
+    command.upgrade(config, "005_onboarding_data_exchange")
+    command.check(config)
     command.downgrade(config, "003_master_accounting_settings")
     assert "imports" not in inspect(db_connection).get_table_names(schema="public")
     db_connection.commit()

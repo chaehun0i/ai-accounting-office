@@ -17,6 +17,16 @@ def test_intake_schema_constraints_and_no_orphans(identity_database):
         "import_evidences",
         "import_confirmations",
         "import_source_records",
+        "onboarding_sessions",
+        "onboarding_sections",
+        "onboarding_field_definitions",
+        "onboarding_row_items",
+        "onboarding_values",
+        "onboarding_value_history",
+        "onboarding_validation_results",
+        "onboarding_imports",
+        "onboarding_apply_receipts",
+        "onboarding_promotion_receipts",
     }
     with identity_database.connect() as connection:
         inspector = inspect(connection)
@@ -33,7 +43,7 @@ def test_intake_schema_constraints_and_no_orphans(identity_database):
         )
         for name in names:
             assert inspector.get_pk_constraint(name)["constrained_columns"]
-            assert inspector.get_foreign_keys(name)
+            assert inspector.get_foreign_keys(name) or name == "onboarding_field_definitions"
             assert not (
                 {"payload", "metadata", "context", "extra", "options"}
                 & set(Base.metadata.tables[name].c.keys())

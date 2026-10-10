@@ -49,8 +49,8 @@ def safe_cell(value: str) -> str:
     return value
 
 
-def table(index: int, name: str, rows: list[list[str]]) -> Sheet:
-    if len(rows) < 2 or len(rows) > MAX_ROWS + 1:
+def table(index: int, name: str, rows: list[list[str]], *, allow_empty: bool = False) -> Sheet:
+    if len(rows) < (1 if allow_empty else 2) or len(rows) > MAX_ROWS + 1:
         raise IntakeFileError()
     headers = tuple(safe_cell(v.strip()) for v in rows[0])
     if (
@@ -65,7 +65,7 @@ def table(index: int, name: str, rows: list[list[str]]) -> Sheet:
         if len(row) != len(headers):
             raise IntakeFileError()
         values.append(tuple(safe_cell(v) for v in row))
-    if not any(any(v.strip() for v in row) for row in values):
+    if not allow_empty and not any(any(v.strip() for v in row) for row in values):
         raise IntakeFileError()
     return Sheet(index, name, headers, tuple(values))
 
@@ -91,7 +91,9 @@ def column_number(reference: str) -> int:
     return result - 1
 
 
-def parse_xlsx(content: bytes) -> Workbook:
+def parse_xlsx(
+    content: bytes, *, max_sheets: int = MAX_SHEETS, allow_empty: bool = False
+) -> Workbook:
     with ZipFile(BytesIO(content)) as archive:
         entries = archive.infolist()
         if (
@@ -185,7 +187,7 @@ def parse_xlsx(content: bytes) -> Workbook:
         epoch_1904 = book.find(f"{NS}workbookPr")
         is_1904 = epoch_1904 is not None and epoch_1904.get("date1904") in {"1", "true"}
         sheets = book.findall(f"{NS}sheets/{NS}sheet")
-        if not sheets or len(sheets) > MAX_SHEETS:
+        if not sheets or len(sheets) > max_sheets:
             raise IntakeFileError()
         result: list[Sheet] = []
         for index, sheet in enumerate(sheets):
@@ -238,13 +240,20 @@ def parse_xlsx(content: bytes) -> Workbook:
                 if any(c >= width for c in values):
                     raise IntakeFileError()
                 rows.append([values.get(c, "") for c in range(width)])
-            result.append(table(index, sheet.get("name", "Sheet"), rows))
+            result.append(table(index, sheet.get("name", "Sheet"), rows, allow_empty=allow_empty))
         if sum(len(s.rows) for s in result) > MAX_ROWS:
             raise IntakeFileError()
         return Workbook(tuple(result), "OOXML_UTF8")
 
 
-def parse_file(filename: str, content: bytes, content_type: str) -> Workbook:
+def parse_file(
+    filename: str,
+    content: bytes,
+    content_type: str,
+    *,
+    max_sheets: int = MAX_SHEETS,
+    allow_empty: bool = False,
+) -> Workbook:
     validate_filename(filename)
     if not content or len(content) > MAX_BYTES:
         raise IntakeFileError()
@@ -273,7 +282,7 @@ def parse_file(filename: str, content: bytes, content_type: str) -> Workbook:
             raise IntakeFileError()
         if not content.startswith(b"PK\x03\x04"):
             raise IntakeFileError()
-        return parse_xlsx(content)
+        return parse_xlsx(content, max_sheets=max_sheets, allow_empty=allow_empty)
     except IntakeFileError:
         raise
     except (
