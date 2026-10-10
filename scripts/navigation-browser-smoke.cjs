@@ -52,7 +52,7 @@ async function main() {
       assert.equal(await menu.getByRole("link", { name: label, exact: true }).getAttribute("aria-current"), "page");
     }
     await menu.getByRole("link", { name: "회계 준비", exact: true }).click();
-    await page.getByRole("button", { name: /^계정과목 · 서버 제공/ }).click();
+    await page.getByRole("button", { name: /^계정과목 · 준비된 계정목록/ }).click();
     await page.getByRole("region", { name: "서버 계정과목 목록", exact: true }).getByText("보통예금", { exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "항목 추가", exact: true }).count(), 0);
     await page.getByLabel("계정코드·계정명 검색").fill("보통예금");
@@ -75,6 +75,20 @@ async function main() {
     await excel.waitFor({ state: "hidden" });
     await page.waitForFunction(() => document.activeElement?.textContent === "Excel 업로드");
     await page.screenshot({ path: ".local/esg-workspace.png", fullPage: true });
+    const nameInput = page.getByLabel("회사명", { exact: true });
+    const savedName = await nameInput.inputValue();
+    await nameInput.fill("저장 전 확인용 이름");
+    await page.getByText("변경 내용을 먼저 저장해 주세요", { exact: true }).waitFor();
+    page.once("dialog", dialog => dialog.dismiss());
+    await menu.getByRole("link", { name: "회사 관리", exact: true }).click();
+    assert.ok(page.url().endsWith("/onboarding"));
+    assert.equal(await nameInput.inputValue(), "저장 전 확인용 이름");
+    page.once("dialog", dialog => dialog.accept());
+    await menu.getByRole("link", { name: "회사 관리", exact: true }).click();
+    await page.waitForURL(origin + "/companies");
+    await menu.getByRole("link", { name: "회계 준비", exact: true }).click();
+    await page.getByLabel("회사명", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("회사명", { exact: true }).inputValue(), savedName);
     await menu.getByRole("link", { name: "회사 관리", exact: true }).click();
     await page.getByRole("button", { name: "새 회사 만들기", exact: true }).click();
     await page.getByRole("dialog", { name: "새 회사 만들기", exact: true }).waitFor();
