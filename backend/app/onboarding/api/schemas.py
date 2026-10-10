@@ -21,6 +21,10 @@ class ValuesUpdate(StrictModel):
     values: list[ValueUpdate] = Field(min_length=1, max_length=500)
 
 
+class AttachCommand(StrictModel):
+    existing_import_id: UUID
+
+
 class VersionCommand(StrictModel):
     expected_version: int = Field(ge=1)
 

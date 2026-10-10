@@ -14,7 +14,10 @@ from app.companies.application.service import require_company
 from app.identity.users.domain.entities import Principal
 from app.intake.domain.digest import digest
 from app.intake.domain.errors import IdempotencyConflict
-from app.master_data.application.onboarding import promote_counterparties
+from app.master_data.application.onboarding import (
+    promote_counterparties,
+    promote_counterparty_roles,
+)
 from app.master_data.counterparties.domain.entities import Counterparty
 from app.onboarding.application.service import OnboardingService
 from app.onboarding.domain.entities import Receipt
@@ -69,7 +72,9 @@ class CompleteOnboarding:
             settings = AccountingSettings(
                 company_id=company,
                 functional_currency_code=text("Accounting_Settings", "functional_currency_code"),
-                fiscal_year_start_month=int(Decimal(text("Accounting_Settings", "fiscal_year_start_month"))),
+                fiscal_year_start_month=int(
+                    Decimal(text("Accounting_Settings", "fiscal_year_start_month"))
+                ),
                 journal_number_prefix=text("Accounting_Settings", "journal_number_prefix"),
                 accounting_framework_code=text("Accounting_Settings", "accounting_framework_code"),
                 reporting_taxonomy_code=text("Accounting_Settings", "reporting_taxonomy_code"),
@@ -115,6 +120,17 @@ class CompleteOnboarding:
                     )
                 )
             counterparty_count = promote_counterparties(uow, actor, counterparties)
+            promote_counterparty_roles(
+                uow,
+                actor,
+                company,
+                {
+                    c.row_key: str(c.value)
+                    for c in cells
+                    if c.field_code == "Counterparties.role_code"
+                },
+                opening,
+            )
             saved = uow.onboarding.save(
                 current, cells, actor.user_id, uow.now(), status="COMPLETED"
             )

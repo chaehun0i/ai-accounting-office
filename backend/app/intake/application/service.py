@@ -276,6 +276,8 @@ class IntakeService:
         fingerprint = digest([str(identifier), preview_digest, expected_version, confirmed])
         with self.factory() as uow:
             value = self._get(uow, actor, company, identifier, "import.confirm")
+            if value.target_context == TargetContext.ONBOARDING_DRAFT:
+                raise StateConflict()
             replay = uow.imports.replay(company, actor.user_id, idempotency_key)
             if replay:
                 if replay.fingerprint != fingerprint:

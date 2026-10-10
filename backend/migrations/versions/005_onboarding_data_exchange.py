@@ -16,8 +16,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.drop_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets',type_='check')
-    op.create_check_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets','sheet_index >= 0 AND row_count BETWEEN 0 AND 1000 AND column_count BETWEEN 1 AND 40')
+    op.drop_constraint(op.f("ck_import_sheets_dimensions"), "import_sheets", type_="check")
+    op.create_check_constraint(
+        op.f("ck_import_sheets_dimensions"),
+        "import_sheets",
+        "sheet_index >= 0 AND row_count BETWEEN 0 AND 1000 AND column_count BETWEEN 1 AND 40",
+    )
     op.add_column("counterparties", sa.Column("counterparty_code", sa.String(80), nullable=True))
     op.create_unique_constraint(
         op.f("uq_counterparties_company_id_counterparty_code"),
@@ -30,7 +34,8 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f("ck_imports_source"),
         "imports",
-        "source_type IN ('BANK_TRANSACTION','CARD_TRANSACTION','SALES','PURCHASE','EXPENSE','OPENING_BALANCE','COUNTERPARTY','ONBOARDING_TEMPLATE')",
+        "source_type IN ('BANK_TRANSACTION','CARD_TRANSACTION','SALES',"
+        "'PURCHASE','EXPENSE','OPENING_BALANCE','COUNTERPARTY','ONBOARDING_TEMPLATE')",
     )
     # 관계형 제약과 외래키 순서를 명시적으로 유지합니다.
     op.create_table(
@@ -72,7 +77,8 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("version", sa.Integer(), nullable=False),
         sa.CheckConstraint(
-            "status IN ('NOT_STARTED','IN_PROGRESS','REVIEW_REQUIRED','READY_TO_COMPLETE','COMPLETED')",
+            "status IN ('NOT_STARTED','IN_PROGRESS','REVIEW_REQUIRED',"
+            "'READY_TO_COMPLETE','COMPLETED')",
             name=op.f("ck_onboarding_sessions_status"),
         ),
         sa.CheckConstraint("version >= 1", name=op.f("ck_onboarding_sessions_version")),
@@ -553,8 +559,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets',type_='check')
-    op.create_check_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets','sheet_index >= 0 AND row_count BETWEEN 1 AND 1000 AND column_count BETWEEN 1 AND 40')
+    op.drop_constraint(op.f("ck_import_sheets_dimensions"), "import_sheets", type_="check")
+    op.create_check_constraint(
+        op.f("ck_import_sheets_dimensions"),
+        "import_sheets",
+        "sheet_index >= 0 AND row_count BETWEEN 1 AND 1000 AND column_count BETWEEN 1 AND 40",
+    )
     op.drop_constraint(
         op.f("uq_counterparties_company_id_counterparty_code"), "counterparties", type_="unique"
     )
@@ -566,7 +576,8 @@ def downgrade() -> None:
     op.create_check_constraint(
         op.f("ck_imports_source"),
         "imports",
-        "source_type IN ('BANK_TRANSACTION','CARD_TRANSACTION','SALES','PURCHASE','EXPENSE','OPENING_BALANCE','COUNTERPARTY')",
+        "source_type IN ('BANK_TRANSACTION','CARD_TRANSACTION','SALES',"
+        "'PURCHASE','EXPENSE','OPENING_BALANCE','COUNTERPARTY')",
     )
     # 관계형 제약과 외래키 순서를 명시적으로 유지합니다.
     op.drop_column("companies", "timezone")

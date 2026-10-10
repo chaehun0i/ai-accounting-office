@@ -2,7 +2,6 @@
 
 from datetime import UTC, datetime
 from io import BytesIO
-from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from app.intake.domain.workbook import Workbook
@@ -31,54 +30,75 @@ def column_name(index: int) -> str:
 
 
 def workbook_bytes(sheets: dict[str, list[list[str]]]) -> bytes:
+    from xml.etree.ElementTree import Element, SubElement, tostring
+
     stream = BytesIO()
     ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    rel_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
+    doc_rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    content_ns = "http://schemas.openxmlformats.org/package/2006/content-types"
+    types = Element(f"{{{content_ns}}}Types")
+    for extension, content_type in (
+        ("rels", "application/vnd.openxmlformats-package.relationships+xml"),
+        ("xml", "application/xml"),
+    ):
+        SubElement(types, f"{{{content_ns}}}Default", Extension=extension, ContentType=content_type)
+    SubElement(
+        types,
+        f"{{{content_ns}}}Override",
+        PartName="/xl/workbook.xml",
+        ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+    )
+    root_rel = Element(f"{{{rel_ns}}}Relationships")
+    SubElement(
+        root_rel,
+        f"{{{rel_ns}}}Relationship",
+        Id="rId1",
+        Type=doc_rel + "/officeDocument",
+        Target="xl/workbook.xml",
+    )
+    book = Element(f"{{{ns}}}workbook")
+    listed = SubElement(book, f"{{{ns}}}sheets")
+    relationships = Element(f"{{{rel_ns}}}Relationships")
     with ZipFile(stream, "w", ZIP_DEFLATED) as archive:
-        archive.writestr(
-            "[Content_Types].xml",
-            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-            + "".join(
-                f'<Override PartName="/xl/worksheets/sheet{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-                for i in range(1, len(sheets) + 1)
+        for index, (name, rows) in enumerate(sheets.items(), 1):
+            path = f"xl/worksheets/sheet{index}.xml"
+            SubElement(
+                types,
+                f"{{{content_ns}}}Override",
+                PartName="/" + path,
+                ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
             )
-            + "</Types>",
-        )
-        archive.writestr(
-            "_rels/.rels",
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
-        )
-        archive.writestr(
-            "xl/workbook.xml",
-            f'<workbook xmlns="{ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
-            + "".join(
-                f'<sheet name="{escape(name)}" sheetId="{i}" r:id="rId{i}"/>'
-                for i, name in enumerate(sheets, 1)
+            SubElement(
+                listed,
+                f"{{{ns}}}sheet",
+                {"name": name, "sheetId": str(index), f"{{{doc_rel}}}id": f"rId{index}"},
             )
-            + "</sheets></workbook>",
-        )
-        archive.writestr(
-            "xl/_rels/workbook.xml.rels",
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            + "".join(
-                f'<Relationship Id="rId{i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{i}.xml"/>'
-                for i in range(1, len(sheets) + 1)
+            SubElement(
+                relationships,
+                f"{{{rel_ns}}}Relationship",
+                Id=f"rId{index}",
+                Type=doc_rel + "/worksheet",
+                Target=f"worksheets/sheet{index}.xml",
             )
-            + "</Relationships>",
-        )
-        for index, rows in enumerate(sheets.values(), 1):
-            data = "".join(
-                f'<row r="{r}">'
-                + "".join(
-                    f'<c r="{column_name(c)}{r}" t="inlineStr"><is><t xml:space="preserve">{escape(value)}</t></is></c>'
-                    for c, value in enumerate(row, 1)
-                )
-                + "</row>"
-                for r, row in enumerate(rows, 1)
-            )
-            archive.writestr(
-                f"xl/worksheets/sheet{index}.xml",
-                f'<worksheet xmlns="{ns}"><sheetData>{data}</sheetData></worksheet>',
-            )
+            worksheet = Element(f"{{{ns}}}worksheet")
+            data = SubElement(worksheet, f"{{{ns}}}sheetData")
+            for number, values in enumerate(rows, 1):
+                row = SubElement(data, f"{{{ns}}}row", r=str(number))
+                for column, value in enumerate(values, 1):
+                    cell = SubElement(
+                        row, f"{{{ns}}}c", r=f"{column_name(column)}{number}", t="inlineStr"
+                    )
+                    text = SubElement(SubElement(cell, f"{{{ns}}}is"), f"{{{ns}}}t")
+                    text.text = value
+            archive.writestr(path, tostring(worksheet, encoding="utf-8", xml_declaration=True))
+        for path, document in (
+            ("[Content_Types].xml", types),
+            ("_rels/.rels", root_rel),
+            ("xl/workbook.xml", book),
+            ("xl/_rels/workbook.xml.rels", relationships),
+        ):
+            archive.writestr(path, tostring(document, encoding="utf-8", xml_declaration=True))
     return stream.getvalue()
 
 

@@ -37,6 +37,7 @@ ENUMS: dict[str, tuple[str, ...]] = {
     "currency_code": ("KRW",),
     "account_type": ("ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"),
     "normal_balance": ("DEBIT", "CREDIT"),
+    "role_code": ("CUSTOMER", "SUPPLIER", "PAYEE", "TAX_COUNTERPARTY"),
     "counterparty_type": ("BUSINESS", "INDIVIDUAL", "OTHER"),
     "accounting_framework_code": ("K_GAAP", "K_IFRS"),
     "reporting_taxonomy_code": ("STANDARD",),
@@ -193,6 +194,7 @@ CATALOG = (
             ],
         )
     ),
+    *fields("Counterparties", [("role_code", "거래처 역할", "TEXT", "NEVER")]),
     Field(
         "Company.no_opening_balance",
         "Company",

@@ -1,11 +1,14 @@
 """안정적인 거래처 코드로만 식별하며 이름 유사도로 덮어쓰지 않습니다."""
 
 from dataclasses import replace
+from datetime import date
+from uuid import UUID
 
 from app.accounting.application.contracts import MasterUnitOfWork
 from app.companies.application.service import require_company
 from app.contracts.access_errors import InvalidInput, StateConflict
 from app.identity.users.domain.entities import Principal
+from app.master_data.counterparties.domain.children import Role
 from app.master_data.counterparties.domain.entities import Counterparty
 from app.master_data.domain.rules import CounterpartyType, normalized_identifier, normalized_name
 
@@ -49,3 +52,21 @@ def promote_counterparties(
         uow.counterparties.add(value)
         count += 1
     return count
+
+
+def promote_counterparty_roles(
+    uow: MasterUnitOfWork,
+    actor: Principal,
+    company_id: UUID,
+    roles: dict[str, str],
+    effective_from: date,
+) -> None:
+    for value in uow.counterparties.list(company_id):
+        code = roles.get(value.counterparty_code or "")
+        if code:
+            require_company(uow, actor, company_id, "counterparty.create")
+            if not any(r.role_code == code for r in uow.counterparties.roles(company_id, value.id)):
+                uow.counterparties.add_role(
+                    company_id,
+                    Role(counterparty_id=value.id, role_code=code, effective_from=effective_from),
+                )

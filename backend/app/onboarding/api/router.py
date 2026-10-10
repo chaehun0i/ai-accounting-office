@@ -13,6 +13,7 @@ from app.intake.api.upload import receive_upload
 from app.intake.infrastructure.parser import XLSX_MIME
 from app.onboarding.api.schemas import (
     ApplyCommand,
+    AttachCommand,
     ImportRead,
     PreviewRead,
     ReceiptRead,
@@ -111,6 +112,7 @@ def template(actor: Actor, company_id: CompanyScope, container: Container) -> Re
         "requestBody": {
             "required": True,
             "content": {
+                "application/json": {"schema": AttachCommand.model_json_schema()},
                 "multipart/form-data": {
                     "schema": {
                         "type": "object",
@@ -118,7 +120,7 @@ def template(actor: Actor, company_id: CompanyScope, container: Container) -> Re
                         "additionalProperties": False,
                         "properties": {"file": {"type": "string", "format": "binary"}},
                     }
-                }
+                },
             },
         }
     },
@@ -127,6 +129,17 @@ async def upload(
     request: Request, actor: Actor, company_id: CompanyScope, container: Container
 ) -> ImportRead:
     _, service = require_service(container)
+    if request.headers.get("content-type", "").split(";")[0] == "application/json":
+        from pydantic import ValidationError
+
+        try:
+            payload = AttachCommand.model_validate(await request.json())
+        except (ValidationError, ValueError):
+            raise InvalidInput() from None
+        value = await run_in_threadpool(
+            service.attach, actor, company_id, payload.existing_import_id
+        )
+        return ImportRead.model_validate(asdict(value))
     file = await receive_upload(request)
     if file.fields:
         raise InvalidInput()

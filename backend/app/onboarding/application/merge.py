@@ -16,6 +16,7 @@ from app.onboarding.application.contracts import OnboardingUnitOfWork
 from app.onboarding.application.service import OnboardingService
 from app.onboarding.domain.entities import ImportLink, MergeItem, MergePreview, Receipt, Workspace
 from app.onboarding.domain.errors import InvalidValue, StaleDraft
+from app.onboarding.domain.mapped_import import mapped_cells
 from app.onboarding.domain.template import read_template
 from app.onboarding.domain.validation import invalidate
 from app.onboarding.domain.values import classify
@@ -47,6 +48,37 @@ class OnboardingImportService:
             current = self.workspace.workspace(uow, actor, company, "onboarding.import")
             return uow.onboarding.link(current, value, metadata)
 
+    def attach(self, actor: Principal, company: UUID, identifier: UUID) -> ImportLink:
+        with self.workspace.factory() as uow:
+            current = self.workspace.workspace(uow, actor, company, "onboarding.import")
+            if current.status == "COMPLETED":
+                raise StateConflict()
+            value = uow.imports.get(company_id=company, resource_id=identifier)
+            if value is None or value.target_context != TargetContext.ONBOARDING_DRAFT:
+                raise ResourceNotFound()
+            if value.requested_by != actor.user_id:
+                raise AuthorizationDenied()
+            if value.source_type != SourceType.COUNTERPARTY or value.status in {
+                "COMPLETED",
+                "CONFIRMED",
+                "CANCELLED",
+            }:
+                raise InvalidValue()
+            existing = uow.onboarding.import_link(company, identifier)
+            if existing:
+                return existing
+            return uow.onboarding.link(
+                current,
+                value,
+                {
+                    "template_code": "MAPPED_FILE",
+                    "template_version": "1",
+                    "schema_version": "1",
+                    "generated_at": uow.now().isoformat(),
+                    "locale": "ko-KR",
+                },
+            )
+
     def _get(
         self, uow: OnboardingUnitOfWork, actor: Principal, company: UUID, identifier: UUID
     ) -> tuple[Workspace, Import, ImportLink]:
@@ -67,9 +99,16 @@ class OnboardingImportService:
         content = self.intake.storage.read(value.company_id, value.storage_key)
         if hashlib.sha256(content).hexdigest() != value.file_sha256:
             raise StaleDraft()
-        _, cells, errors = read_template(
-            self.intake.parser(value.original_filename, content, value.content_type)
-        )
+        workbook = self.intake.parser(value.original_filename, content, value.content_type)
+        if value.source_type == SourceType.ONBOARDING_TEMPLATE:
+            _, cells, errors = read_template(workbook)
+        else:
+            with self.workspace.factory() as uow:
+                latest = uow.imports.get(company_id=value.company_id, resource_id=value.id)
+                if latest is None or latest.mapping_version != value.mapping_version:
+                    raise StaleDraft()
+                mappings = [column.mapping for column in uow.imports.columns(latest)]
+            cells, errors = mapped_cells(workbook, value.source_type, mappings)
         existing = {(c.field_code, c.row_key): c for c in current.cells}
         items = [
             MergeItem(
@@ -202,5 +241,5 @@ class OnboardingImportService:
                 0,
                 uow.now(),
             )
-            uow.onboarding.record(saved, receipt, key)
+            uow.onboarding.record(saved, receipt, key, source_digest=preview_digest)
             return receipt

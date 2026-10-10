@@ -26,7 +26,8 @@ class OnboardingSessionModel(Base):
         UniqueConstraint("company_id", "id"),
         CheckConstraint("version >= 1", name="version"),
         CheckConstraint(
-            "status IN ('NOT_STARTED','IN_PROGRESS','REVIEW_REQUIRED','READY_TO_COMPLETE','COMPLETED')",
+            "status IN ('NOT_STARTED','IN_PROGRESS','REVIEW_REQUIRED',"
+            "'READY_TO_COMPLETE','COMPLETED')",
             name="status",
         ),
     )

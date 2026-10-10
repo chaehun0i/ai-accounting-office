@@ -27,7 +27,13 @@ class OnboardingRepository(Protocol):
     def import_link(self, company_id: UUID, import_id: UUID) -> ImportLink | None: ...
     def receipt(self, company_id: UUID, key: str, *, promotion: bool = False) -> Receipt | None: ...
     def record(
-        self, workspace: Workspace, receipt: Receipt, key: str, *, promotion: bool = False
+        self,
+        workspace: Workspace,
+        receipt: Receipt,
+        key: str,
+        *,
+        promotion: bool = False,
+        source_digest: str | None = None,
     ) -> None: ...
 
 

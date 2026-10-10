@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.contracts.access_errors import VersionConflict
 from app.intake.domain.entities import Import
+from app.intake.infrastructure.models import ImportModel
 from app.onboarding.domain.catalog import BY_CODE, CATALOG, REQUIRED_SECTIONS, SECTIONS
 from app.onboarding.domain.entities import ImportLink, Receipt, Workspace
 from app.onboarding.domain.validation import Issue, progress
@@ -338,7 +339,13 @@ class OnboardingRepository:
         )
 
     def record(
-        self, workspace: Workspace, receipt: Receipt, key: str, *, promotion: bool = False
+        self,
+        workspace: Workspace,
+        receipt: Receipt,
+        key: str,
+        *,
+        promotion: bool = False,
+        source_digest: str | None = None,
     ) -> None:
         if promotion:
             self.session.add(
@@ -362,7 +369,7 @@ class OnboardingRepository:
                     import_id=receipt.import_id,
                     idempotency_key=key,
                     fingerprint=receipt.fingerprint,
-                    source_digest=receipt.fingerprint,
+                    source_digest=source_digest or receipt.fingerprint,
                     new_count=receipt.new_count,
                     changed_count=receipt.changed_count,
                     unchanged_count=receipt.unchanged_count,
@@ -379,4 +386,14 @@ class OnboardingRepository:
             )
             assert row is not None
             row.status = "APPLIED"
+            imported = self.session.scalar(
+                select(ImportModel).where(
+                    ImportModel.company_id == workspace.company_id,
+                    ImportModel.id == receipt.import_id,
+                )
+            )
+            assert imported is not None
+            imported.status = "COMPLETED"
+            imported.confirmed_at = receipt.created_at
+            imported.completed_at = receipt.created_at
         self.session.flush()
