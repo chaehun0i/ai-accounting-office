@@ -30,6 +30,7 @@ __all__ += [
 
 # 회계 Master 모델은 명시적으로 등록하고 import 시 연결하지 않습니다.
 from app.accounting.accounts.infrastructure import models as accounts_models  # noqa: F401, E402
+from app.accounting.journals.infrastructure import models as journal_models  # noqa: F401, E402
 from app.accounting.periods.infrastructure import models as periods_models  # noqa: F401, E402
 from app.accounting.sequences.infrastructure import models as sequences_models  # noqa: F401, E402
 from app.accounting.settings.infrastructure import models as settings_models  # noqa: F401, E402
@@ -50,3 +51,4 @@ from app.onboarding.infrastructure import models as onboarding_models  # noqa: F
 # 파일과 증빙·인테이크 메타데이터를 등록합니다.
 from app.storage.infrastructure import models as storage_models  # noqa: F401, E402
 
+from app.approvals.infrastructure import models as governance_models  # noqa: F401, E402

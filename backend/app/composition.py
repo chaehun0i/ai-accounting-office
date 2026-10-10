@@ -7,10 +7,14 @@ from sqlalchemy import Engine
 
 from app.accounting.application.service import AccountingMasterService
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
+from app.accounting.journals.application.service import JournalService
+from app.accounting.journals.infrastructure.unit_of_work import JournalSQLAlchemyUnitOfWork
 from app.accounting.transactions.application.service import TransactionService
 from app.accounting.transactions.infrastructure.unit_of_work import TransactionSQLAlchemyUnitOfWork
 from app.companies.application.service import CompanyService
 from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWork
+from app.accounting.journals.application.commands import JournalCommands
+from app.approvals.infrastructure.unit_of_work import AccountingSQLAlchemyUnitOfWork
 from app.core.config import Settings
 from app.core.database.engine import create_database_engine
 from app.core.database.session import create_session_factory
@@ -41,6 +45,8 @@ class Services:
     onboarding: OnboardingService | None = None
     onboarding_imports: OnboardingImportService | None = None
     transactions: TransactionService | None = None
+    journals: JournalService | None = None
+    journal_commands: JournalCommands | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -79,4 +85,6 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
             ),
         ),
         TransactionService(lambda: TransactionSQLAlchemyUnitOfWork(sessions)),
+        JournalService(lambda: JournalSQLAlchemyUnitOfWork(sessions)),
+        JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
     )

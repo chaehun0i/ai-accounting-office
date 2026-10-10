@@ -20,6 +20,7 @@ class PeriodModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     end_date: Mapped[date]
     status: Mapped[str] = mapped_column(String(16), server_default=text("'OPEN'"))
     __table_args__ = (
+        UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "fiscal_year", "period_no"),
         Index("ix_accounting_periods_company_dates", "company_id", "start_date", "end_date"),
         CheckConstraint(
