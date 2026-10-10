@@ -20,7 +20,7 @@ export function CompanyCreate() {
     } catch (error) { setError(error instanceof Error ? error.message : "회사 정보를 확인해 주세요."); }
     finally { setBusy(false); }
   }
-  return <><button className="button-accent" onClick={() => { setError(""); setOpen(true); }}><Plus size={16} aria-hidden="true" />새 회사 만들기</button><OfficeDialog compact open={open} onClose={() => setOpen(false)} busy={busy} title="새 회사 만들기" description="기본 정보를 입력하면 회사 소유자로 등록됩니다. 회계 기준과 계정과목은 회계 설정에서 준비할 수 있습니다.">
+  return <><button className="button-accent" onClick={() => { setError(""); setOpen(true); }}><Plus size={16} aria-hidden="true" />새 회사 만들기</button><OfficeDialog compact open={open} onClose={() => setOpen(false)} busy={busy} title="새 회사 만들기" description="회사를 만든 뒤 업무 홈에서 회계 시작 준비를 한 단계씩 진행합니다.">
     <form onSubmit={submit}>
       <label htmlFor="company-name">회사명</label><input id="company-name" name="company_name" required maxLength={200} disabled={busy} />
       <label htmlFor="business-number">사업자등록번호</label><input id="business-number" name="business_number" pattern="[0-9]{10}" inputMode="numeric" placeholder="하이픈 없이 10자리" required disabled={busy} />
