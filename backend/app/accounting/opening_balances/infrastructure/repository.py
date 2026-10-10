@@ -62,3 +62,45 @@ class OpeningRepository:
                 )
             )
         self.session.flush()
+
+    def evidence_ids(self, company: UUID, session_id: UUID) -> tuple[UUID, ...]:
+        from app.intake.infrastructure.models import ImportEvidenceModel
+        from app.onboarding.infrastructure.models import ValueHistoryModel, ValueModel
+
+        imports: set[UUID | None] = set(
+            self.session.scalars(
+                select(ValueModel.source_import_id).where(
+                    ValueModel.company_id == company,
+                    ValueModel.session_id == session_id,
+                    ValueModel.section_code == "Opening_Balances",
+                    ValueModel.source_import_id.is_not(None),
+                )
+            )
+        )
+        imports.update(
+            self.session.scalars(
+                select(ValueHistoryModel.source_import_id)
+                .join(
+                    ValueModel,
+                    (ValueModel.id == ValueHistoryModel.value_id)
+                    & (ValueModel.company_id == company),
+                )
+                .where(
+                    ValueHistoryModel.company_id == company,
+                    ValueHistoryModel.session_id == session_id,
+                    ValueModel.section_code == "Opening_Balances",
+                    ValueHistoryModel.source_import_id.is_not(None),
+                )
+            )
+        )
+        return tuple(
+            self.session.scalars(
+                select(ImportEvidenceModel.evidence_id)
+                .where(
+                    ImportEvidenceModel.company_id == company,
+                    ImportEvidenceModel.import_id.in_(imports),
+                )
+                .distinct()
+                .order_by(ImportEvidenceModel.evidence_id)
+            )
+        )

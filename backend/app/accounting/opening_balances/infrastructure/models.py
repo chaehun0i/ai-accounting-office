@@ -26,6 +26,7 @@ class OpeningImportModel(UUIDPrimaryKey, Base):
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "onboarding_session_id", "source_version"),
+        UniqueConstraint("company_id", "onboarding_session_id"),
         ForeignKeyConstraint(
             ["company_id", "onboarding_session_id"],
             ["onboarding_sessions.company_id", "onboarding_sessions.id"],

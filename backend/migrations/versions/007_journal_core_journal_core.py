@@ -5,9 +5,9 @@
 """
 
 from collections.abc import Sequence
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 revision: str = "007_journal_core"
 down_revision: str | Sequence[str] | None = "006_transactions"
@@ -53,7 +53,9 @@ def upgrade() -> None:
         ),
         sa.Column("version", sa.Integer(), server_default=sa.text("1"), nullable=False),
         sa.CheckConstraint(
-            "(status='POSTED' AND journal_no IS NOT NULL AND posted_at IS NOT NULL AND posted_by IS NOT NULL AND approval_id IS NOT NULL) OR (status<>'POSTED' AND journal_no IS NULL AND posted_at IS NULL)",
+            "(status='POSTED' AND journal_no IS NOT NULL AND posted_at IS NOT NULL AND "
+            "posted_by IS NOT NULL AND approval_id IS NOT NULL) "
+            "OR (status<>'POSTED' AND journal_no IS NULL AND posted_at IS NULL)",
             name=op.f("ck_journal_entries_posted"),
         ),
         sa.CheckConstraint(
@@ -332,6 +334,11 @@ def upgrade() -> None:
         sa.Column("created_by", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("id", sa.Uuid(), nullable=False),
+        sa.UniqueConstraint(
+            "company_id",
+            "onboarding_session_id",
+            name="uq_opening_balance_imports_company_id_onboarding_session_id",
+        ),
         sa.CheckConstraint("source_version>=1", name=op.f("ck_opening_balance_imports_version")),
         sa.ForeignKeyConstraint(
             ["company_id", "journal_id"],

@@ -5,9 +5,9 @@
 """
 
 from collections.abc import Sequence
-from alembic import op
-import sqlalchemy as sa
 
+import sqlalchemy as sa
+from alembic import op
 
 revision: str = "006_transactions"
 down_revision: str | Sequence[str] | None = "005_onboarding_data_exchange"
@@ -60,7 +60,8 @@ def upgrade() -> None:
             "direction IN ('INFLOW','OUTFLOW')", name=op.f("ck_transactions_direction")
         ),
         sa.CheckConstraint(
-            "status IN ('RECEIVED','NORMALIZED','READY_FOR_ACCOUNTING','NEEDS_INFORMATION','DUPLICATE_REVIEW','EXCLUDED')",
+            "status IN ('RECEIVED','NORMALIZED','READY_FOR_ACCOUNTING',"
+            "'NEEDS_INFORMATION','DUPLICATE_REVIEW','EXCLUDED')",
             name=op.f("ck_transactions_status"),
         ),
         sa.CheckConstraint(

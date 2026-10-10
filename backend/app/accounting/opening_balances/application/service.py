@@ -23,6 +23,8 @@ class DraftReader(Protocol):
 
 
 class OpeningStore(Protocol):
+    def evidence_ids(self, company: UUID, session_id: UUID) -> tuple[UUID, ...]: ...
+
     def existing(self, company: UUID, session_id: UUID, version: int) -> UUID | None: ...
     def add(
         self,
@@ -138,10 +140,21 @@ class OpeningService:
                 created_at=now,
                 updated_at=now,
                 lines=tuple(lines),
+                evidence_ids=uow.openings.evidence_ids(company, draft.id),
             )
             validate_journal(uow, journal)
             uow.journals.add(journal)
-            uow.openings.add(journal, draft.id, draft.version, fingerprint, tuple(keys), now)
+            source_digest = digest(
+                {
+                    "version": draft.version,
+                    "cells": sorted(
+                        (c.field_code, c.row_key, str(c.value))
+                        for c in draft.cells
+                        if c.field_code.startswith("Opening_Balances.")
+                    ),
+                }
+            )
+            uow.openings.add(journal, draft.id, draft.version, source_digest, tuple(keys), now)
             uow.governance.record(
                 company, actor.user_id, "opening.create", key, fingerprint, journal.id, 1, now
             )

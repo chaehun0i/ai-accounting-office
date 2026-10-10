@@ -79,7 +79,8 @@ class JournalModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
         ),
         CheckConstraint("version >= 1", name="version"),
         CheckConstraint(
-            "(status='POSTED' AND journal_no IS NOT NULL AND posted_at IS NOT NULL AND posted_by IS NOT NULL "
+            "(status='POSTED' AND journal_no IS NOT NULL AND posted_at IS NOT NULL "
+            "AND posted_by IS NOT NULL "
             "AND approval_id IS NOT NULL) "
             "OR (status<>'POSTED' AND journal_no IS NULL AND posted_at IS NULL)",
             name="posted",
