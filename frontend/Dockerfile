@@ -1,10 +1,11 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1 NEXT_STANDALONE=1
+ENV NEXT_TELEMETRY_DISABLED=1
 ARG BACKEND_API_ORIGIN=http://backend:8000
 ENV BACKEND_API_ORIGIN=$BACKEND_API_ORIGIN
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
+ENV NEXT_STANDALONE=1
 COPY . .
 RUN npm run build
 
