@@ -29,6 +29,8 @@ python scripts/bootstrap_local.py
 
 ## 설계 기준과 원칙
 
+업무 화면은 홈·회사 관리·회계 준비·파일 가져오기·거래·전표·총계정원장·시산표·회계 설정으로 나뉩니다. 로그인 후 왼쪽 업무 메뉴를 이용하세요. [페이지 구성과 참고 코드·검증](docs/page-navigation.md)에 경로와 권한 안내가 있습니다.
+
 단일 기준선: [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
 
