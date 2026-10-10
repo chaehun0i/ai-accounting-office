@@ -37,6 +37,13 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
     try { await action(); } catch (e) { setError(e instanceof Error ? e.message : "처리하지 못했습니다. 다시 시도해 주세요."); }
     finally { setBusy(false); }
   }
+  async function openingJournal() {
+    if (!workspace) return;
+    await perform(async () => {
+      const result=await authenticatedRequest<{id:string}>("/opening-balances/imports",{method:"POST",headers:{...headers,"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({expected_version:workspace.version})});
+      setNotice(`기초 전표 초안을 만들었습니다. 회계 전표에서 제출하고 별도 승인자의 승인을 받아 장부에 반영해 주세요. 전표 식별자: ${result.id}`);
+    });
+  }
   async function save() {
     if (!workspace) return;
     await perform(async () => {
@@ -108,7 +115,8 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
         <button onClick={validate} disabled={readOnly || dirty}>검증하고 다시 계산</button>
         <button onClick={complete} disabled={busy || dirty || workspace.status !== "READY_TO_COMPLETE" || !company.permissions.includes("onboarding.complete")}>준비 완료 및 회계정보 반영</button></div>
       {issues.length > 0 && <section aria-label="검증 결과"><h3>확인할 내용</h3>{issues.map((issue, i) => <p key={i} className="error">{workspace.fields.find(f => f.field_code === issue.field_code)?.label ?? issue.row_key}: {issue.message}</p>)}</section>}
-      {notice && <p role="status">{notice}</p>}
+      {section === "Opening_Balances" && company.permissions.includes("journal.propose") && <button disabled={busy || Object.keys(pending).length > 0} onClick={openingJournal}>저장된 기초잔액으로 전표 작성</button>}
+    {notice && <p role="status">{notice}</p>}
       {modal && <ExcelImportDialog workspace={workspace} onApplied={reload} onClose={() => setModal(false)} />}
     </>}
   </section>;

@@ -320,9 +320,193 @@ def upgrade() -> None:
         unique=False,
     )
 
+    # 기초잔액 입력 스냅샷은 전표와 관계형으로 연결합니다.
+    op.create_table(
+        "opening_balance_imports",
+        sa.Column("company_id", sa.Uuid(), nullable=False),
+        sa.Column("onboarding_session_id", sa.Uuid(), nullable=False),
+        sa.Column("source_version", sa.Integer(), nullable=False),
+        sa.Column("source_digest", sa.String(length=64), nullable=False),
+        sa.Column("as_of_date", sa.Date(), nullable=False),
+        sa.Column("journal_id", sa.Uuid(), nullable=False),
+        sa.Column("created_by", sa.Uuid(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.CheckConstraint("source_version>=1", name=op.f("ck_opening_balance_imports_version")),
+        sa.ForeignKeyConstraint(
+            ["company_id", "journal_id"],
+            ["journal_entries.company_id", "journal_entries.id"],
+            name=op.f("fk_opening_balance_imports_company_id_journal_id_journal_entries"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id", "onboarding_session_id"],
+            ["onboarding_sessions.company_id", "onboarding_sessions.id"],
+            name=op.f(
+                "fk_opening_balance_imports_company_id_onboarding_session_id_onboarding_sessions"
+            ),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id"],
+            ["companies.id"],
+            name=op.f("fk_opening_balance_imports_company_id_companies"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["created_by"],
+            ["users.id"],
+            name=op.f("fk_opening_balance_imports_created_by_users"),
+            ondelete="RESTRICT",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_opening_balance_imports")),
+        sa.UniqueConstraint(
+            "company_id", "id", name=op.f("uq_opening_balance_imports_company_id_id")
+        ),
+        sa.UniqueConstraint(
+            "company_id",
+            "onboarding_session_id",
+            "source_version",
+            name=op.f("uq_opening_balance_imports_company_id_onboarding_session_id_source_version"),
+        ),
+    )
+    op.create_index(
+        op.f("ix_opening_balance_imports_company_id"),
+        "opening_balance_imports",
+        ["company_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opening_balance_imports_created_by"),
+        "opening_balance_imports",
+        ["created_by"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opening_balance_imports_journal_id"),
+        "opening_balance_imports",
+        ["journal_id"],
+        unique=True,
+    )
+    op.create_index(
+        op.f("ix_opening_balance_imports_onboarding_session_id"),
+        "opening_balance_imports",
+        ["onboarding_session_id"],
+        unique=False,
+    )
+    op.create_table(
+        "opening_balance_lines",
+        sa.Column("company_id", sa.Uuid(), nullable=False),
+        sa.Column("opening_balance_import_id", sa.Uuid(), nullable=False),
+        sa.Column("source_row_key", sa.String(length=300), nullable=False),
+        sa.Column("account_id", sa.Uuid(), nullable=False),
+        sa.Column("counterparty_id", sa.Uuid(), nullable=True),
+        sa.Column("debit_amount", sa.Numeric(19, 4), nullable=False),
+        sa.Column("credit_amount", sa.Numeric(19, 4), nullable=False),
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.CheckConstraint(
+            "(debit_amount>0 AND credit_amount=0) OR (credit_amount>0 AND debit_amount=0)",
+            name=op.f("ck_opening_balance_lines_amount_side"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id", "account_id"],
+            ["chart_of_accounts.company_id", "chart_of_accounts.id"],
+            name=op.f("fk_opening_balance_lines_company_id_account_id_chart_of_accounts"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id", "counterparty_id"],
+            ["counterparties.company_id", "counterparties.id"],
+            name=op.f("fk_opening_balance_lines_company_id_counterparty_id_counterparties"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id", "opening_balance_import_id"],
+            ["opening_balance_imports.company_id", "opening_balance_imports.id"],
+            name=op.f(
+                "fk_opening_balance_lines_company_id_opening_balance_import_id_opening_balance_imports"
+            ),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id"],
+            ["companies.id"],
+            name=op.f("fk_opening_balance_lines_company_id_companies"),
+            ondelete="RESTRICT",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_opening_balance_lines")),
+    )
+    op.create_index(
+        op.f("ix_opening_balance_lines_account_id"),
+        "opening_balance_lines",
+        ["account_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opening_balance_lines_company_id"),
+        "opening_balance_lines",
+        ["company_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opening_balance_lines_counterparty_id"),
+        "opening_balance_lines",
+        ["counterparty_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opening_balance_lines_opening_balance_import_id"),
+        "opening_balance_lines",
+        ["opening_balance_import_id"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
+    # 기초잔액 입력 스냅샷은 전표와 관계형으로 연결합니다.
+    op.drop_index(
+        op.f("ix_opening_balance_lines_opening_balance_import_id"),
+        table_name="opening_balance_lines",
+        if_exists=True,
+    )
+    op.drop_index(
+        op.f("ix_opening_balance_lines_counterparty_id"),
+        table_name="opening_balance_lines",
+        if_exists=True,
+    )
+    op.drop_index(
+        op.f("ix_opening_balance_lines_company_id"),
+        table_name="opening_balance_lines",
+        if_exists=True,
+    )
+    op.drop_index(
+        op.f("ix_opening_balance_lines_account_id"),
+        table_name="opening_balance_lines",
+        if_exists=True,
+    )
+    op.drop_table("opening_balance_lines", if_exists=True)
+    op.drop_index(
+        op.f("ix_opening_balance_imports_onboarding_session_id"),
+        table_name="opening_balance_imports",
+        if_exists=True,
+    )
+    op.drop_index(
+        op.f("ix_opening_balance_imports_journal_id"),
+        table_name="opening_balance_imports",
+        if_exists=True,
+    )
+    op.drop_index(
+        op.f("ix_opening_balance_imports_created_by"),
+        table_name="opening_balance_imports",
+        if_exists=True,
+    )
+    op.drop_index(
+        op.f("ix_opening_balance_imports_company_id"),
+        table_name="opening_balance_imports",
+        if_exists=True,
+    )
+    op.drop_table("opening_balance_imports", if_exists=True)
+
     # 회사 경계와 복식부기 제약을 명시적으로 생성합니다.
     op.drop_index(op.f("ix_journal_proposals_transaction_id"), table_name="journal_proposals")
     op.drop_index(op.f("ix_journal_proposals_journal_entry_id"), table_name="journal_proposals")

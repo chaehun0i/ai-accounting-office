@@ -52,3 +52,5 @@ from app.onboarding.infrastructure import models as onboarding_models  # noqa: F
 from app.storage.infrastructure import models as storage_models  # noqa: F401, E402
 
 from app.approvals.infrastructure import models as governance_models  # noqa: F401, E402
+
+from app.accounting.opening_balances.infrastructure import models as opening_models  # noqa: F401, E402

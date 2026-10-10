@@ -74,7 +74,9 @@ def command(client, headers, journal, action, key=None, **values):
 
 def test_journal_draft_review_post(api_client, auth_service):
     owner, writer, payload, connection = prepare(api_client, auth_service)
-    response = api_client.post("/journals", headers=writer, json=payload)
+    response = api_client.post(
+        "/journals", headers={**writer, "Idempotency-Key": str(uuid4())}, json=payload
+    )
     assert response.status_code == 201, response.text
     journal = response.json()
     assert journal["total_debit"] == journal["total_credit"] == "100.0000"
@@ -102,3 +104,66 @@ def test_journal_draft_review_post(api_client, auth_service):
         == 409
     )
 
+    ledger = api_client.get(
+        "/ledger",
+        headers=owner,
+        params={
+            "account_id": payload["lines"][0]["account_id"],
+            "date_from": "2026-01-01",
+            "date_to": "2026-01-31",
+        },
+    )
+    assert ledger.status_code == 200, ledger.text
+    assert ledger.json()[0]["running_balance"] == "100.0000"
+    trial = api_client.get(
+        "/trial-balance", headers=owner, params={"period_id": payload["accounting_period_id"]}
+    )
+    assert trial.status_code == 200, trial.text
+    from decimal import Decimal
+
+    assert sum(Decimal(r["period_debit"]) for r in trial.json()) == Decimal("100.0000")
+    assert sum(Decimal(r["period_credit"]) for r in trial.json()) == Decimal("100.0000")
+
+
+def test_opening_draft_snapshot(api_client, auth_service):
+    from tests.integration.test_onboarding import save
+
+    owner, writer, payload, connection = prepare(api_client, auth_service)
+    workspace = api_client.get("/onboarding", headers=writer).json()
+    accounts = api_client.get("/accounts", headers=writer).json()
+    codes = {a["id"]: a["account_code"] for a in accounts}
+    updates = []
+    for index, line in enumerate(payload["lines"]):
+        for field, value in {
+            "as_of_date": "2026-01-01",
+            "account_code": codes[line["account_id"]],
+            "debit_amount": line.get("debit_amount", "0"),
+            "credit_amount": line.get("credit_amount", "0"),
+        }.items():
+            updates.append(
+                (
+                    "Opening_Balances." + field,
+                    "2026-01-01|" + codes[line["account_id"]] + "|",
+                    value,
+                )
+            )
+    workspace = save(api_client, writer, workspace, updates)
+    headers = {**writer, "Idempotency-Key": "opening-test"}
+    request = {"expected_version": workspace["version"]}
+    response = api_client.post("/opening-balances/imports", headers=headers, json=request)
+    assert response.status_code == 201, response.text
+    journal = response.json()
+    assert journal["source_type"] == "OPENING" and journal["status"] == "DRAFT"
+    assert (
+        api_client.post("/opening-balances/imports", headers=headers, json=request).json()["id"]
+        == journal["id"]
+    )
+    for action in ["submit", "request-review"]:
+        response = command(api_client, writer, journal, action)
+        assert response.status_code == 200, response.text
+        journal = response.json()
+    for action in ["approve", "post"]:
+        response = command(api_client, owner, journal, action)
+        assert response.status_code == 200, response.text
+        journal = response.json()
+    assert journal["status"] == "POSTED"

@@ -16,6 +16,7 @@ from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWor
 from app.accounting.journals.application.commands import JournalCommands
 from app.approvals.infrastructure.unit_of_work import AccountingSQLAlchemyUnitOfWork
 from app.accounting.ledger.application.service import AccountingReports
+from app.accounting.opening_balances.application.service import OpeningService
 from app.core.config import Settings
 from app.core.database.engine import create_database_engine
 from app.core.database.session import create_session_factory
@@ -49,6 +50,7 @@ class Services:
     journals: JournalService | None = None
     journal_commands: JournalCommands | None = None
     accounting_reports: AccountingReports | None = None
+    opening_balances: OpeningService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -90,4 +92,5 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         JournalService(lambda: JournalSQLAlchemyUnitOfWork(sessions)),
         JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
         AccountingReports(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
+        OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
     )

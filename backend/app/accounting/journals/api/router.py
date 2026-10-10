@@ -271,3 +271,20 @@ def reverse(
     )
 
 
+class OpeningCommand(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+
+
+@router.post(
+    "/opening-balances/imports",
+    response_model=JournalRead,
+    status_code=201,
+    dependencies=[Depends(csrf)],
+)
+def opening(
+    payload: OpeningCommand, actor: Actor, company_id: CompanyScope, container: Container, key: Key
+) -> JournalRead:
+    if container.opening_balances is None:
+        raise DatabaseUnavailable()
+    return read(container.opening_balances.create(actor, company_id, payload.expected_version, key))

@@ -138,6 +138,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
 
     from app.accounting.ledger.application.service import AccountingReports
 
+    from app.accounting.opening_balances.application.service import OpeningService
 
     onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(factory))
     app = create_app(settings)
@@ -163,6 +164,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         JournalService(lambda: JournalSQLAlchemyUnitOfWork(factory)),
         JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
         AccountingReports(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
+        OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
         yield client
