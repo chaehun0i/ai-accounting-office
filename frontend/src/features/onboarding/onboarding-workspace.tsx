@@ -5,13 +5,16 @@ import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
 import { FieldEditor } from "./field-editor";
-import { ConfirmationDialog } from "@/shared/ui/dialog";
+import { AccountCatalog } from "@/features/accounting/account-catalog";
+import { workspaceSummary } from "./workspace-summary";
+import { ConfirmationDialog, OfficeDialog } from "@/shared/ui/dialog";
 import { ExcelImportDialog } from "./excel-import-dialog";
 import { cellKey, isEditable, isVisible, mergeKey, sourceLabels, stateLabels, type Issue, type Receipt, type Workspace } from "./model";
 
 export function OnboardingWorkspace({ company }: { company: Company }) {
   const [workspace, setWorkspace] = useState<Workspace>();
   const [section, setSection] = useState("Company");
+  const [editingRow, setEditingRow] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, string | boolean>>({});
   const [newRows, setNewRows] = useState<Record<string, string[]>>({});
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -67,7 +70,7 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
         }
       }
       const result = await authenticatedRequest<Workspace>("/onboarding/values", { method: "PATCH", headers, body: JSON.stringify({ expected_version: workspace.version, values }) });
-      setWorkspace(result); setPending({}); setNewRows({}); setIssues([]); setNotice("초안을 저장했습니다.");
+      setWorkspace(result); setPending({}); setNewRows({}); setEditingRow(null); setIssues([]); setNotice("초안을 저장했습니다.");
     });
   }
   async function validate() {
@@ -90,6 +93,8 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
   const taxpayerType = pending[cellKey("Company.taxpayer_type", "singleton")] ?? workspace?.cells.find(c => c.field_code === "Company.taxpayer_type")?.value ?? "";
   const keys = workspace?.row_keys[section];
   const rows = workspace ? keys ? [...new Set(workspace.cells.filter(c => c.field_code.startsWith(`${section}.`) && c.source_type !== "DERIVED").map(c => c.row_key)), ...(newRows[section] ?? [])] : ["singleton"] : [];
+  const summary = workspaceSummary(workspace?.sections ?? []);
+  const activeSection = workspace?.sections.find(item => item.code === section);
   return <section className="panel" aria-labelledby="onboarding-heading">
     <div className="session-bar"><h2 id="onboarding-heading">회계 시작 준비</h2>
       <button onClick={() => setModal(true)} disabled={!workspace || busy || dirty || workspace.status === "COMPLETED" || !company.permissions.includes("onboarding.import")}>Excel 업로드</button>
@@ -98,12 +103,24 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
     {error && <div role="alert" className="error"><p>{denied ? "온보딩을 조회할 권한이 없습니다. 회사 관리자에게 문의해 주세요." : error}</p><button disabled={busy} onClick={() => perform(reload)}>최신 내용 다시 불러오기</button></div>}
     {!workspace && !error && <p role="status">초안을 불러오고 있습니다…</p>}
     {workspace && <>
+      <div className="workspace-stats" aria-label="회계 준비 현황">
+        <div><span>입력 진행률</span><strong>{summary.percent}%</strong><progress aria-label="전체 입력 진행률" value={summary.complete} max={summary.total || 1} /><small>{summary.complete} / {summary.total} 입력 완료</small></div>
+        <div><span>입력 중</span><strong>{summary.inProgress}</strong><small>작성 중인 영역</small></div>
+        <div><span>미입력</span><strong>{summary.empty}</strong><small>확인이 필요한 영역</small></div>
+        <div><span>확인 필요</span><strong>{summary.warnings}</strong><small>검증 후 안내에 따라 보완하세요</small></div>
+      </div>
+      <ol className="workflow-steps" aria-label="회계 준비 절차"><li>1 기본정보 입력</li><li>2 자료 확인·검증</li><li>3 회계정보 반영</li><li>4 기초전표 승인</li></ol>
       <p role="status">{stateLabels[workspace.status] ?? "시작 준비 중"}{dirty ? " · 저장하지 않은 변경사항" : ""}</p>
-      <div className="onboarding-workspace-grid"><nav aria-label="온보딩 항목" className="section-navigation">{workspace.sections.map(s => <button key={s.code} aria-pressed={section === s.code} onClick={() => setSection(s.code)}>{s.label} · {stateLabels[s.status]} ({s.complete}/{s.total})</button>)}</nav><div className="onboarding-editor">
-      <h3>{workspace.sections.find(s => s.code === section)?.label}</h3>
+      <div className="onboarding-workspace-grid"><nav aria-label="온보딩 항목" className="section-navigation">{workspace.sections.map(s => <button key={s.code} aria-pressed={section === s.code} onClick={() => { setSection(s.code); setEditingRow(null); }}>{s.label} · {s.code === "COA" ? "서버 제공" : `${stateLabels[s.status]} (${s.complete}/${s.total})`}</button>)}</nav><div className="onboarding-editor">
+      <div className="section-toolbar"><div><span className="eyebrow">회계 준비 항목</span><h3>{activeSection?.label}</h3></div><span className="status-chip">{section === "COA" ? "서버 제공 · 조회 전용" : stateLabels[activeSection?.status ?? "EMPTY"]}</span></div>
+      {section === "COA" ? <AccountCatalog companyId={company.id} /> : <>
+      {keys && rows.length > 0 && <div className="table-scroll"><table><thead><tr><th>항목</th><th>입력 내용</th><th>상태</th><th>작업</th></tr></thead><tbody>{rows.map(row => {
+        const cells = workspace.cells.filter(cell => cell.row_key === row && cell.field_code.startsWith(`${section}.`));
+        return <tr key={row}><td>{row.startsWith("new-") ? "새 항목" : row}</td><td>{cells.slice(0, 3).map(cell => String(cell.value)).join(" · ") || "입력 전"}</td><td><span className="status-chip">{cells.some(cell => cell.status === "STALE") ? "다시 확인 필요" : cells.length ? "입력됨" : "미입력"}</span></td><td><button onClick={() => setEditingRow(row)}>{readOnly ? "상세 보기" : "입력·수정"}</button></td></tr>;
+      })}</tbody></table></div>}
       {rows.length === 0 && <p className="muted">아직 입력한 항목이 없습니다. 필요한 항목을 추가해 주세요.</p>}
-      {keys && <button disabled={readOnly} onClick={() => setNewRows(previous => ({ ...previous, [section]: [...(previous[section] ?? []), `new-${crypto.randomUUID()}`] }))}>항목 추가</button>}
-      {rows.map(row => <fieldset key={row} disabled={readOnly}><legend>{keys ? row.startsWith("new-") ? "새 항목" : row : "기본 입력"}</legend>
+      {keys && <button disabled={readOnly} onClick={() => { const row = `new-${crypto.randomUUID()}`; setNewRows(previous => ({ ...previous, [section]: [...(previous[section] ?? []), row] })); setEditingRow(row); }}>항목 추가</button>}
+      {rows.filter(row => !keys || row === editingRow).map(row => { const editor = <fieldset key={row} disabled={readOnly}><legend>{keys ? row.startsWith("new-") ? "새 항목" : row : "기본 입력"}</legend>
         {fields.filter(field => isEditable(field) && isVisible(field, taxpayerType)).map(field => {
           const current = workspace.cells.find(c => c.field_code === field.field_code && c.row_key === row);
           const fieldKey = cellKey(field.field_code, row);
@@ -111,8 +128,9 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
             disabled={readOnly || !!keys?.includes(field.field_code.split(".")[1]) && !row.startsWith("new-")} onChange={value => setPending(previous => ({ ...previous, [fieldKey]: value }))} />
             {current && <small>{sourceLabels[current.source_type]} · {stateLabels[current.status]}</small>}</div>;
         })}
-      </fieldset>)}
+      </fieldset>; return keys ? <OfficeDialog key={row} open onClose={() => setEditingRow(null)} title={`${activeSection?.label} ${readOnly ? "상세" : "입력"}`} description="입력 후 초안 저장을 누르면 서버에 보관합니다. 닫아도 페이지를 이동하기 전까지 작성 내용은 유지됩니다." busy={busy} footer={<button disabled={readOnly || !dirty} onClick={save}>{busy ? "저장 중…" : "초안 저장"}</button>}>{error && <p role="alert" className="error">{error}</p>}{editor}</OfficeDialog> : <div key={row}>{editor}</div>; })}
       {fields.filter(f => !isEditable(f)).map(field => { const current = workspace.cells.find(c => c.field_code === field.field_code); return <p key={field.field_code}>{field.label}: {String(current?.value ?? "계산 전")} · {stateLabels[current?.status ?? "STALE"]}</p>; })}
+      </>}
       <div className="session-bar"><button onClick={save} disabled={readOnly || !dirty}>{busy ? "저장 중…" : "초안 저장"}</button>
         <button onClick={validate} disabled={readOnly || dirty}>검증하고 다시 계산</button>
         <button onClick={() => setCompleteOpen(true)} disabled={busy || dirty || workspace.status !== "READY_TO_COMPLETE" || !company.permissions.includes("onboarding.complete")}>준비 완료 및 회계정보 반영</button></div>

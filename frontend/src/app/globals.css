@@ -169,3 +169,18 @@ main.auth-form { align-self:center; width:min(480px,100%); margin:0 auto; paddin
  *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
  .dashboard-links .panel:hover { transform:none; }
 }
+
+/* 회계 준비와 기간별 작업 현황을 공통 카드·목록으로 표현합니다. */
+.workspace-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:24px 0}
+.workspace-stats>div{display:flex;flex-direction:column;gap:8px;border:1px solid var(--border,#e0e8e3);border-radius:12px;padding:20px;background:#fff}
+.workspace-stats span{font-size:14px;color:#53665b}.workspace-stats strong{font-size:30px;color:#174b30}.workspace-stats small{font-size:12px;color:#64736b}
+.workspace-stats progress{width:100%;height:6px;accent-color:#168451;border:0}
+.workflow-steps{display:flex;gap:0;padding:0;margin:24px 0;list-style:none;border:1px solid #dbe6df;border-radius:10px;overflow:hidden}
+.workflow-steps li{flex:1;padding:14px 16px;font-size:13px;background:#f7faf8;border-right:1px solid #dbe6df}.workflow-steps li:last-child{border:0}.workflow-steps li.active{background:#e8f4ec;color:#176339;font-weight:700}
+.section-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px}.section-toolbar h2,.section-toolbar h3{margin:6px 0}
+.status-chip{display:inline-block;white-space:nowrap;border-radius:20px;padding:5px 10px;background:#edf5ef;color:#27583b;font-size:12px;font-weight:600}
+.catalog-notice{padding:16px;border-radius:8px;background:#f0f7f2;color:#315440}.table-scroll{max-width:100%;overflow:auto}.table-scroll table{min-width:560px}.table-scroll small{display:block;color:#718077;margin-top:5px}
+.accounting-home-grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,1.7fr);gap:22px}.accounting-project{border-top:3px solid #168451}.accounting-period-picker{display:flex;align-items:center;gap:14px;background:#f6f9f7;padding:18px;border-radius:10px}.accounting-period-picker label{flex:1;margin:0}.accounting-period-picker select{max-width:100%}
+.task-timeline{list-style:none;padding:0;counter-reset:task}.task-timeline li{counter-increment:task;display:flex;align-items:center;gap:14px;padding:18px 0;border-bottom:1px solid #edf1ee}.task-timeline li:before{content:counter(task);display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:#e9f4ec;color:#1d7241;font-weight:700}.task-timeline li>span{flex:1}.task-timeline small{display:block;color:#718077;margin-top:5px;line-height:1.6}.task-timeline a{padding:8px}.workspace-empty{text-align:center;padding:32px 18px;color:#617168}.workspace-empty svg{color:#6c977c}.workspace-shortcuts summary{cursor:pointer;font-weight:600;padding:16px 0}
+@media(max-width:1000px){.accounting-home-grid{grid-template-columns:1fr}.workspace-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.workflow-steps{flex-wrap:wrap}.workflow-steps li{flex:1 0 40%}}
+@media(max-width:600px){.workspace-stats{gap:8px}.workspace-stats>div{padding:14px}.workspace-stats strong{font-size:24px}.accounting-period-picker{flex-wrap:wrap;padding:12px}.accounting-period-picker label{min-width:0;flex-basis:80%}.section-toolbar{align-items:flex-start;flex-wrap:wrap}.workflow-steps li{font-size:12px;padding:12px}}
