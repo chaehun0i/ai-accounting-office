@@ -37,7 +37,7 @@ ENUMS: dict[str, tuple[str, ...]] = {
     "currency_code": ("KRW",),
     "account_type": ("ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"),
     "normal_balance": ("DEBIT", "CREDIT"),
-    "counterparty_type": ("CORPORATION", "INDIVIDUAL", "INDIVIDUAL", "GOVERNMENT", "OTHER"),
+    "counterparty_type": ("BUSINESS", "INDIVIDUAL", "OTHER"),
     "accounting_framework_code": ("K_GAAP", "K_IFRS"),
     "reporting_taxonomy_code": ("STANDARD",),
     "timezone": ("Asia/Seoul",),
