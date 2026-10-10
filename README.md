@@ -2,14 +2,14 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake**입니다. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
 
 ## 설계 기준과 원칙
 
 단일 기준선: [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
 
-- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 33개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
+- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 43개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
 - **정본 분리**: accounting은 회계 장부, tax는 세무 계산·신고, evidence는 증빙/provenance, jobs/agents/tool executions는 실행 이력을 소유합니다.
 - **Agent 경계**: Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repository. Agent는 ORM/Session/SQL/Repository에 직접 접근하지 않습니다.
 - **Deterministic calculation**: 금액·세금·잔액·집계는 Decimal, Domain Rule, Application Service와 결정적 query/calculation이 소유합니다. LLM이 계산하지 않습니다.
@@ -157,7 +157,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `004_storage_evidence_intake`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.5의 `Complete_DDL_Migration_Map`을 따릅니다.
+현재 head는 `005_onboarding_data_exchange`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.5의 `Complete_DDL_Migration_Map`을 따릅니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -184,9 +184,9 @@ python -m pytest --require-postgres
 
 ## 제외 범위와 다음 구현
 
-Transaction/Journal/세무 정본, Onboarding Workspace, Approval/Audit 전체 Domain, Agent workflow, LLM, 실제 업무 Tool, 전역 Governance Idempotency는 미구현입니다. 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
+Transaction/Journal/세무 정본, Approval/Audit 전체 Domain, Agent workflow, LLM, 실제 업무 Tool, 전역 Governance Idempotency는 미구현입니다. 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
 
-다음 범위는 v0.2.5 기준 **Onboarding · Data Exchange (005)**이며 이후 **Transaction · Journal Core (006/007)**입니다. ONBOARDING_DRAFT target, 공유 Registry/parser, 원본 Import/Evidence와 digest/Receipt 계약을 연결합니다. 현재 접수는 장부·거래처 정본을 수정하지 않습니다. 후속 작업 시작 시 최신 main/Drive의 migration/FK 범위를 재확인합니다.
+다음 범위는 v0.2.5 기준 **Transaction · Journal · Ledger (006/007 이후)**입니다. 온보딩 Draft와 원본 Import/Evidence, company-scoped Master, expected_version/Receipt 계약을 이어받습니다. 기초잔액은 별도 승인/Post 이전에 잔액이나 POSTED Journal로 반영하지 않습니다. 후속 작업 시작 시 최신 main/Drive의 migration/FK 범위를 재확인합니다.
 
 회사 선택 후 회계 관리 권한이 있으면 별도 초기 설정으로 기본 COA·12개월 기간·번호 기준을 만듭니다. 초기화는 같은 조건으로 재실행할 수 있습니다. 거래처와 지급조건 API, 번호·정책 규칙과 제외 범위는 [회계 마스터 문서](docs/accounting-master.md)를 참고하세요.
 
