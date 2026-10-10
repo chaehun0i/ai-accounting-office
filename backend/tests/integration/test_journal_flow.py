@@ -1,14 +1,15 @@
 """거래에서 승인·확정까지 실제 DB/API를 연결합니다."""
 
 from uuid import UUID, uuid4
+
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+
 from app.accounting.templates.infrastructure.seed import seed_default_coa
 from app.companies.infrastructure.models import MembershipModel
 from tests.integration.test_onboarding import setup
 
 
-def prepare(client, auth_service):
+def prepare(client, auth_service, *, year=2026, template_id=None):
     _, connection = auth_service
     with Session(connection, join_transaction_mode="create_savepoint") as seed:
         seed_default_coa(seed)
@@ -18,7 +19,7 @@ def prepare(client, auth_service):
     response = client.post(
         "/accounting/initialize",
         headers=owner,
-        json={"fiscal_year": 2026, "template_id": template["id"]},
+        json={"fiscal_year": year, "template_id": template_id or template["id"]},
     )
     assert response.status_code == 200, response.text
     response = client.post(
@@ -49,7 +50,7 @@ def prepare(client, auth_service):
     period = client.get("/accounting/periods", headers=writer).json()[0]
     payload = {
         "accounting_period_id": period["id"],
-        "entry_date": "2026-01-02",
+        "entry_date": f"{year}-01-02",
         "description": "회계 테스트",
         "lines": [
             {"account_id": accounts[0]["id"], "debit_amount": "100.0000"},
@@ -133,7 +134,7 @@ def test_opening_draft_snapshot(api_client, auth_service):
     accounts = api_client.get("/accounts", headers=writer).json()
     codes = {a["id"]: a["account_code"] for a in accounts}
     updates = []
-    for index, line in enumerate(payload["lines"]):
+    for line in payload["lines"]:
         for field, value in {
             "as_of_date": "2026-01-01",
             "account_code": codes[line["account_id"]],

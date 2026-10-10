@@ -4,8 +4,8 @@ from uuid import UUID
 
 from sqlalchemy import update
 from sqlalchemy.orm import Session
-from app.accounting.templates.infrastructure.seed import seed_default_coa
 
+from app.accounting.templates.infrastructure.seed import seed_default_coa
 from app.companies.infrastructure.models import MembershipModel
 from tests.integration.test_onboarding import setup
 

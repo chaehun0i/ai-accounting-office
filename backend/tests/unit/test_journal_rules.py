@@ -2,8 +2,10 @@
 
 from decimal import Decimal
 from uuid import uuid4
+
 import pytest
-from app.accounting.journals.domain.entities import JournalLine, validate_lines, totals, transition
+
+from app.accounting.journals.domain.entities import JournalLine, totals, transition, validate_lines
 from app.accounting.journals.domain.errors import AccountingError
 
 
