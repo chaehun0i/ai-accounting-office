@@ -208,3 +208,12 @@ UTF-8 CSV/UTF-8 BOM CSV와 XLSX, 최대 2MB·총 1,000행·40열·5시트를 지
 
 API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 수 있습니다. 모든 Import 요청은 Bearer와 `X-Company-ID`, 변경 요청은 `X-CSRF-Protection: 1`, Confirm은 `Idempotency-Key`가 필요합니다.
 [구조·API·파일 제한·후속 계약](docs/storage-evidence-intake.md), [실제 참고 파일과 충돌 처리](docs/intake-source-patterns.md), [검증 결과](docs/intake-verification.md)를 참고하세요.
+
+## 거래·전표·원장·시산표
+
+회사별 거래 입력부터 전표 작성, 제출, 별도 사용자 승인, 장부 반영, 원장·시산표 조회까지 연결했습니다. 기초잔액도 같은 승인·확정 흐름을 사용합니다.
+
+- [회계 흐름과 API 계약](docs/transaction-journal-ledger.md)
+- [최종 검증 기록](docs/accounting-core-verification.md)
+- 브라우저 검증: `node scripts/accounting-browser-smoke.cjs --allow-synthetic` (전용 테스트 서버 필요)
+- DB 실측: `python scripts/verify_accounting_schema.py` (`TEST_POSTGRES_URL`, `_test` DB 필요)
