@@ -45,3 +45,5 @@ from app.master_data.payment_terms.infrastructure import (  # noqa: E402
 
 # 파일과 증빙·인테이크 메타데이터를 등록합니다.
 from app.storage.infrastructure import models as storage_models  # noqa: F401, E402
+
+from app.onboarding.infrastructure import models as onboarding_models  # noqa: F401, E402

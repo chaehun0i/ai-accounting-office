@@ -28,7 +28,7 @@ class ImportModel(Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint("version >= 1 AND mapping_version >= 1", name="versions"),
-        CheckConstraint("sheet_count BETWEEN 1 AND 5", name="sheets"),
+        CheckConstraint("sheet_count BETWEEN 1 AND 16", name="sheets"),
         CheckConstraint(
             "source_type IN (" + ",".join(repr(s.value) for s in SourceType) + ")", name="source"
         ),

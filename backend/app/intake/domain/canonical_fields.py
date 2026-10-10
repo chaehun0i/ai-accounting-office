@@ -14,6 +14,7 @@ class SourceType(StrEnum):
     EXPENSE = "EXPENSE"
     OPENING_BALANCE = "OPENING_BALANCE"
     COUNTERPARTY = "COUNTERPARTY"
+    ONBOARDING_TEMPLATE = "ONBOARDING_TEMPLATE"
 
 
 class TargetContext(StrEnum):
@@ -91,3 +92,7 @@ def suggest(source: SourceType, sheet_index: int, headers: tuple[str, ...]) -> l
         else m
         for m in result
     ]
+
+
+# 온보딩 필드는 별도 단일 카탈로그가 소유하며 일반 거래 매핑에 혼합하지 않습니다.
+SCHEMAS[SourceType.ONBOARDING_TEMPLATE] = ()

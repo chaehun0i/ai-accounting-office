@@ -14,6 +14,8 @@ class AccountingSettingsModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     )
     functional_currency_code: Mapped[str] = mapped_column(String(3))
     fiscal_year_start_month: Mapped[int]
+    accounting_framework_code: Mapped[str] = mapped_column(String(20), server_default="K_GAAP")
+    reporting_taxonomy_code: Mapped[str] = mapped_column(String(20), server_default="STANDARD")
     journal_number_prefix: Mapped[str] = mapped_column(String(10))
     numbering_reset_policy: Mapped[str] = mapped_column(String(16))
     allow_manual_journal: Mapped[bool]

@@ -12,6 +12,7 @@ class Company:
     taxpayer_type: str
     opening_date: date
     address: str
+    timezone: str = "Asia/Seoul"
     corporation_number: str | None = None
     status: str = "ACTIVE"
     version: int = 1

@@ -32,12 +32,12 @@ SECTIONS = {
     "AP_Opening": "기초 매입채무",
 }
 ENUMS: dict[str, tuple[str, ...]] = {
-    "taxpayer_type": ("CORPORATION", "SOLE_PROPRIETOR"),
+    "taxpayer_type": ("CORPORATION", "INDIVIDUAL"),
     "functional_currency_code": ("KRW",),
     "currency_code": ("KRW",),
     "account_type": ("ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"),
     "normal_balance": ("DEBIT", "CREDIT"),
-    "counterparty_type": ("CORPORATION", "INDIVIDUAL", "SOLE_PROPRIETOR", "GOVERNMENT", "OTHER"),
+    "counterparty_type": ("CORPORATION", "INDIVIDUAL", "INDIVIDUAL", "GOVERNMENT", "OTHER"),
     "accounting_framework_code": ("K_GAAP", "K_IFRS"),
     "reporting_taxonomy_code": ("STANDARD",),
     "timezone": ("Asia/Seoul",),
