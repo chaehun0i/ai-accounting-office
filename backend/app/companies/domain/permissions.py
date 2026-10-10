@@ -12,6 +12,10 @@ ROLES = {
 }
 
 PERMISSION_GRANTS: dict[str, tuple[str, ...]] = {
+    "onboarding.read": tuple(ROLES),
+    "onboarding.edit": ("OWNER", "ADMIN", "ACCOUNTANT"),
+    "onboarding.import": ("OWNER", "ADMIN", "ACCOUNTANT"),
+    "onboarding.complete": ("OWNER", "ADMIN", "ACCOUNTANT"),
     "company.read": tuple(ROLES),
     "counterparty.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "counterparty.create": ("OWNER", "ADMIN", "ACCOUNTANT"),

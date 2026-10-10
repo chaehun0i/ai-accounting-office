@@ -21,6 +21,10 @@ from app.intake.application.service import IntakeService
 from app.intake.infrastructure.parser import parse_file
 from app.intake.infrastructure.unit_of_work import IntakeSQLAlchemyUnitOfWork
 from app.master_data.application.service import MasterDataService
+from app.onboarding.application.merge import OnboardingImportService
+from app.onboarding.application.service import OnboardingService
+from app.onboarding.infrastructure.template import parse_onboarding
+from app.onboarding.infrastructure.unit_of_work import OnboardingSQLAlchemyUnitOfWork
 from app.storage.infrastructure.local import LocalObjectStorage
 
 
@@ -32,6 +36,8 @@ class Services:
     accounting: AccountingMasterService | None = None
     master_data: MasterDataService | None = None
     intake: IntakeService | None = None
+    onboarding: OnboardingService | None = None
+    onboarding_imports: OnboardingImportService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -48,6 +54,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
                 settings.refresh_token_ttl_seconds,
             ),
         )
+    onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(sessions))
     return engine, Services(
         auth,
         CompanyService(lambda: CompanySQLAlchemyUnitOfWork(sessions)),
@@ -58,5 +65,14 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
             lambda: IntakeSQLAlchemyUnitOfWork(sessions),
             LocalObjectStorage(Path(settings.storage_root)),
             parse_file,
+        ),
+        onboarding,
+        OnboardingImportService(
+            onboarding,
+            IntakeService(
+                lambda: IntakeSQLAlchemyUnitOfWork(sessions),
+                LocalObjectStorage(Path(settings.storage_root)),
+                parse_onboarding,
+            ),
         ),
     )

@@ -5,10 +5,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
-from starlette.datastructures import UploadFile
-from starlette.formparsers import MultiPartException
-from starlette.requests import Request as FormRequest
-from starlette.types import Message
 
 from app.composition import Services
 from app.contracts.access_errors import InvalidInput
@@ -28,9 +24,9 @@ from app.intake.api.schemas import (
     UploadCommand,
     ValidationErrorRead,
 )
+from app.intake.api.upload import receive_upload
 from app.intake.application.service import IntakeService
 from app.intake.domain.canonical_fields import SCHEMAS, Mapping, SourceType, TargetContext
-from app.intake.domain.errors import IntakeFileError
 
 router = APIRouter(prefix="/imports", tags=["자료 가져오기"])
 Actor = Annotated[Principal, Depends(principal)]
@@ -87,39 +83,25 @@ Service = Annotated[IntakeService, Depends(intake)]
 async def upload(
     request: Request, actor: Actor, company_id: CompanyScope, service: Service
 ) -> ImportRead:
-    content = bytearray()
-    async for chunk in request.stream():
-        if len(content) + len(chunk) > 2_020_000:
-            raise IntakeFileError()
-        content.extend(chunk)
-
-    async def receive() -> Message:
-        return {"type": "http.request", "body": bytes(content), "more_body": False}
-
-    form_request = FormRequest(request.scope, receive)
+    file = await receive_upload(request)
     try:
-        async with form_request.form(max_files=1, max_fields=3, max_part_size=2_000_000) as form:
-            if len(form.multi_items()) != len(form) or "file" not in form:
-                raise InvalidInput()
-            file = form["file"]
-            if not isinstance(file, UploadFile) or file.filename is None:
-                raise InvalidInput()
-            fields = {k: v for k, v in form.items() if k != "file"}
-            command = UploadCommand.model_validate(fields)
-            value = await run_in_threadpool(
-                service.upload,
-                actor,
-                company_id,
-                source=command.source_type,
-                target=command.target_context,
-                source_system=command.source_system,
-                filename=file.filename,
-                content=await file.read(2_000_001),
-                content_type=file.content_type or "application/octet-stream",
-            )
-            return ImportRead.model_validate(asdict(value))
-    except (MultiPartException, ValidationError):
+        command = UploadCommand.model_validate(file.fields)
+    except ValidationError:
         raise InvalidInput() from None
+    if command.source_type == SourceType.ONBOARDING_TEMPLATE:
+        raise InvalidInput()
+    value = await run_in_threadpool(
+        service.upload,
+        actor,
+        company_id,
+        source=command.source_type,
+        target=command.target_context,
+        source_system=command.source_system,
+        filename=file.filename,
+        content=file.content,
+        content_type=file.content_type,
+    )
+    return ImportRead.model_validate(asdict(value))
 
 
 @router.get("/{identifier}", response_model=ImportRead)
