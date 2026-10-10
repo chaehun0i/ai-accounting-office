@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { canLeavePage } from "@/shared/unsaved-changes";
 import { usePathname } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
 import { MotionConfig, motion, useReducedMotion } from "framer-motion";
@@ -27,6 +28,7 @@ function Shell({ children }: { children: ReactNode }) {
   const current = officeRoutes.find(route => route.href === pathname) ?? officeRoutes[0];
   const PageIcon = routeIcons[current.href];
   async function logout() {
+    if (!canLeavePage()) return;
     setBusy(true); setError("");
     try { await auth.logout(); setMobileOpen(false); setCompanyOpen(false); }
     catch (error) { setError(error instanceof Error ? error.message : "로그아웃하지 못했습니다."); }
