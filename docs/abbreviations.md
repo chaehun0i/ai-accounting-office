@@ -52,3 +52,7 @@
 | TB | Trial Balance | 합계잔액시산표, 계정별 차변·대변·기말잔액 검증 |
 | KDF | Key Derivation Function | 비밀번호 해싱용 키 유도 함수 |
 | POSTED | 장부 반영 완료 | 수정 대신 승인된 역분개로 정정하는 회계 정본 상태 |
+| CSS | Cascading Style Sheets | 화면 배치·색상·입력창·전환 효과를 정의하는 스타일 규칙 |
+| Reduced Motion | 움직임 줄이기 | 사용자의 OS 설정에 따라 이동·확대·점멸 효과를 끄는 접근성 정책 |
+| Radix Dialog | 대화상자 UI 라이브러리 | 팝업 포커스 제한·Escape·배경 스크롤 잠금을 제공 |
+| Framer Motion / Lucide | 애니메이션 / 아이콘 라이브러리 | 페이지 전환 / 업무 메뉴·제목의 일관된 아이콘을 제공 |
