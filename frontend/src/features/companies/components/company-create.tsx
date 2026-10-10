@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { OfficeDialog } from "@/shared/ui/dialog";
+import { Plus } from "lucide-react";
 import { authenticatedRequest } from "@/features/auth/session";
 import { useCompany } from "../company-provider";
 
 export function CompanyCreate() {
   const company = useCompany();
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -13,12 +16,11 @@ export function CompanyCreate() {
     const data = new FormData(event.currentTarget);
     try {
       await authenticatedRequest("/companies", { method: "POST", body: JSON.stringify(Object.fromEntries(data)) });
-      company.reload();
+      setOpen(false); company.reload();
     } catch (error) { setError(error instanceof Error ? error.message : "회사 정보를 확인해 주세요."); }
     finally { setBusy(false); }
   }
-  return <details className="panel"><summary>새 회사 만들기</summary>
-    <p className="muted">새 회사를 만들면 소유자로 등록됩니다. 세무·회계 상세 설정은 이후에 제공됩니다.</p>
+  return <><button className="button-accent" onClick={() => { setError(""); setOpen(true); }}><Plus size={16} aria-hidden="true" />새 회사 만들기</button><OfficeDialog compact open={open} onClose={() => setOpen(false)} busy={busy} title="새 회사 만들기" description="기본 정보를 입력하면 회사 소유자로 등록됩니다. 회계 기준과 계정과목은 회계 설정에서 준비할 수 있습니다.">
     <form onSubmit={submit}>
       <label htmlFor="company-name">회사명</label><input id="company-name" name="company_name" required maxLength={200} disabled={busy} />
       <label htmlFor="business-number">사업자등록번호</label><input id="business-number" name="business_number" pattern="[0-9]{10}" inputMode="numeric" placeholder="하이픈 없이 10자리" required disabled={busy} />
@@ -28,5 +30,5 @@ export function CompanyCreate() {
       {error && <p role="alert" className="error">{error}</p>}
       <button className="primary" disabled={busy}>{busy ? "만드는 중…" : "회사 만들기"}</button>
     </form>
-  </details>;
+  </OfficeDialog></>;
 }
