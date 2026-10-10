@@ -2,6 +2,7 @@
 
 import { TransactionWorkspace } from "@/features/transactions/transaction-workspace";
 import { JournalWorkspace } from "@/features/accounting/journal-workspace";
+import { LedgerWorkspace } from "@/features/accounting/ledger-workspace";
 import { AccountingMaster } from "@/features/accounting/accounting-master";
 import { OnboardingWorkspace } from "@/features/onboarding/onboarding-workspace";
 import { DataImport } from "@/features/imports/data-import";
@@ -40,6 +41,7 @@ function Office() {
     {company.active && <OnboardingWorkspace key={`onboarding:${company.active.id}`} company={company.active} />}
     {company.active && <TransactionWorkspace key={`transactions:${company.active.id}`} company={company.active} />}
     {company.active && <JournalWorkspace key={`journals:${company.active.id}`} company={company.active} />}
+    {company.active && <LedgerWorkspace key={`ledger:${company.active.id}`} company={company.active} />}
     {company.active && <AccountingMaster key={`accounting:${company.active.id}`} company={company.active} />}
     {company.active && <DataImport key={`imports:${company.active.id}`} company={company.active} />}
     <CompanyCreate />

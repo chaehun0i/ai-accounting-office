@@ -1,0 +1,19 @@
+"use client";
+import {useEffect,useState} from "react";
+import {authenticatedRequest} from "@/features/auth/session";
+import type {Company} from "@/features/companies/selection-state";
+import {money,units} from "./journal-model";
+type Account={id:string;account_code:string;account_name:string};
+type Period={id:string;start_date:string;end_date:string};
+type Ledger={journal_id:string;journal_no:string;entry_date:string;description:string;debit_amount:string;credit_amount:string;running_balance:string};
+type Trial={account_code:string;account_name:string;opening_debit:string;opening_credit:string;period_debit:string;period_credit:string;ending_debit:string;ending_credit:string};
+export function LedgerWorkspace({company}:{company:Company}) {
+ const [accounts,setAccounts]=useState<Account[]>([]),[periods,setPeriods]=useState<Period[]>([]),[account,setAccount]=useState(""),[period,setPeriod]=useState(""),[ledger,setLedger]=useState<Ledger[]>([]),[trial,setTrial]=useState<Trial[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ useEffect(()=>{let active=true;const get=<T,>(p:string)=>authenticatedRequest<T>(p,{headers:{"X-Company-ID":company.id}});Promise.all([get<Account[]>("/accounts"),get<Period[]>("/accounting/periods")]).then(([a,p])=>{if(active){setAccounts(a);setPeriods(p)}}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[company.id]);
+ async function load(){const p=periods.find(p=>p.id===period);if(!p)return;setBusy(true);setError("");try{const headers={"X-Company-ID":company.id};setTrial(await authenticatedRequest<Trial[]>(`/trial-balance?period_id=${period}`,{headers}));if(account)setLedger(await authenticatedRequest<Ledger[]>(`/ledger?account_id=${account}&date_from=${p.start_date}&date_to=${p.end_date}`,{headers}));else setLedger([])}catch(e){setError(e instanceof Error?e.message:"장부를 불러오지 못했습니다.")}finally{setBusy(false)}}
+ const debit=trial.reduce((n,r)=>n+units(r.period_debit),BigInt(0)),credit=trial.reduce((n,r)=>n+units(r.period_credit),BigInt(0));
+ if(!company.permissions.includes("ledger.read"))return null;
+ return <section className="panel"><h2>총계정원장 · 합계잔액시산표</h2><p>장부 반영이 완료된 전표만 표시합니다. 작성 중이거나 승인 대기 중인 전표는 합계에 포함되지 않습니다.</p><label>회계기간<select value={period} onChange={e=>setPeriod(e.target.value)}><option value="">기간 선택</option>{periods.map(p=><option key={p.id} value={p.id}>{p.start_date} ~ {p.end_date}</option>)}</select></label><label>원장 계정<select value={account} onChange={e=>setAccount(e.target.value)}><option value="">시산표만 조회</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.account_code} {a.account_name}</option>)}</select></label><button disabled={busy||!period} onClick={load}>{busy?"조회 중…":"장부 조회"}</button>{error&&<p role="alert">{error}</p>}
+ <h3>총계정원장</h3>{ledger.length===0?<p>계정을 선택해 조회하거나 해당 기간의 확정 전표를 확인해 주세요.</p>:<table><thead><tr><th>일자</th><th>전표번호</th><th>적요</th><th>차변</th><th>대변</th><th>누적잔액</th></tr></thead><tbody>{ledger.map((r,i)=><tr key={`${r.journal_id}:${i}`}><td>{r.entry_date}</td><td><a href={`#journal-${r.journal_id}`}>{r.journal_no}</a></td><td>{r.description}</td><td>{r.debit_amount}</td><td>{r.credit_amount}</td><td>{r.running_balance}</td></tr>)}</tbody></table>}
+ <h3>합계잔액시산표</h3><p aria-live="polite">기간 차변 {money(debit)} · 기간 대변 {money(credit)} · {debit===credit?"차변과 대변 일치":"합계 불일치: 관리자 확인 필요"}</p><table><thead><tr><th>계정</th><th>기초 차변</th><th>기초 대변</th><th>기간 차변</th><th>기간 대변</th><th>기말 차변</th><th>기말 대변</th></tr></thead><tbody>{trial.map(r=><tr key={r.account_code}><td>{r.account_code} {r.account_name}</td><td>{r.opening_debit}</td><td>{r.opening_credit}</td><td>{r.period_debit}</td><td>{r.period_credit}</td><td>{r.ending_debit}</td><td>{r.ending_credit}</td></tr>)}</tbody></table></section>;
+}
