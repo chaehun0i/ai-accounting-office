@@ -78,7 +78,9 @@ class TransactionService:
                 if old.version != expected_version:
                     raise VersionConflict()
                 # 회계 연결 후 원천 사실 변경은 후속 correction 명령으로만 허용합니다.
-                if old.status != "READY_FOR_ACCOUNTING":
+                if old.status != "READY_FOR_ACCOUNTING" or uow.has_journal(
+                    value.company_id, value.id
+                ):
                     raise InvalidInput()
                 value = replace(
                     old,

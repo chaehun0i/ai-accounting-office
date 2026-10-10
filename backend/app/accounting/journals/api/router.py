@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.accounting.api.router import Actor, CompanyScope, Container
 from app.accounting.journals.api.schemas import (
@@ -82,9 +83,15 @@ def get(resource_id: UUID, actor: Actor, company_id: CompanyScope, service: Serv
 
 @router.post("/journals", response_model=JournalRead, status_code=201, dependencies=[Depends(csrf)])
 def create(
-    payload: JournalCreate, actor: Actor, company_id: CompanyScope, service: Service
+    payload: JournalCreate,
+    actor: Actor,
+    company_id: CompanyScope,
+    container: Container,
+    key: Annotated[str, Header(alias="Idempotency-Key")],
 ) -> JournalRead:
-    return read(service.save(actor, draft(payload, company_id, actor)))
+    if container.journal_commands is None:
+        raise DatabaseUnavailable()
+    return read(container.journal_commands.create(actor, draft(payload, company_id, actor), key))
 
 
 @router.patch("/journals/{resource_id}", response_model=JournalRead, dependencies=[Depends(csrf)])
@@ -262,3 +269,5 @@ def reverse(
             **payload.model_dump(),
         )
     )
+
+

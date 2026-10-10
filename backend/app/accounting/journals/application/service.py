@@ -14,6 +14,10 @@ from app.identity.users.domain.entities import Principal
 
 
 def validate_journal(uow: JournalUnitOfWork, value: Journal, *, balanced: bool = True) -> None:
+    if (value.source_type == "TRANSACTION") != (value.source_transaction_id is not None):
+        raise AccountingError(
+            "BUSINESS_RULE_VIOLATION", "거래 출처와 연결 거래를 함께 확인해 주세요."
+        )
     validate_lines(value.lines, balanced=balanced)
     uow.lock_period(value.company_id, value.accounting_period_id)
     period = uow.periods.get(company_id=value.company_id, resource_id=value.accounting_period_id)

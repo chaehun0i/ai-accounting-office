@@ -47,6 +47,54 @@ class JournalCommands:
     def __init__(self, factory: Callable[[], AccountingUnitOfWork]) -> None:
         self.factory = factory
 
+    def create(self, actor: Principal, value: Journal, key: str) -> Journal:
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
+            raise InvalidInput()
+        data = asdict(value)
+        for field in ("id", "created_at", "updated_at"):
+            data.pop(field)
+        for line in data["lines"]:
+            line.pop("id")
+        import json
+
+        fingerprint = digest(json.loads(json.dumps(data, default=str)))
+        with self.factory() as uow:
+            require_company(uow, actor, value.company_id, "journal.propose")
+            replay = uow.governance.replay(
+                value.company_id, actor.user_id, "journal.create", key, fingerprint
+            )
+            if replay:
+                existing = uow.journals.get(value.company_id, replay)
+                if existing is None:
+                    raise ResourceNotFound()
+                return existing
+            if value.source_transaction_id:
+                source = uow.transactions.get(
+                    value.company_id, value.source_transaction_id, lock=True
+                )
+                if source is None:
+                    raise ResourceNotFound()
+                if source.evidence_id:
+                    value = replace(
+                        value,
+                        evidence_ids=tuple(
+                            sorted(set(value.evidence_ids + (source.evidence_id,)), key=str)
+                        ),
+                    )
+            validate_journal(uow, value, balanced=False)
+            uow.journals.add(value)
+            uow.governance.record(
+                value.company_id,
+                actor.user_id,
+                "journal.create",
+                key,
+                fingerprint,
+                value.id,
+                value.version,
+                uow.now(),
+            )
+            return value
+
     def execute(
         self,
         actor: Principal,

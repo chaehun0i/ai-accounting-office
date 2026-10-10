@@ -25,3 +25,18 @@ class TransactionSQLAlchemyUnitOfWork(MasterSQLAlchemyUnitOfWork):
             )
             is not None
         )
+
+    def has_journal(self, company_id: UUID, transaction_id: UUID) -> bool:
+        from app.accounting.journals.infrastructure.models import JournalModel
+
+        return (
+            self.session.scalar(
+                select(JournalModel.id)
+                .where(
+                    JournalModel.company_id == company_id,
+                    JournalModel.source_transaction_id == transaction_id,
+                )
+                .limit(1)
+            )
+            is not None
+        )
