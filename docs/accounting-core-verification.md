@@ -83,6 +83,16 @@ Golden은 기존 Master Application으로 2025 계정과목을 준비하고 온�
 
 이 브라우저 smoke는 정상 사용자 흐름이다. 기초잔액·역분개·권한 실패·롤백·동시성은 PostgreSQL API/Golden 자동 테스트에서 별도로 검증하며, 모든 오류 조합을 브라우저로 검증했다고 주장하지 않는다. 상세 실행 환경과 옵션은 [회계 구조 문서](transaction-journal-ledger.md)에 있다.
 
+## 로컬 실행과 테스트 계정 보완
+
+Compose에 백엔드와 프론트엔드를 추가하여 PostgreSQL·Redis와 함께 실행한다. 백엔드는 로컬 환경에서 migration과 기본 역할·계정과목 seed를 적용하며, 프론트엔드는 독립 production 이미지로 실행한다. 실제 개발 DB는 보존하고 이전 검증용 DB 13개를 정리했다. 로컬에는 `accounting_office`와 PostgreSQL 관리 DB `postgres`만 남겼다.
+
+`python scripts/bootstrap_local.py`는 공개 API를 사용해 회사 관리자와 회계 담당자를 준비한다. 두 번 실행하여 기존 계정·회사를 재사용하는 것을 확인했다. 비밀번호는 git에서 제외된 `.local/development-accounts.ini`에만 생성하며 응답·로그·문서에는 출력하지 않는다. 관리자 우회 계정은 만들지 않았다. 관리자와 작성자의 권한 차이를 회사 선택 화면에서 안내한다.
+
+거래·전표 입력과 조회 기본 날짜는 현재 달력 날짜·연도로 설정한다. 승인·반려·역분개는 사용자가 사유를 입력해야 하고 역분개일도 직접 선택한다. 보완 후 프론트엔드 단위 테스트는 **12개 통과**했다.
+
+최종 Compose production 이미지에서 네 서비스 모두 healthy를 확인했다. `http://localhost:3000`과 IPv4 API 주소를 사용한 Edge smoke에서 거래 작성 → 전표 제출 → 별도 사용자 승인 → 장부 반영 → 원장/시산표를 재검증하여 통과했다. 허용 origin과 다른 `127.0.0.1` 화면 주소를 사용한 시도는 인증 흐름을 완료하지 못했으므로 허용된 `localhost` 화면 주소를 안내한다. 개발 DB에서도 migration head `008_governance`, JSON/JSONB 컬럼 0건을 직접 확인했다. Python 스크립트 Ruff 검사도 통과했다.
+
 ## 알려진 제한과 후속 계약
 
 - 단일 기능통화 KRW이며 외화·분할 인식·결산·재무제표는 제외한다.
