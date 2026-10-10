@@ -1,18 +1,19 @@
 from collections.abc import Callable
 from dataclasses import replace
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from app.accounting.accounts.domain.entities import Account
+from app.accounting.application.catalog import prepare_accounts
 from app.accounting.application.contracts import MasterUnitOfWork
 from app.accounting.domain.rules import (
     ResetPolicy,
     journal_number,
     monthly_periods,
-    validate_account,
     validate_hierarchy,
 )
 from app.accounting.periods.domain.entities import Period
 from app.accounting.settings.domain.entities import AccountingSettings
+from app.accounting.templates.domain.defaults import DEFAULT_TEMPLATE
 from app.accounting.templates.domain.entities import Template
 from app.companies.application.service import require_company
 from app.contracts.access_errors import (
@@ -43,7 +44,7 @@ class AccountingMasterService:
         company_id: UUID,
         *,
         fiscal_year: int,
-        template_id: UUID,
+        template_id: UUID = DEFAULT_TEMPLATE.id,
         functional_currency_code: str = "KRW",
         fiscal_year_start_month: int = 1,
         numbering_reset_policy: str = "FISCAL_YEAR",
@@ -54,6 +55,8 @@ class AccountingMasterService:
         dates = monthly_periods(fiscal_year, fiscal_year_start_month)
         with self.factory() as uow:
             require_company(uow, principal, company_id, "company.accounting_settings.update")
+            if template_id != DEFAULT_TEMPLATE.id:
+                raise InvalidInput()
             current = uow.settings.get(company_id)
             if current:
                 accounts = uow.accounts.list(company_id)
@@ -85,32 +88,7 @@ class AccountingMasterService:
                 updated_at=uow.now(),
             )
             uow.settings.add(current)
-            ids = {row.account_code: uuid4() for row in source}
-            remaining = list(source)
-            inserted: set[str] = set()
-            while remaining:
-                for row in remaining[:]:
-                    if row.parent_code is not None and row.parent_code not in inserted:
-                        continue
-                    validate_account(row.account_type, row.normal_balance, row.is_contra)
-                    uow.accounts.add(
-                        Account(
-                            id=ids[row.account_code],
-                            company_id=company_id,
-                            template_account_id=row.id,
-                            account_code=row.account_code,
-                            account_name=row.account_name,
-                            account_type=row.account_type,
-                            normal_balance=row.normal_balance,
-                            posting_allowed=row.posting_allowed,
-                            is_contra=row.is_contra,
-                            parent_account_id=ids.get(row.parent_code or ""),
-                            created_at=uow.now(),
-                            updated_at=uow.now(),
-                        )
-                    )
-                    inserted.add(row.account_code)
-                    remaining.remove(row)
+            prepare_accounts(uow, company_id)
             for no, start, end in dates:
                 uow.periods.add(
                     Period(

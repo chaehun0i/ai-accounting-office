@@ -3,6 +3,7 @@
 from dataclasses import dataclass, replace
 from decimal import Decimal
 
+from app.accounting.templates.domain.defaults import DEFAULT_ACCOUNTS
 from app.onboarding.domain.catalog import (
     BY_CODE,
     CATALOG,
@@ -69,10 +70,26 @@ def validate(cells: list[Cell]) -> list[Issue]:
     for row in {c.row_key for c in cells if c.field_code.startswith("COA.")}:
         kind = values.get(("COA.account_type", row))
         balance = values.get(("COA.normal_balance", row))
+        code = values.get(("COA.account_code", row))
+        fixed = next(
+            (
+                account
+                for account in DEFAULT_ACCOUNTS
+                if code and account.account_code == str(code.value)
+            ),
+            None,
+        )
         if (
             kind
             and balance
-            and balance.value != ("DEBIT" if kind.value in {"ASSET", "EXPENSE"} else "CREDIT")
+            and balance.value
+            != (
+                fixed.normal_balance
+                if fixed and kind.value == fixed.account_type
+                else "DEBIT"
+                if kind.value in {"ASSET", "EXPENSE"}
+                else "CREDIT"
+            )
         ):
             issues.append(
                 Issue(

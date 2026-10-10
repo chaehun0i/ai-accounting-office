@@ -49,6 +49,9 @@ def promote_accounting(
     known = {a.account_code: a for a in uow.accounts.list(settings.company_id)}
     count = 0
     for value in accounts:
+        # 서버에서 준비한 회사 계정목록은 온보딩으로 확장하거나 덮어쓰지 않습니다.
+        if known and value.account_code not in known:
+            raise StateConflict()
         validate_account(value.account_type, value.normal_balance, value.is_contra)
         existing = known.get(value.account_code)
         if existing:

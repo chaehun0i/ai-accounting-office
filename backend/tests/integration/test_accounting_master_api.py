@@ -158,5 +158,5 @@ def test_settings_rbac(api_client, auth_service, role, allowed):
         json={"fiscal_year": 2026, "template_id": str(uuid4())},
         headers=headers,
     )
-    assert result.status_code == (404 if allowed else 403), result.text
+    assert result.status_code == (422 if allowed else 403), result.text
     assert api_client.get("/accounts", headers=headers).status_code == 200
