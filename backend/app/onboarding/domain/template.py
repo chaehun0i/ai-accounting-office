@@ -25,7 +25,7 @@ def read_template(workbook: Workbook) -> tuple[dict[str, str], list[Cell], list[
     metadata_sheet = sheets.get("Metadata")
     if metadata_sheet is None or metadata_sheet.headers != ("key", "value"):
         raise TemplateUnsupported()
-    metadata = dict(metadata_sheet.rows)
+    metadata = {row[0]: row[1] for row in metadata_sheet.rows}
     if (
         len(metadata) != len(metadata_sheet.rows)
         or metadata.get("template_code") != TEMPLATE_CODE
