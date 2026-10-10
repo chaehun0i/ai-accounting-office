@@ -122,7 +122,7 @@ def test_closed_period_and_database_immutability(api_client, auth_service):
     reversal = response.json()
     connection.execute(
         text(
-            "UPDATE company_memberships SET status='REVOKED' "
+            "UPDATE company_memberships SET status='REVOKED', revoked_at=now() "
             "WHERE company_id=:company AND user_id=:writer"
         ),
         params,
@@ -130,7 +130,7 @@ def test_closed_period_and_database_immutability(api_client, auth_service):
     assert command(api_client, owner, reversal, "post").status_code == 403
     connection.execute(
         text(
-            "UPDATE company_memberships SET status='ACTIVE' "
+            "UPDATE company_memberships SET status='ACTIVE', revoked_at=NULL "
             "WHERE company_id=:company AND user_id=:writer"
         ),
         params,
