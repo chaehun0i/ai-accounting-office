@@ -99,3 +99,12 @@ jobs:
       - uses: actions/checkout@v4
       - run: python scripts/dev.py env
       - run: docker compose --env-file .env -f infra/docker-compose.yml config --quiet
+      - name: 백엔드·프론트엔드 포함 로컬 환경 실행
+        run: docker compose --env-file .env -f infra/docker-compose.yml up -d --build --wait
+      - name: 로컬 계정·회사 준비 및 중복 실행 검증
+        run: |
+          python scripts/bootstrap_local.py
+          python scripts/bootstrap_local.py
+      - run: docker compose --env-file .env -f infra/docker-compose.yml ps
+      - if: always()
+        run: docker compose --env-file .env -f infra/docker-compose.yml down

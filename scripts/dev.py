@@ -13,7 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=["env", "auth-key", "infra-start", "infra-stop", "backend-run"]
+        "command",
+        choices=[
+            "env",
+            "auth-key",
+            "start",
+            "stop",
+            "infra-start",
+            "infra-stop",
+            "backend-run",
+        ],
     )
     args = parser.parse_args()
     if args.command == "env":
@@ -24,19 +33,23 @@ def main() -> None:
             )
         shutil.copyfile(ROOT / ".env.example", target)
         content = target.read_text(encoding="utf-8")
-        content = content.replace("AUTH_SIGNING_KEY=local_placeholder_generate_a_unique_key",
-                                  f"AUTH_SIGNING_KEY={secrets.token_urlsafe(48)}")
+        content = content.replace(
+            "AUTH_SIGNING_KEY=local_placeholder_generate_a_unique_key",
+            f"AUTH_SIGNING_KEY={secrets.token_urlsafe(48)}",
+        )
         target.write_text(content, encoding="utf-8")
         return
     if args.command == "auth-key":
         target = ROOT / ".env"
         content = target.read_text(encoding="utf-8")
         if any(line.startswith("AUTH_SIGNING_KEY=") for line in content.splitlines()):
-            parser.exit(message="인증 서명 키가 이미 설정되어 있습니다. 기존 키를 유지합니다.\n")
+            parser.exit(
+                message="인증 서명 키가 이미 설정되어 있습니다. 기존 키를 유지합니다.\n"
+            )
         with target.open("a", encoding="utf-8") as output:
             output.write(f"\nAUTH_SIGNING_KEY={secrets.token_urlsafe(48)}\n")
         return
-    if args.command.startswith("infra-"):
+    if args.command.startswith("infra-") or args.command in {"start", "stop"}:
         command = [
             "docker",
             "compose",
@@ -45,7 +58,14 @@ def main() -> None:
             "-f",
             str(ROOT / "infra/docker-compose.yml"),
         ]
-        command += ["up", "-d", "--wait"] if args.command == "infra-start" else ["down"]
+        if args.command == "start":
+            command += ["up", "-d", "--build", "--wait"]
+        elif args.command == "stop":
+            command += ["down"]
+        elif args.command == "infra-start":
+            command += ["up", "-d", "--wait", "postgres", "redis"]
+        else:
+            command += ["stop", "postgres", "redis"]
         subprocess.run(command, cwd=ROOT, check=True)
         return
     sys.path.insert(0, str(ROOT / "backend"))
