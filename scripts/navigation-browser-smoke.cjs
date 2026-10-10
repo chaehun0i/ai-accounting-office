@@ -83,6 +83,9 @@ async function main() {
     await menu.getByRole("link", { name: "회사 관리", exact: true }).click();
     assert.ok(page.url().endsWith("/onboarding"));
     assert.equal(await nameInput.inputValue(), "저장 전 확인용 이름");
+    page.once("dialog", dialog => dialog.dismiss());
+    await page.getByRole("button", { name: "로그아웃", exact: true }).click();
+    assert.equal(await nameInput.inputValue(), "저장 전 확인용 이름");
     page.once("dialog", dialog => dialog.accept());
     await menu.getByRole("link", { name: "회사 관리", exact: true }).click();
     await page.waitForURL(origin + "/companies");

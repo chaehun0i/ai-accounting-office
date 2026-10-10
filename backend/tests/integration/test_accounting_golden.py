@@ -1,14 +1,17 @@
 """공식 2025 합성 샘플의 기초잔액을 장부까지 비교합니다. 원본은 변경하지 않습니다."""
 
-from datetime import date
+from calendar import monthrange
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 from uuid import UUID, uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounting.templates.infrastructure.models import COATemplateAccountModel, COATemplateModel
+from app.accounting.accounts.infrastructure.models import AccountModel
+from app.accounting.periods.infrastructure.models import PeriodModel
+from app.accounting.sequences.infrastructure.models import JournalSequenceModel
 from app.intake.infrastructure.parser import XLSX_MIME
 from app.master_data.counterparties.domain.entities import Counterparty
 from app.onboarding.domain.template import read_template
@@ -37,36 +40,43 @@ def test_official_2025_opening_ledger_trial(api_client, auth_service):
 
     coa = rows("COA")
     opening = rows("Opening_Balances")
-    template_id = uuid4()
-    _, connection = auth_service
+    owner, writer, _, connection = prepare(api_client, auth_service)
+    company_id = UUID(writer["X-Company-ID"])
+    # 공식 샘플의 과거 계정체계는 테스트 DB에만 준비합니다.
+    # 사용자용 템플릿 선택을 우회하지 않습니다.
+    # 기본 계정과 코드가 겹치면 샘플 정의를 사용하되 원본 파일과 기대 금액은 변경하지 않습니다.
     with Session(connection, join_transaction_mode="create_savepoint") as session:
-        session.add(
-            COATemplateModel(
-                id=template_id,
-                template_code="SYN_MFG_001_TEST",
-                name="공식 합성 샘플",
-                version=1,
-                status="ACTIVE",
-                valid_from=date(2025, 1, 1),
+        # 2025년 기존 장부를 재현합니다. 2026년부터 유효한 기본 양식을 과거에 적용하지 않습니다.
+        for period in session.scalars(
+            select(PeriodModel).where(PeriodModel.company_id == company_id)
+        ):
+            period.fiscal_year = 2025
+            period.start_date = period.start_date.replace(year=2025)
+            period.end_date = period.end_date.replace(
+                year=2025, day=monthrange(2025, period.end_date.month)[1]
             )
-        )
-        session.flush()
-        for index, row in enumerate(coa):
-            session.add(
-                COATemplateAccountModel(
-                    id=uuid4(),
-                    coa_template_id=template_id,
-                    account_code=str(row["account_code"]),
-                    account_name=row["account_name"],
-                    account_type=row["account_type"],
-                    normal_balance=row["normal_balance"],
-                    posting_allowed=bool(row["posting_allowed"]),
-                    display_order=index,
-                    is_contra=str(row["account_code"]) == "1590",
+        for sequence in session.scalars(
+            select(JournalSequenceModel).where(JournalSequenceModel.company_id == company_id)
+        ):
+            sequence.fiscal_year = 2025
+        for row in coa:
+            account = session.scalar(
+                select(AccountModel).where(
+                    AccountModel.company_id == company_id,
+                    AccountModel.account_code == str(row["account_code"]),
                 )
             )
+            if account is None:
+                account = AccountModel(
+                    id=uuid4(), company_id=company_id, account_code=str(row["account_code"])
+                )
+                session.add(account)
+            account.account_name = row["account_name"]
+            account.account_type = row["account_type"]
+            account.normal_balance = row["normal_balance"]
+            account.posting_allowed = bool(row["posting_allowed"])
+            account.is_contra = str(row["account_code"]) == "1590"
         session.commit()
-    owner, writer, _, _ = prepare(api_client, auth_service, year=2025, template_id=str(template_id))
     actor = auth_service[0].authenticate(writer["Authorization"].removeprefix("Bearer "))
     api_client.app.state.services.master_data.create_counterparty(
         actor,
