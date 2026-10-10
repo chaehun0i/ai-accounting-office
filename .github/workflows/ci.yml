@@ -1,7 +1,7 @@
 name: Quality
 on:
   push:
-    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master, feat/storage-evidence-intake]
+    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master, feat/storage-evidence-intake, feat/onboarding-data-exchange]
   pull_request:
 permissions:
   contents: read
@@ -65,7 +65,8 @@ jobs:
       - run: python -m alembic upgrade head
       - run: python -m alembic current --check-heads
       - run: python -m alembic check
-      - run: python -m pytest tests/integration --require-postgres
+      - name: 관계형 스키마와 온보딩 병합·승격 회귀
+        run: python -m pytest tests/integration --require-postgres
       - run: python -m app.companies.infrastructure.seed
       - run: python -m app.companies.infrastructure.seed
       - run: python -m app.accounting.templates.infrastructure.seed
