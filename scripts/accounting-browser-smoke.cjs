@@ -72,6 +72,7 @@ async function main() {
     await journal.getByLabel("조회 시작일").fill("2026-01-01");
     await journal.getByLabel("조회 종료일").fill("2026-12-31");
     await journal.getByRole("button", { name: /번호 미부여.*브라우저 복식부기 검증/ }).click();
+    await journal.getByLabel("검토·정정 사유", { exact: true }).fill("브라우저 검증에서 출처와 차대변을 확인했습니다.");
     await journal.getByRole("button", { name: "승인", exact: true }).click();
     await journal.getByRole("button", { name: "장부 반영", exact: true }).click();
     await journal.getByText("브라우저 복식부기 검증 · 장부 반영 완료", { exact: true }).waitFor();
