@@ -56,3 +56,5 @@
 | Reduced Motion | 움직임 줄이기 | 사용자의 OS 설정에 따라 이동·확대·점멸 효과를 끄는 접근성 정책 |
 | Radix Dialog | 대화상자 UI 라이브러리 | 팝업 포커스 제한·Escape·배경 스크롤 잠금을 제공 |
 | Framer Motion / Lucide | 애니메이션 / 아이콘 라이브러리 | 페이지 전환 / 업무 메뉴·제목의 일관된 아이콘을 제공 |
+
+| ERP | Enterprise Resource Planning | 회계 등 기업 업무를 통합 관리하는 시스템 |

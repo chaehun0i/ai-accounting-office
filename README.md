@@ -242,3 +242,7 @@ API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 �
 - [최종 검증 기록](docs/accounting-core-verification.md)
 - 브라우저 검증: `node scripts/accounting-browser-smoke.cjs --allow-synthetic` (전용 테스트 서버 필요)
 - DB 실측: `python scripts/verify_accounting_schema.py` (`TEST_POSTGRES_URL`, `_test` DB 필요)
+
+## 처음 회사 설정과 설정 관리
+
+새 회사는 업무 홈에서 회사정보 → 회계 기준 → 거래처 → 기초잔액 → 최종 확인 순서로 준비합니다. 완료한 회사는 업무 홈에서 바로 일을 시작하고, 변경할 내용은 설정 관리에서 수정합니다. 계정과목은 서버가 130개 기본 목록을 준비하며 사용자가 직접 생성하지 않습니다. [동작·계정 버전·참고 자료·검증](docs/first-company-setup-and-account-catalog.md)을 확인하세요.
