@@ -81,8 +81,9 @@ async function main() {
     await reports.getByLabel("원장 계정", { exact: true }).selectOption(accountId);
     await reports.getByRole("button", { name: "장부 조회", exact: true }).click();
     await reports.getByText(/기간 차변 100.0000 · 기간 대변 100.0000/).waitFor();
-    assert.ok(await reports.getByRole("link", { name: "J-2026-000001", exact: true }).count());
-    await reports.getByRole("link", { name: "J-2026-000001", exact: true }).click();
+    const journalLink = reports.getByRole("link", { name: "J-2026-000001", exact: true });
+    await journalLink.waitFor();
+    await journalLink.click();
     await page.screenshot({ path: ".local/accounting-browser-success.png", fullPage: true });
     console.log("브라우저 검증 통과: 로그인, 회사 선택, 거래 생성, 분개 추가·삭제, 제출, 별도 사용자 승인, 장부 반영, 원장, 시산표, 전표 이동");
   } catch (error) {

@@ -127,7 +127,9 @@ def test_closed_period_and_database_immutability(api_client, auth_service):
         ),
         params,
     )
-    assert command(api_client, owner, reversal, "post").status_code == 403
+    stale_approval = command(api_client, owner, reversal, "post")
+    assert stale_approval.status_code == 409
+    assert stale_approval.json()["code"] == "APPROVAL_STALE"
     connection.execute(
         text(
             "UPDATE company_memberships SET status='ACTIVE', revoked_at=NULL "
