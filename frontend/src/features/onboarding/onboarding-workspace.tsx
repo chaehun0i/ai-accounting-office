@@ -6,7 +6,7 @@ import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
 import { FieldEditor } from "./field-editor";
 import { ExcelImportDialog } from "./excel-import-dialog";
-import { cellKey, isEditable, mergeKey, sourceLabels, stateLabels, type Issue, type Receipt, type Workspace } from "./model";
+import { cellKey, isEditable, isVisible, mergeKey, sourceLabels, stateLabels, type Issue, type Receipt, type Workspace } from "./model";
 
 export function OnboardingWorkspace({ company }: { company: Company }) {
   const [workspace, setWorkspace] = useState<Workspace>();
@@ -52,6 +52,7 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
           const targetKey = keys ? mergeKey(keys, rowValues) : "singleton";
           for (const field of fields) {
             const value = rowValues[field.field_code.split(".")[1]];
+            if (value === "" && workspace.cells.some(c => c.field_code === field.field_code && c.row_key === row)) throw new Error(`${field.label}은 빈 값으로 저장할 수 없습니다. 새 값을 입력해 주세요.`);
             if (value !== "") values.push({ field_code: field.field_code, row_key: targetKey, value });
           }
         }
@@ -77,6 +78,7 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
   const dirty = Object.keys(pending).length > 0;
   const readOnly = busy || workspace?.status === "COMPLETED" || !company.permissions.includes("onboarding.edit");
   const fields = workspace?.fields.filter(f => f.section_code === section).sort((a, b) => a.display_order - b.display_order) ?? [];
+  const taxpayerType = pending[cellKey("Company.taxpayer_type", "singleton")] ?? workspace?.cells.find(c => c.field_code === "Company.taxpayer_type")?.value ?? "";
   const keys = workspace?.row_keys[section];
   const rows = workspace ? keys ? [...new Set(workspace.cells.filter(c => c.field_code.startsWith(`${section}.`) && c.source_type !== "DERIVED").map(c => c.row_key)), ...(newRows[section] ?? [])] : ["singleton"] : [];
   return <section className="panel" aria-labelledby="onboarding-heading">
@@ -93,7 +95,7 @@ export function OnboardingWorkspace({ company }: { company: Company }) {
       {rows.length === 0 && <p className="muted">아직 입력한 항목이 없습니다. 필요한 항목을 추가해 주세요.</p>}
       {keys && <button disabled={readOnly} onClick={() => setNewRows(previous => ({ ...previous, [section]: [...(previous[section] ?? []), `new-${crypto.randomUUID()}`] }))}>항목 추가</button>}
       {rows.map(row => <fieldset key={row} disabled={readOnly}><legend>{keys ? row.startsWith("new-") ? "새 항목" : row : "기본 입력"}</legend>
-        {fields.filter(isEditable).map(field => {
+        {fields.filter(field => isEditable(field) && isVisible(field, taxpayerType)).map(field => {
           const current = workspace.cells.find(c => c.field_code === field.field_code && c.row_key === row);
           const fieldKey = cellKey(field.field_code, row);
           return <div key={fieldKey}><FieldEditor field={field} value={pending[fieldKey] ?? current?.value ?? ""} options={field.enum_source_code ? workspace.enums[field.enum_source_code] : undefined}

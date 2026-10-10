@@ -13,6 +13,7 @@ export type Receipt = { id: string; new_count: number; changed_count: number; un
 export function cellKey(field: string, row: string) { return `${field}::${row}`; }
 export function conflictKey(cell: Cell) { return `${cell.field_code}:${cell.row_key}`; }
 export function isEditable(field: Field) { return field.active && field.input_mode !== "DERIVED_READONLY"; }
+export function isVisible(field: Field, taxpayerType: string | boolean) { return field.active && (field.required_rule_code !== "CORPORATION" || taxpayerType === "CORPORATION"); }
 export function mergeKey(keys: string[], values: Record<string, string | boolean>): string {
   return keys.map(key => String(values[key] ?? "")).join("|");
 }

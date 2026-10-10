@@ -6,6 +6,7 @@ from decimal import Decimal
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.contracts.access_errors import VersionConflict
@@ -86,10 +87,14 @@ class OnboardingRepository:
         # 고정 UUID와 불변 definition을 비교하여 seed drift를 조용히 덮어쓰지 않습니다.
         for field in CATALOG:
             identifier = field_id(field.field_code)
+            self.session.execute(
+                insert(FieldDefinitionModel)
+                .values(id=identifier, **asdict(field))
+                .on_conflict_do_nothing(index_elements=["id"])
+            )
             definition = self.session.get(FieldDefinitionModel, identifier)
-            if definition is None:
-                self.session.add(FieldDefinitionModel(id=identifier, **asdict(field)))
-            elif any(getattr(definition, key) != value for key, value in asdict(field).items()):
+            assert definition is not None
+            if any(getattr(definition, key) != value for key, value in asdict(field).items()):
                 raise RuntimeError("필드 카탈로그 버전과 등록 값이 다릅니다.")
         identifier = uuid4()
         self.session.add(

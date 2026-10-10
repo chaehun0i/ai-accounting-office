@@ -30,14 +30,14 @@ function Office() {
     {company.loading && <p role="status">회사 정보를 확인하고 있습니다…</p>}
     {!company.loading && !company.error && company.companies.length === 0 && <section className="panel"><h2>아직 연결된 회사가 없습니다</h2><p>새 회사를 만들거나 회사 관리자에게 초대를 요청해 주세요.</p></section>}
     {company.companies.length > 0 && <CompanySelector />}
-    {company.active && <section className="panel active-company" key={company.active.id} aria-live="polite">
+    {company.active && <section className="panel active-company" key={`profile:${company.active.id}`} aria-live="polite">
       <p className="eyebrow">현재 선택한 회사</p><h2>{company.active.company_name}</h2>
       <p>{company.active.permissions.includes("company.update") ? "회사 정보를 관리할 수 있는 권한으로 접속했습니다." : "현재 회사 정보를 조회할 수 있습니다. 정보 수정은 회사 관리자에게 요청해 주세요."}</p>
       <p className="muted">선택한 회사의 회계 기준 정보를 확인할 수 있습니다.</p>
     </section>}
-    {company.active && <OnboardingWorkspace key={company.active.id} company={company.active} />}
-    {company.active && <AccountingMaster key={company.active.id} company={company.active} />}
-    {company.active && <DataImport key={company.active.id} company={company.active} />}
+    {company.active && <OnboardingWorkspace key={`onboarding:${company.active.id}`} company={company.active} />}
+    {company.active && <AccountingMaster key={`accounting:${company.active.id}`} company={company.active} />}
+    {company.active && <DataImport key={`imports:${company.active.id}`} company={company.active} />}
     <CompanyCreate />
   </>;
 }
