@@ -77,7 +77,11 @@ async function main() {
     await journal.getByRole("button", { name: /번호 미부여.*브라우저 복식부기 검증/ }).click();
     await journal.getByLabel("검토·정정 사유", { exact: true }).fill("브라우저 검증에서 출처와 차대변을 확인했습니다.");
     await journal.getByRole("button", { name: "승인", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "확인 후 진행", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
     await journal.getByRole("button", { name: "장부 반영", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "확인 후 진행", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
     await journal.getByText("브라우저 복식부기 검증 · 장부 반영 완료", { exact: true }).waitFor();
     await page.getByRole("navigation", { name: "업무 메뉴" }).getByRole("link", { name: "총계정원장", exact: true }).click();
     const reports = page.locator("section").filter({ has: page.getByRole("heading", { name: "총계정원장", exact: true }) });
@@ -93,7 +97,7 @@ async function main() {
     await page.getByRole("heading", { name: "전표 상세", exact: true }).waitFor();
     await page.getByRole("navigation", { name: "업무 메뉴" }).getByRole("link", { name: "합계잔액시산표", exact: true }).click();
     await page.getByLabel("회계기간", { exact: true }).selectOption(await page.getByLabel("회계기간", { exact: true }).locator("option").nth(1).getAttribute("value"));
-    await page.getByRole("button", { name: "장부 조회", exact: true }).click();
+    await page.locator("#office-content").getByRole("button", { name: "장부 조회", exact: true }).click();
     await page.getByText(/기간 차변 100.0000 · 기간 대변 100.0000/).waitFor();
     await page.screenshot({ path: ".local/accounting-browser-success.png", fullPage: true });
     console.log("브라우저 검증 통과: 로그인, 회사 선택, 거래 생성, 분개 추가·삭제, 제출, 별도 사용자 승인, 장부 반영, 원장, 시산표, 전표 이동");
