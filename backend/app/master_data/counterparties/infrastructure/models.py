@@ -23,6 +23,7 @@ class CounterpartyModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     company_id: Mapped[UUID] = mapped_column(
         ForeignKey("companies.id", ondelete="RESTRICT"), index=True
     )
+    counterparty_code: Mapped[str | None] = mapped_column(String(80))
     display_name: Mapped[str] = mapped_column(String(200))
     legal_name: Mapped[str] = mapped_column(String(200))
     normalized_legal_name: Mapped[str] = mapped_column(String(200))
@@ -33,6 +34,7 @@ class CounterpartyModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     default_currency_code: Mapped[str] = mapped_column(String(3))
     payment_term_id: Mapped[UUID | None] = mapped_column(index=True)
     __table_args__ = (
+        UniqueConstraint("company_id", "counterparty_code"),
         UniqueConstraint("company_id", "id"),
         ForeignKeyConstraint(
             ["company_id", "payment_term_id"],

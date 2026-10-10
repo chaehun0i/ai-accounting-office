@@ -16,6 +16,14 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    op.drop_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets',type_='check')
+    op.create_check_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets','sheet_index >= 0 AND row_count BETWEEN 0 AND 1000 AND column_count BETWEEN 1 AND 40')
+    op.add_column("counterparties", sa.Column("counterparty_code", sa.String(80), nullable=True))
+    op.create_unique_constraint(
+        op.f("uq_counterparties_company_id_counterparty_code"),
+        "counterparties",
+        ["company_id", "counterparty_code"],
+    )
     op.drop_constraint(op.f("ck_imports_sheets"), "imports", type_="check")
     op.create_check_constraint(op.f("ck_imports_sheets"), "imports", "sheet_count BETWEEN 1 AND 16")
     op.drop_constraint(op.f("ck_imports_source"), "imports", type_="check")
@@ -61,9 +69,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.Column(
-            "completed_at", sa.DateTime(timezone=True), nullable=True
-        ),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("version", sa.Integer(), nullable=False),
         sa.CheckConstraint(
             "status IN ('NOT_STARTED','IN_PROGRESS','REVIEW_REQUIRED','READY_TO_COMPLETE','COMPLETED')",
@@ -307,9 +313,7 @@ def upgrade() -> None:
         sa.Column("template_code", sa.String(length=40), nullable=False),
         sa.Column("template_version", sa.String(length=16), nullable=False),
         sa.Column("schema_version", sa.String(length=16), nullable=False),
-        sa.Column(
-            "generated_at", sa.DateTime(timezone=True), nullable=False
-        ),
+        sa.Column("generated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("locale", sa.String(length=16), nullable=False),
         sa.Column("status", sa.String(length=24), nullable=False),
         sa.Column("company_id", sa.Uuid(), nullable=False),
@@ -549,6 +553,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets',type_='check')
+    op.create_check_constraint(op.f('ck_import_sheets_dimensions'),'import_sheets','sheet_index >= 0 AND row_count BETWEEN 1 AND 1000 AND column_count BETWEEN 1 AND 40')
+    op.drop_constraint(
+        op.f("uq_counterparties_company_id_counterparty_code"), "counterparties", type_="unique"
+    )
+    op.drop_column("counterparties", "counterparty_code")
     # 온보딩 파일이 남아 있으면 downgrade는 보존 정책에 따라 거부됩니다.
     op.drop_constraint(op.f("ck_imports_sheets"), "imports", type_="check")
     op.create_check_constraint(op.f("ck_imports_sheets"), "imports", "sheet_count BETWEEN 1 AND 5")

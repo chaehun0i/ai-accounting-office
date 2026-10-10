@@ -71,7 +71,7 @@ class ImportSheetModel(Base):
         UniqueConstraint("import_id", "sheet_index"),
         UniqueConstraint("import_id", "id"),
         CheckConstraint(
-            "sheet_index >= 0 AND row_count BETWEEN 1 AND 1000 AND column_count BETWEEN 1 AND 40",
+            "sheet_index >= 0 AND row_count BETWEEN 0 AND 1000 AND column_count BETWEEN 1 AND 40",
             name="dimensions",
         ),
     )
