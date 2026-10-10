@@ -13,7 +13,7 @@ type Settings = {
 type Period = { id: string; start_date: string; end_date: string; status: "OPEN" | "CLOSED" };
 
 
-export function AccountingMaster({ company }: { company: Company }) {
+export function AccountingMaster({ company, showCatalog = true }: { company: Company; showCatalog?: boolean }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [periods, setPeriods] = useState<Period[]>([]);
 
@@ -86,6 +86,6 @@ export function AccountingMaster({ company }: { company: Company }) {
         <button disabled={busy}>{busy ? "설정 중…" : "회계연도 설정"}</button>
       </form> : <p>회사 관리자가 회계연도를 설정할 수 있습니다.</p>}
     </>}
-    <h3>고정 계정과목</h3><AccountCatalog companyId={company.id} />
+    {showCatalog && <><h3>고정 계정과목</h3><AccountCatalog companyId={company.id} /></>}
   </section>;
 }

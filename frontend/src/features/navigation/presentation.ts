@@ -13,5 +13,5 @@ export const routeDescriptions: Record<string, string> = {
   "/journals": "분개를 작성하고 별도 검토자의 승인 후 장부에 반영합니다.",
   "/ledger": "장부에 반영된 계정별 내역과 누적잔액을 확인합니다.",
   "/trial-balance": "회계기간별 차변·대변과 계정 잔액을 함께 확인합니다.",
-  "/accounting": "회사의 회계 기준, 계정과목과 회계기간을 관리합니다.",
+  "/accounting": "초기 설정 이후 회사정보와 회계 기준을 필요한 항목별로 관리합니다.",
 };
