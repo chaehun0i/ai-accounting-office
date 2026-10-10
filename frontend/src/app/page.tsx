@@ -1,6 +1,7 @@
 "use client";
 
 import { AccountingMaster } from "@/features/accounting/accounting-master";
+import { OnboardingWorkspace } from "@/features/onboarding/onboarding-workspace";
 import { DataImport } from "@/features/imports/data-import";
 import { useState } from "react";
 import { AuthProvider, useAuth } from "@/features/auth/auth-provider";
@@ -34,6 +35,7 @@ function Office() {
       <p>{company.active.permissions.includes("company.update") ? "회사 정보를 관리할 수 있는 권한으로 접속했습니다." : "현재 회사 정보를 조회할 수 있습니다. 정보 수정은 회사 관리자에게 요청해 주세요."}</p>
       <p className="muted">선택한 회사의 회계 기준 정보를 확인할 수 있습니다.</p>
     </section>}
+    {company.active && <OnboardingWorkspace key={company.active.id} company={company.active} />}
     {company.active && <AccountingMaster key={company.active.id} company={company.active} />}
     {company.active && <DataImport key={company.active.id} company={company.active} />}
     <CompanyCreate />
