@@ -30,6 +30,7 @@ async function main() {
     await page.getByRole("combobox", { name: /업무 회계기간/ }).waitFor();
     await page.getByRole("heading", { name: "최근 회계 기록", exact: true }).waitFor();
     await page.getByRole("combobox", { name: /업무 회계기간/ }).locator("option").nth(1).waitFor({ state: "attached" });
+    await page.waitForFunction(() => [...document.querySelectorAll(".workspace-stats strong")].length === 4 && [...document.querySelectorAll(".workspace-stats strong")].every(element => /^\d+$/.test(element.textContent)));
     await page.screenshot({ path: ".local/accounting-dashboard.png", fullPage: true });
     await page.getByRole("button", { name: "사이드바 접기", exact: true }).click();
     assert.equal(await page.getByRole("button", { name: "사이드바 펼치기", exact: true }).getAttribute("aria-expanded"), "false");
