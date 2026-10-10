@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.accounting.domain.rules import AccountType, BalanceSide
+from app.accounting.templates.domain.defaults import DEFAULT_TEMPLATE
 from app.master_data.domain.rules import CounterpartyRole, CounterpartyType, DueRule, MasterStatus
 
 
@@ -14,7 +15,7 @@ class Command(BaseModel):
 
 class InitializeAccountingMaster(Command):
     fiscal_year: int = Field(ge=1900, le=9998)
-    template_id: UUID
+    template_id: UUID = DEFAULT_TEMPLATE.id
     functional_currency_code: Literal[
         "KRW", "USD", "EUR", "JPY", "GBP", "CAD", "AUD", "CHF", "CNY", "SGD", "HKD"
     ] = "KRW"

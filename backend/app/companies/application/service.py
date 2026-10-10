@@ -40,8 +40,13 @@ def require_company(
 
 
 class CompanyService:
-    def __init__(self, factory: Callable[[], CompanyUnitOfWork]) -> None:
+    def __init__(
+        self,
+        factory: Callable[[], CompanyUnitOfWork],
+        prepare_accounts: Callable[[CompanyUnitOfWork, UUID], None] | None = None,
+    ) -> None:
         self.factory = factory
+        self.prepare_accounts = prepare_accounts
 
     def list(self, principal: Principal) -> list[CompanyAccess]:
         with self.factory() as uow:
@@ -85,6 +90,8 @@ class CompanyService:
             uow.companies.create_tenant(company.tenant_id, company_name)
             uow.companies.add(company)
             uow.companies.add_member(company.id, principal.user_id, "OWNER", now)
+            if self.prepare_accounts is not None:
+                self.prepare_accounts(uow, company.id)
             access = uow.companies.accessible(principal.user_id, company.id)
             assert access is not None
             return access

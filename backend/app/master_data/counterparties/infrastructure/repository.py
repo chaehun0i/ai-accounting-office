@@ -33,6 +33,15 @@ class CounterpartyRepository:
         )
         return self.entity(row) if row else None
 
+    def by_code(self, *, company_id: UUID, code: str) -> Counterparty | None:
+        row = self.session.scalar(
+            select(CounterpartyModel).where(
+                CounterpartyModel.company_id == company_id,
+                CounterpartyModel.counterparty_code == code,
+            )
+        )
+        return self.entity(row) if row else None
+
     def list(
         self,
         company_id: UUID,

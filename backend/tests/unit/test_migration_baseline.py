@@ -8,7 +8,7 @@ BACKEND = Path(__file__).resolve().parents[2]
 
 def test_baseline_has_one_named_head() -> None:
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["005_onboarding_data_exchange"]
+    assert script.get_heads() == ["008_governance"]
     identity = script.get_revision("001_identity")
     company = script.get_revision("002_tenant_company_rbac")
     assert identity is not None and identity.down_revision == "db_foundation"
@@ -22,3 +22,9 @@ def test_baseline_has_one_named_head() -> None:
 
     intake = script.get_revision("004_storage_evidence_intake")
     assert intake is not None and intake.down_revision == "003_master_accounting_settings"
+
+    previous = "005_onboarding_data_exchange"
+    for name in ("006_transactions", "007_journal_core", "008_governance"):
+        revision = script.get_revision(name)
+        assert revision is not None and revision.down_revision == previous
+        previous = name

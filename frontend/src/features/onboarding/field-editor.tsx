@@ -11,7 +11,9 @@ export function FieldEditor({ field, value, options, disabled, onChange }: {
   field: Field; value: string | boolean; options?: string[]; disabled: boolean; onChange: (value: string | boolean) => void;
 }) {
   return <label>{field.label}
-    {field.data_type === "BOOLEAN" ? <select value={value === "" ? "" : String(value)} disabled={disabled} onChange={e => onChange(e.target.value === "" ? "" : e.target.value === "true")}>
+    {field.field_code === "Accounting_Settings.fiscal_year_start_month" ? <select value={String(value).replace(/\.0+$/, "")} disabled={disabled} onChange={e => onChange(e.target.value)}>
+      <option value="">선택해 주세요</option>{Array.from({ length: 12 }, (_, index) => String(index + 1)).map(month => <option key={month} value={month}>{month}월</option>)}
+    </select> : field.data_type === "BOOLEAN" ? <select value={value === "" ? "" : String(value)} disabled={disabled} onChange={e => onChange(e.target.value === "" ? "" : e.target.value === "true")}>
       <option value="">선택해 주세요</option><option value="true">예</option><option value="false">아니요</option>
     </select> : options ? <select disabled={disabled} value={String(value)} onChange={e => onChange(e.target.value)}>
       <option value="">선택해 주세요</option>{options.map(v => <option key={v} value={v}>{labels[v] ?? v}</option>)}

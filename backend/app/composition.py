@@ -2,13 +2,24 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
+from uuid import UUID
 
 from sqlalchemy import Engine
 
+from app.accounting.application.catalog import prepare_accounts
+from app.accounting.application.contracts import MasterUnitOfWork
 from app.accounting.application.service import AccountingMasterService
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
+from app.accounting.journals.application.commands import JournalCommands
+from app.accounting.journals.application.service import JournalService
+from app.accounting.journals.infrastructure.unit_of_work import JournalSQLAlchemyUnitOfWork
+from app.accounting.ledger.application.service import AccountingReports
+from app.accounting.opening_balances.application.service import OpeningService
+from app.accounting.transactions.application.service import TransactionService
+from app.accounting.transactions.infrastructure.unit_of_work import TransactionSQLAlchemyUnitOfWork
+from app.approvals.infrastructure.unit_of_work import AccountingSQLAlchemyUnitOfWork
 from app.companies.application.service import CompanyService
-from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWork
 from app.core.config import Settings
 from app.core.database.engine import create_database_engine
 from app.core.database.session import create_session_factory
@@ -38,6 +49,11 @@ class Services:
     intake: IntakeService | None = None
     onboarding: OnboardingService | None = None
     onboarding_imports: OnboardingImportService | None = None
+    transactions: TransactionService | None = None
+    journals: JournalService | None = None
+    journal_commands: JournalCommands | None = None
+    accounting_reports: AccountingReports | None = None
+    opening_balances: OpeningService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -57,7 +73,10 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
     onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(sessions))
     return engine, Services(
         auth,
-        CompanyService(lambda: CompanySQLAlchemyUnitOfWork(sessions)),
+        CompanyService(
+            lambda: MasterSQLAlchemyUnitOfWork(sessions),
+            lambda uow, company: _prepare_company_accounts(cast(MasterUnitOfWork, uow), company),
+        ),
         InvitationService(lambda: InvitationSQLAlchemyUnitOfWork(sessions)),
         AccountingMasterService(lambda: MasterSQLAlchemyUnitOfWork(sessions)),
         MasterDataService(lambda: MasterSQLAlchemyUnitOfWork(sessions)),
@@ -75,4 +94,13 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
                 parse_onboarding,
             ),
         ),
+        TransactionService(lambda: TransactionSQLAlchemyUnitOfWork(sessions)),
+        JournalService(lambda: JournalSQLAlchemyUnitOfWork(sessions)),
+        JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
+        AccountingReports(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
+        OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
     )
+
+
+def _prepare_company_accounts(uow: MasterUnitOfWork, company: UUID) -> None:
+    prepare_accounts(uow, company)

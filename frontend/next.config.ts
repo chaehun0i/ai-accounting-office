@@ -6,6 +6,7 @@ if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.
   throw new Error("백엔드 주소는 로그인 정보와 경로가 없는 HTTP(S) origin으로 설정해 주세요.");
 }
 const nextConfig: NextConfig = {
+  output: process.env.NEXT_STANDALONE === "1" ? "standalone" : undefined,
   poweredByHeader: false,
   reactStrictMode: true,
   async rewrites() { return [{ source: "/api/:path*", destination: `${parsed.origin}/:path*` }]; },

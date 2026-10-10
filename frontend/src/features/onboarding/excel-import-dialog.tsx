@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OfficeDialog } from "@/shared/ui/dialog";
 import { authenticatedRequest } from "@/features/auth/session";
 import { conflictKey, type Preview, type Receipt, type Workspace } from "./model";
 
@@ -46,9 +47,7 @@ export function ExcelImportDialog({ workspace, onApplied, onClose }: { workspace
     });
   }
   const conflicts = preview?.items.filter(i => i.classification === "CONFLICT") ?? [];
-  return <dialog open aria-labelledby="excel-heading" className="onboarding-dialog">
-    <h3 id="excel-heading">Excel로 현재 초안 채우기</h3>
-    <p>파일은 초안에만 반영됩니다. 기존 값과 다르면 적용할 값을 직접 선택해 주세요.</p>
+  return <OfficeDialog open onClose={onClose} busy={busy} title="Excel로 현재 초안 채우기" description="파일은 초안에만 반영됩니다. 기존 값과 다르면 적용할 값을 직접 선택해 주세요.">
     <button onClick={download} disabled={busy}>공식 양식 다운로드</button>
     <label>Excel 파일<input type="file" accept=".xlsx" disabled={busy} onChange={e => { setFile(e.target.files?.[0]); setPreview(undefined); setReceipt(undefined); setChoices({}); }} /></label>
     <button onClick={upload} disabled={busy || !file || !!receipt}>{busy ? "처리 중…" : "업로드 후 미리보기"}</button>
@@ -66,6 +65,5 @@ export function ExcelImportDialog({ workspace, onApplied, onClose }: { workspace
       <button onClick={apply} disabled={busy || preview.errors.length > 0 || conflicts.some(i => !choices[conflictKey(i.incoming)])}>선택한 내용 초안에 적용</button>
     </section>}
     {receipt && <p role="status">초안에 적용했습니다. 새 입력값 {receipt.new_count}, 변경 {receipt.changed_count}, 동일 {receipt.unchanged_count}. 실제 회사 회계정보는 최종 완료 시 반영됩니다.</p>}
-    <button onClick={onClose} disabled={busy}>닫기</button>
-  </dialog>;
+  </OfficeDialog>;
 }

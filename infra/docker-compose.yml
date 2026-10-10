@@ -1,5 +1,42 @@
 name: ai-accounting-office
 services:
+  backend:
+    build: ../backend
+    environment:
+      APP_ENVIRONMENT: local
+      POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL in .env}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      AUTH_SIGNING_KEY: ${AUTH_SIGNING_KEY:?Run python scripts/dev.py auth-key}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      STORAGE_ROOT: /app/storage
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - storage_data:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  frontend:
+    build: ../frontend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
   postgres:
     image: postgres:17-alpine
     environment:
@@ -30,5 +67,6 @@ services:
       retries: 10
       start_period: 5s
 volumes:
+  storage_data:
   postgres_data:
   redis_data:

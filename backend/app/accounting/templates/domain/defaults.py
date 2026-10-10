@@ -1,11 +1,11 @@
-"""MVP용 회계 템플릿입니다. 세법이나 법정 계정체계를 대체하지 않습니다."""
+"""버전별 서버 계정목록입니다. 세법이나 법정 계정체계를 대체하지 않습니다."""
 
 from datetime import date
 from uuid import NAMESPACE_URL, uuid5
 
 from app.accounting.templates.domain.entities import Template, TemplateAccount
 
-DEFAULT_TEMPLATE = Template(
+LEGACY_TEMPLATE = Template(
     id=uuid5(NAMESPACE_URL, "accounting:KR_STANDARD:1"),
     template_code="KR_STANDARD",
     name="기본 회계 계정과목",
@@ -13,7 +13,8 @@ DEFAULT_TEMPLATE = Template(
     status="ACTIVE",
     valid_from=date(2026, 1, 1),
 )
-_ROWS = (
+Row = tuple[str, str, str, str | None, bool, bool]
+_ROWS: tuple[Row, ...] = (
     ("1000", "자산", "ASSET", None, False, False),
     ("1010", "현금및현금성자산", "ASSET", "1000", True, False),
     ("1020", "보통예금", "ASSET", "1000", True, False),
@@ -40,18 +41,142 @@ _ROWS = (
     ("5050", "급여", "EXPENSE", "5000", True, False),
     ("5060", "감가상각비", "EXPENSE", "5000", True, False),
 )
-DEFAULT_ACCOUNTS = tuple(
-    TemplateAccount(
-        id=uuid5(DEFAULT_TEMPLATE.id, code),
-        coa_template_id=DEFAULT_TEMPLATE.id,
-        account_code=code,
-        account_name=name,
-        account_type=kind,
-        normal_balance="DEBIT" if ((kind in {"ASSET", "EXPENSE"}) != contra) else "CREDIT",
-        parent_code=parent,
-        posting_allowed=posting,
-        is_contra=contra,
-        display_order=index,
+
+
+def _accounts(template: Template, rows: tuple[Row, ...]) -> tuple[TemplateAccount, ...]:
+    return tuple(
+        TemplateAccount(
+            id=uuid5(template.id, code),
+            coa_template_id=template.id,
+            account_code=code,
+            account_name=name,
+            account_type=kind,
+            normal_balance="DEBIT" if ((kind in {"ASSET", "EXPENSE"}) != contra) else "CREDIT",
+            parent_code=parent,
+            posting_allowed=posting,
+            is_contra=contra,
+            display_order=index,
+        )
+        for index, (code, name, kind, parent, posting, contra) in enumerate(rows)
     )
-    for index, (code, name, kind, parent, posting, contra) in enumerate(_ROWS)
+
+
+LEGACY_ACCOUNTS = _accounts(LEGACY_TEMPLATE, _ROWS)
+DEFAULT_TEMPLATE = Template(
+    id=uuid5(NAMESPACE_URL, "accounting:KR_STANDARD:2"),
+    template_code="KR_STANDARD",
+    name="기본 회계 계정과목 확장",
+    version=2,
+    status="ACTIVE",
+    valid_from=date(2026, 1, 1),
 )
+
+# 기존 코드의 의미는 보존하고 일반 기업에서 사용하는 계정을 명시적으로 추가합니다.
+_ADDITIONAL = (
+    ("1030", "당좌예금", "ASSET", "1000", True, False),
+    ("1040", "정기예금", "ASSET", "1000", True, False),
+    ("1050", "정기적금", "ASSET", "1000", True, False),
+    ("1060", "단기금융상품", "ASSET", "1000", True, False),
+    ("1070", "단기매매증권", "ASSET", "1000", True, False),
+    ("1110", "받을어음", "ASSET", "1000", True, False),
+    ("1120", "미수금", "ASSET", "1000", True, False),
+    ("1130", "미수수익", "ASSET", "1000", True, False),
+    ("1140", "단기대여금", "ASSET", "1000", True, False),
+    ("1150", "대손충당금", "ASSET", "1000", True, True),
+    ("1160", "가지급금", "ASSET", "1000", True, False),
+    ("1170", "선급금", "ASSET", "1000", True, False),
+    ("1180", "선납세금", "ASSET", "1000", True, False),
+    ("1210", "상품", "ASSET", "1000", True, False),
+    ("1220", "제품", "ASSET", "1000", True, False),
+    ("1230", "재공품", "ASSET", "1000", True, False),
+    ("1240", "원재료", "ASSET", "1000", True, False),
+    ("1250", "부재료", "ASSET", "1000", True, False),
+    ("1260", "저장품", "ASSET", "1000", True, False),
+    ("1270", "미착품", "ASSET", "1000", True, False),
+    ("1310", "임차보증금", "ASSET", "1000", True, False),
+    ("1320", "기타보증금", "ASSET", "1000", True, False),
+    ("1400", "장기금융상품", "ASSET", "1000", True, False),
+    ("1410", "장기투자증권", "ASSET", "1000", True, False),
+    ("1420", "장기대여금", "ASSET", "1000", True, False),
+    ("1430", "장기매출채권", "ASSET", "1000", True, False),
+    ("1440", "장기미수금", "ASSET", "1000", True, False),
+    ("1610", "토지", "ASSET", "1000", True, False),
+    ("1620", "건물", "ASSET", "1000", True, False),
+    ("1630", "구축물", "ASSET", "1000", True, False),
+    ("1640", "기계장치", "ASSET", "1000", True, False),
+    ("1650", "차량운반구", "ASSET", "1000", True, False),
+    ("1660", "공구와기구", "ASSET", "1000", True, False),
+    ("1670", "비품", "ASSET", "1000", True, False),
+    ("1680", "건설중인자산", "ASSET", "1000", True, False),
+    ("1700", "영업권", "ASSET", "1000", True, False),
+    ("1710", "산업재산권", "ASSET", "1000", True, False),
+    ("1720", "개발비", "ASSET", "1000", True, False),
+    ("1730", "소프트웨어", "ASSET", "1000", True, False),
+    ("1740", "무형자산상각누계액", "ASSET", "1000", True, True),
+    ("1900", "이연법인세자산", "ASSET", "1000", True, False),
+    ("2030", "지급어음", "LIABILITY", "2000", True, False),
+    ("2040", "미지급금", "LIABILITY", "2000", True, False),
+    ("2050", "예수금", "LIABILITY", "2000", True, False),
+    ("2060", "선수금", "LIABILITY", "2000", True, False),
+    ("2070", "단기차입금", "LIABILITY", "2000", True, False),
+    ("2080", "가수금", "LIABILITY", "2000", True, False),
+    ("2090", "미지급법인세", "LIABILITY", "2000", True, False),
+    ("2110", "유동성장기부채", "LIABILITY", "2000", True, False),
+    ("2300", "장기차입금", "LIABILITY", "2000", True, False),
+    ("2310", "사채", "LIABILITY", "2000", True, False),
+    ("2320", "임대보증금", "LIABILITY", "2000", True, False),
+    ("2330", "퇴직급여충당부채", "LIABILITY", "2000", True, False),
+    ("2340", "기타충당부채", "LIABILITY", "2000", True, False),
+    ("2350", "이연법인세부채", "LIABILITY", "2000", True, False),
+    ("3020", "주식발행초과금", "EQUITY", "3000", True, False),
+    ("3030", "자본잉여금", "EQUITY", "3000", True, False),
+    ("3040", "자기주식", "EQUITY", "3000", True, True),
+    ("3050", "이익준비금", "EQUITY", "3000", True, False),
+    ("3060", "미처분이익잉여금", "EQUITY", "3000", True, False),
+    ("3070", "기타포괄손익누계액", "EQUITY", "3000", True, False),
+    ("4020", "상품매출", "REVENUE", "4000", True, False),
+    ("4030", "제품매출", "REVENUE", "4000", True, False),
+    ("4040", "용역매출", "REVENUE", "4000", True, False),
+    ("4050", "이자수익", "REVENUE", "4000", True, False),
+    ("4060", "배당금수익", "REVENUE", "4000", True, False),
+    ("4070", "임대료수익", "REVENUE", "4000", True, False),
+    ("4080", "외환차익", "REVENUE", "4000", True, False),
+    ("4100", "외화환산이익", "REVENUE", "4000", True, False),
+    ("4110", "유형자산처분이익", "REVENUE", "4000", True, False),
+    ("4120", "채무면제이익", "REVENUE", "4000", True, False),
+    ("4130", "잡이익", "REVENUE", "4000", True, False),
+    ("5070", "상여금", "EXPENSE", "5000", True, False),
+    ("5080", "퇴직급여", "EXPENSE", "5000", True, False),
+    ("5090", "복리후생비", "EXPENSE", "5000", True, False),
+    ("5100", "여비교통비", "EXPENSE", "5000", True, False),
+    ("5110", "기업업무추진비", "EXPENSE", "5000", True, False),
+    ("5120", "통신비", "EXPENSE", "5000", True, False),
+    ("5130", "수도광열비", "EXPENSE", "5000", True, False),
+    ("5140", "세금과공과", "EXPENSE", "5000", True, False),
+    ("5150", "수선비", "EXPENSE", "5000", True, False),
+    ("5160", "보험료", "EXPENSE", "5000", True, False),
+    ("5170", "차량유지비", "EXPENSE", "5000", True, False),
+    ("5180", "운반비", "EXPENSE", "5000", True, False),
+    ("5190", "교육훈련비", "EXPENSE", "5000", True, False),
+    ("5200", "도서인쇄비", "EXPENSE", "5000", True, False),
+    ("5210", "사무용품비", "EXPENSE", "5000", True, False),
+    ("5220", "광고선전비", "EXPENSE", "5000", True, False),
+    ("5230", "대손상각비", "EXPENSE", "5000", True, False),
+    ("5240", "무형자산상각비", "EXPENSE", "5000", True, False),
+    ("5250", "경상연구개발비", "EXPENSE", "5000", True, False),
+    ("5260", "잡비", "EXPENSE", "5000", True, False),
+    ("5300", "상품매출원가", "EXPENSE", "5000", True, False),
+    ("5310", "제품매출원가", "EXPENSE", "5000", True, False),
+    ("5320", "용역매출원가", "EXPENSE", "5000", True, False),
+    ("5400", "재료비", "EXPENSE", "5000", True, False),
+    ("5410", "노무비", "EXPENSE", "5000", True, False),
+    ("5420", "제조경비", "EXPENSE", "5000", True, False),
+    ("5500", "이자비용", "EXPENSE", "5000", True, False),
+    ("5510", "외환차손", "EXPENSE", "5000", True, False),
+    ("5520", "외화환산손실", "EXPENSE", "5000", True, False),
+    ("5530", "유형자산처분손실", "EXPENSE", "5000", True, False),
+    ("5540", "기부금", "EXPENSE", "5000", True, False),
+    ("5550", "잡손실", "EXPENSE", "5000", True, False),
+    ("5600", "법인세비용", "EXPENSE", "5000", True, False),
+)
+DEFAULT_ACCOUNTS = _accounts(DEFAULT_TEMPLATE, tuple(sorted((*_ROWS, *_ADDITIONAL))))

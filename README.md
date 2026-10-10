@@ -2,14 +2,39 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+
+## 바로 실행하고 테스트하기
+
+Docker Desktop을 실행한 뒤 저장소 루트에서 다음 명령을 실행하세요.
+
+```sh
+python scripts/dev.py env
+python scripts/dev.py start
+python scripts/bootstrap_local.py
+```
+
+`http://localhost:3000`을 엽니다. Compose가 **frontend/backend/PostgreSQL/Redis 네 서비스**를 실행하고 backend 시작 시 migration과 기본 권한·COA seed를 적용합니다. 첫 build에는 패키지 다운로드 시간이 필요합니다. Backend API 문서는 `http://localhost:8000/docs`입니다.
+
+| 로그인 이메일 | 사용 목적 |
+| --- | --- |
+| `local-accountant@example.com` | 자료 업로드, 거래·전표 작성과 제출 |
+| `local-owner@example.com` | 회사 설정, 별도 사용자 전표 승인과 장부 반영 |
+
+비밀번호는 실행할 때 무작위로 만들며 [.local/development-accounts.ini](.local/development-accounts.ini)에만 저장합니다. 이 파일은 Git에서 제외됩니다. 준비 명령을 다시 실행해도 기존 비밀번호·회사·계정을 유지합니다. 다른 기존 계정의 비밀번호를 바꾸지 않습니다.
+
+전역 root 또는 권한 우회 계정은 없습니다. 회사 관리자는 모든 회계 동작을 대신하는 역할이 아닙니다. **회계 담당자로 작성·제출 → 로그아웃 → 회사 관리자로 승인·장부 반영** 순서로 테스트하세요. 작성자가 본인을 승인할 수 없습니다. 회사 설정·계정과목·현재 연도의 열린 회계기간은 준비 명령이 생성합니다.
+
+종료는 `python scripts/dev.py stop`입니다. 데이터 volume은 보존합니다. 포트를 바꾸면 `.env`의 `FRONTEND_PORT`, `BACKEND_PORT`, `FRONTEND_ORIGIN`과 bootstrap의 `--origin`을 맞추세요. 기존 호스트 방식 개발을 원하면 아래 독립 backend/frontend 실행 방법을 이용하고 `infra-start`로 PostgreSQL·Redis만 실행하세요.
 
 ## 설계 기준과 원칙
+
+업무 화면은 홈·회사 관리·회계 준비·파일 가져오기·거래·전표·총계정원장·시산표·회계 설정으로 나뉩니다. 로그인 후 왼쪽 업무 메뉴를 이용하세요. [페이지 구성과 참고 코드·검증](docs/page-navigation.md)에 경로와 권한 안내가 있습니다.
 
 단일 기준선: [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
 
-- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 43개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
+- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 53개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
 - **정본 분리**: accounting은 회계 장부, tax는 세무 계산·신고, evidence는 증빙/provenance, jobs/agents/tool executions는 실행 이력을 소유합니다.
 - **Agent 경계**: Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repository. Agent는 ORM/Session/SQL/Repository에 직접 접근하지 않습니다.
 - **Deterministic calculation**: 금액·세금·잔액·집계는 Decimal, Domain Rule, Application Service와 결정적 query/calculation이 소유합니다. LLM이 계산하지 않습니다.
@@ -24,7 +49,7 @@ backend/app/core/database/  SQLAlchemy persistence primitive
 backend/migrations/         Alembic 환경과 Identity/Company/Master/Storage/Intake migration
 backend/tests/              unit, PostgreSQL integration, contract, golden
 frontend/src/   app, features, shared
-infra/          PostgreSQL/Redis Docker Compose
+infra/          Backend/Frontend/PostgreSQL/Redis Docker Compose
 scripts/        플랫폼 공통 개발 진입점
 docs/           설계 추적, 환경변수, 검증 기록
 .github/        backend/frontend 품질 CI
@@ -55,7 +80,7 @@ python scripts/dev.py env
 python scripts/dev.py infra-start
 # 또는
 docker compose --env-file .env -f infra/docker-compose.yml config --quiet
-docker compose --env-file .env -f infra/docker-compose.yml up -d --wait
+docker compose --env-file .env -f infra/docker-compose.yml up -d --wait postgres redis
 docker compose --env-file .env -f infra/docker-compose.yml ps
 ```
 
@@ -157,7 +182,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `005_onboarding_data_exchange`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.5의 `Complete_DDL_Migration_Map`을 따릅니다.
+현재 head는 `008_governance`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.5의 `Complete_DDL_Migration_Map`을 따릅니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -208,3 +233,16 @@ UTF-8 CSV/UTF-8 BOM CSV와 XLSX, 최대 2MB·총 1,000행·40열·5시트를 지
 
 API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 수 있습니다. 모든 Import 요청은 Bearer와 `X-Company-ID`, 변경 요청은 `X-CSRF-Protection: 1`, Confirm은 `Idempotency-Key`가 필요합니다.
 [구조·API·파일 제한·후속 계약](docs/storage-evidence-intake.md), [실제 참고 파일과 충돌 처리](docs/intake-source-patterns.md), [검증 결과](docs/intake-verification.md)를 참고하세요.
+
+## 거래·전표·원장·시산표
+
+회사별 거래 입력부터 전표 작성, 제출, 별도 사용자 승인, 장부 반영, 원장·시산표 조회까지 연결했습니다. 기초잔액도 같은 승인·확정 흐름을 사용합니다.
+
+- [회계 흐름과 API 계약](docs/transaction-journal-ledger.md)
+- [최종 검증 기록](docs/accounting-core-verification.md)
+- 브라우저 검증: `node scripts/accounting-browser-smoke.cjs --allow-synthetic` (전용 테스트 서버 필요)
+- DB 실측: `python scripts/verify_accounting_schema.py` (`TEST_POSTGRES_URL`, `_test` DB 필요)
+
+## 처음 회사 설정과 설정 관리
+
+새 회사는 업무 홈에서 회사정보 → 회계 기준 → 거래처 → 기초잔액 → 최종 확인 순서로 준비합니다. 완료한 회사는 업무 홈에서 바로 일을 시작하고, 변경할 내용은 설정 관리에서 수정합니다. 계정과목은 서버가 130개 기본 목록을 준비하며 사용자가 직접 생성하지 않습니다. [동작·계정 버전·참고 자료·검증](docs/first-company-setup-and-account-catalog.md)을 확인하세요.

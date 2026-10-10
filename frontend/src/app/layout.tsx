@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { OfficeProviders } from "@/features/navigation/office-shell";
 
 export const metadata: Metadata = {
   title: "AI Accounting Office",
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="ko"><body>{children}</body></html>;
+  return <html lang="ko"><body><OfficeProviders>{children}</OfficeProviders></body></html>;
 }

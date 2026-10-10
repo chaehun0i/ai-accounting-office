@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/features/auth/auth-provider";
 import { authenticatedRequest } from "@/features/auth/session";
+import { canLeavePage } from "@/shared/unsaved-changes";
 import { ApiError } from "@/shared/api";
 import { SelectionGate, type Company } from "./selection-state";
 
@@ -24,6 +25,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const invalidate = auth.invalidate;
 
   const select = useCallback(async (id: string) => {
+    if (!canLeavePage()) return;
     const current = gate.current.next();
     setActive(null); setLoading(true); setError("");
     try {

@@ -25,6 +25,14 @@ class OnboardingService:
         access = require_company(uow, actor, company, permission)
         current = uow.onboarding.get(company_id=company)
         if current is not None:
+            if current.status != "COMPLETED" and not any(
+                c.field_code.startswith("COA.") for c in current.cells
+            ):
+                accounts = self.account_defaults(uow, company)
+                if accounts:
+                    return uow.onboarding.save(
+                        current, [*current.cells, *accounts], actor.user_id, uow.now()
+                    )
             return current
         # 조회 권한만으로 다른 사용자의 초안을 생성하지 않습니다.
         require_company(uow, actor, company, "onboarding.edit")
@@ -53,7 +61,27 @@ class OnboardingService:
             Cell(code, "singleton", parse_value(BY_CODE[code], value), "SYSTEM_DEFAULT")
             for code, value in defaults.items()
         ]
-        return uow.onboarding.save(current, recalculate(cells), actor.user_id, uow.now())
+        return uow.onboarding.save(
+            current,
+            recalculate([*cells, *self.account_defaults(uow, company)]),
+            actor.user_id,
+            uow.now(),
+        )
+
+    @staticmethod
+    def account_defaults(uow: OnboardingUnitOfWork, company: UUID) -> list[Cell]:
+        # 계정과목은 사용자 필수 입력이 아니라 서버 제공 기준 정보입니다.
+        return [
+            Cell(f"COA.{field}", account.account_code, getattr(account, field), "SYSTEM_DEFAULT")
+            for account in uow.accounts.list(company)
+            for field in (
+                "account_code",
+                "account_name",
+                "account_type",
+                "normal_balance",
+                "posting_allowed",
+            )
+        ]
 
     def get(self, actor: Principal, company: UUID) -> Workspace:
         with self.factory() as uow:
@@ -80,11 +108,19 @@ class OnboardingService:
             self.writable(current, expected_version)
             cells = {(c.field_code, c.row_key): c for c in current.cells}
             changed: set[str] = set()
+            fixed_accounts = {
+                account.account_code: account for account in uow.accounts.list(company)
+            }
             for code, key, raw in values:
                 field = editable(code)
                 if len(key) > 260 or not key:
                     raise InvalidValue()
-                cell = Cell(code, key, parse_value(field, raw))
+                value = parse_value(field, raw)
+                if field.section_code == "COA" and fixed_accounts:
+                    account = fixed_accounts.get(key)
+                    if account is None or getattr(account, code.split(".")[1], None) != value:
+                        raise InvalidValue()
+                cell = Cell(code, key, value)
                 cells[(code, key)] = cell
                 changed.add(field.section_code)
             for section in changed:

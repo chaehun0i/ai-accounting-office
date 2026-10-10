@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.accounting.application.service import AccountingMasterService
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
-from app.accounting.templates.domain.defaults import DEFAULT_TEMPLATE
+from app.accounting.templates.domain.defaults import DEFAULT_ACCOUNTS, DEFAULT_TEMPLATE
 from app.accounting.templates.infrastructure.seed import seed_default_coa
 from app.companies.application.service import CompanyService
 from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWork
@@ -62,7 +62,7 @@ def test_initialize_repeatable_and_version(master):
     assert (
         accounting.initialize(p, c.id, fiscal_year=2026, template_id=DEFAULT_TEMPLATE.id) == value
     )
-    assert len(accounting.accounts(p, c.id)) == 25
+    assert len(accounting.accounts(p, c.id)) == len(DEFAULT_ACCOUNTS)
     periods = accounting.periods(p, c.id)
     assert len(periods) == 12 and periods[0].start_date == date(2026, 1, 1)
     changed = accounting.update_settings(p, c.id, 1, journal_number_prefix="JV")

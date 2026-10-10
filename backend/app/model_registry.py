@@ -30,10 +30,18 @@ __all__ += [
 
 # 회계 Master 모델은 명시적으로 등록하고 import 시 연결하지 않습니다.
 from app.accounting.accounts.infrastructure import models as accounts_models  # noqa: F401, E402
+from app.accounting.journals.infrastructure import models as journal_models  # noqa: F401, E402
+from app.accounting.opening_balances.infrastructure import (  # noqa: E402
+    models as opening_models,  # noqa: F401, E402
+)
 from app.accounting.periods.infrastructure import models as periods_models  # noqa: F401, E402
 from app.accounting.sequences.infrastructure import models as sequences_models  # noqa: F401, E402
 from app.accounting.settings.infrastructure import models as settings_models  # noqa: F401, E402
 from app.accounting.templates.infrastructure import models as templates_models  # noqa: F401, E402
+from app.accounting.transactions.infrastructure import (  # noqa: E402
+    models as transaction_models,  # noqa: F401, E402
+)
+from app.approvals.infrastructure import models as governance_models  # noqa: F401, E402
 from app.evidence.infrastructure import models as evidence_models  # noqa: F401, E402
 from app.intake.infrastructure import models as intake_models  # noqa: F401, E402
 from app.master_data.counterparties.infrastructure import (  # noqa: E402

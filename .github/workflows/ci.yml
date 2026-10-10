@@ -1,7 +1,7 @@
 name: Quality
 on:
   push:
-    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master, feat/storage-evidence-intake, feat/onboarding-data-exchange]
+    branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master, feat/storage-evidence-intake, feat/onboarding-data-exchange, feat/transaction-journal-ledger]
   pull_request:
 permissions:
   contents: read
@@ -65,8 +65,10 @@ jobs:
       - run: python -m alembic upgrade head
       - run: python -m alembic current --check-heads
       - run: python -m alembic check
-      - name: 관계형 스키마와 온보딩 병합·승격 회귀
+      - name: 관계형 스키마·회계 승인 확정·원장 Golden·동시성 회귀
         run: python -m pytest tests/integration --require-postgres
+      - name: 업무 테이블과 JSON·FK 실제 수치 검증
+        run: python ../scripts/verify_accounting_schema.py
       - run: python -m app.companies.infrastructure.seed
       - run: python -m app.companies.infrastructure.seed
       - run: python -m app.accounting.templates.infrastructure.seed
@@ -97,3 +99,12 @@ jobs:
       - uses: actions/checkout@v4
       - run: python scripts/dev.py env
       - run: docker compose --env-file .env -f infra/docker-compose.yml config --quiet
+      - name: 백엔드·프론트엔드 포함 로컬 환경 실행
+        run: docker compose --env-file .env -f infra/docker-compose.yml up -d --build --wait
+      - name: 로컬 계정·회사 준비 및 중복 실행 검증
+        run: |
+          python scripts/bootstrap_local.py
+          python scripts/bootstrap_local.py
+      - run: docker compose --env-file .env -f infra/docker-compose.yml ps
+      - if: always()
+        run: docker compose --env-file .env -f infra/docker-compose.yml down
