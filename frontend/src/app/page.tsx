@@ -1,5 +1,6 @@
 "use client";
 
+import { TransactionWorkspace } from "@/features/transactions/transaction-workspace";
 import { AccountingMaster } from "@/features/accounting/accounting-master";
 import { OnboardingWorkspace } from "@/features/onboarding/onboarding-workspace";
 import { DataImport } from "@/features/imports/data-import";
@@ -36,6 +37,7 @@ function Office() {
       <p className="muted">선택한 회사의 회계 기준 정보를 확인할 수 있습니다.</p>
     </section>}
     {company.active && <OnboardingWorkspace key={`onboarding:${company.active.id}`} company={company.active} />}
+    {company.active && <TransactionWorkspace key={`transactions:${company.active.id}`} company={company.active} />}
     {company.active && <AccountingMaster key={`accounting:${company.active.id}`} company={company.active} />}
     {company.active && <DataImport key={`imports:${company.active.id}`} company={company.active} />}
     <CompanyCreate />

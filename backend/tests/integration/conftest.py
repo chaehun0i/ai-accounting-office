@@ -122,10 +122,15 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         autobegin=False,
         join_transaction_mode="create_savepoint",
     )
+    from app.accounting.transactions.application.service import TransactionService
+    from app.accounting.transactions.infrastructure.unit_of_work import (
+        TransactionSQLAlchemyUnitOfWork,
+    )
     from app.onboarding.application.merge import OnboardingImportService
     from app.onboarding.application.service import OnboardingService
     from app.onboarding.infrastructure.template import parse_onboarding
     from app.onboarding.infrastructure.unit_of_work import OnboardingSQLAlchemyUnitOfWork
+
 
     onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(factory))
     app = create_app(settings)
@@ -147,6 +152,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
                 parse_onboarding,
             ),
         ),
+        TransactionService(lambda: TransactionSQLAlchemyUnitOfWork(factory)),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
         yield client

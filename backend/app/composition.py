@@ -7,6 +7,8 @@ from sqlalchemy import Engine
 
 from app.accounting.application.service import AccountingMasterService
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
+from app.accounting.transactions.application.service import TransactionService
+from app.accounting.transactions.infrastructure.unit_of_work import TransactionSQLAlchemyUnitOfWork
 from app.companies.application.service import CompanyService
 from app.companies.infrastructure.unit_of_work import CompanySQLAlchemyUnitOfWork
 from app.core.config import Settings
@@ -38,6 +40,7 @@ class Services:
     intake: IntakeService | None = None
     onboarding: OnboardingService | None = None
     onboarding_imports: OnboardingImportService | None = None
+    transactions: TransactionService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -75,4 +78,5 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
                 parse_onboarding,
             ),
         ),
+        TransactionService(lambda: TransactionSQLAlchemyUnitOfWork(sessions)),
     )
