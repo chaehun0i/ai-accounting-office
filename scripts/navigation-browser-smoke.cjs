@@ -14,7 +14,7 @@ async function main() {
     return rows;
   }, []));
   const browser = await chromium.launch({ channel: "msedge", headless: true });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
   const page = await context.newPage();
   page.setDefaultTimeout(60000);
   async function login(label) {
@@ -27,6 +27,10 @@ async function main() {
   try {
     await login("회계 담당자");
     assert.equal(await page.getByRole("heading", { name: "회계 전표", exact: true }).count(), 0);
+    await page.getByRole("combobox", { name: /업무 회계기간/ }).waitFor();
+    await page.getByRole("heading", { name: "최근 회계 기록", exact: true }).waitFor();
+    await page.getByRole("combobox", { name: /업무 회계기간/ }).locator("option").nth(1).waitFor({ state: "attached" });
+    await page.screenshot({ path: ".local/accounting-dashboard.png", fullPage: true });
     await page.getByRole("button", { name: "사이드바 접기", exact: true }).click();
     assert.equal(await page.getByRole("button", { name: "사이드바 펼치기", exact: true }).getAttribute("aria-expanded"), "false");
     await page.getByRole("button", { name: "사이드바 펼치기", exact: true }).click();
@@ -47,6 +51,18 @@ async function main() {
       assert.equal(await menu.getByRole("link", { name: label, exact: true }).getAttribute("aria-current"), "page");
     }
     await menu.getByRole("link", { name: "회계 준비", exact: true }).click();
+    await page.getByRole("button", { name: /^계정과목 · 서버 제공/ }).click();
+    await page.getByRole("region", { name: "서버 계정과목 목록", exact: true }).getByText("보통예금", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "항목 추가", exact: true }).count(), 0);
+    await page.getByLabel("계정코드·계정명 검색").fill("보통예금");
+    assert.equal(await page.locator(".table-scroll tbody tr").count(), 1);
+    await page.getByRole("button", { name: /^거래처 ·/ }).click();
+    await page.getByRole("button", { name: "항목 추가", exact: true }).click();
+    const rowEditor = page.getByRole("dialog", { name: "거래처 입력", exact: true });
+    await rowEditor.waitFor();
+    await page.keyboard.press("Escape");
+    await rowEditor.waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: /^회사 기본정보 ·/ }).click();
     await page.getByRole("button", { name: "Excel 업로드", exact: true }).click();
     const excel = page.getByRole("dialog", { name: "Excel로 현재 초안 채우기", exact: true });
     await excel.waitFor();
@@ -64,6 +80,7 @@ async function main() {
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     await menu.getByRole("link", { name: "회계 설정 · 계정과목", exact: true }).click();
+    await page.waitForURL(origin + "/accounting");
     await page.reload();
     await page.getByRole("heading", { name: "회계 기준 정보", exact: true }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
@@ -80,6 +97,6 @@ async function main() {
     await page.getByRole("heading", { name: "이 업무에 접근할 권한이 없습니다", exact: true }).waitFor();
     await page.screenshot({ path: ".local/navigation-mobile.png", fullPage: true });
     console.log("페이지 검증 통과: 독립 경로 9개, 메뉴 이동, 현재 위치, 인증 복구, 권한 안내, 모바일 배치, 메뉴 접기·펼치기, 팝업 포커스·Escape·배경 클릭 보호, 움직임 줄이기");
-  } finally { await browser.close(); }
+  } catch (error) { await page.screenshot({ path: ".local/navigation-failure.png", fullPage: true }); throw error; } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });
