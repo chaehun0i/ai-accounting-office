@@ -10,6 +10,7 @@ from app import model_registry  # noqa: F401
 from app.core.config import Settings
 from app.core.database.base import Base
 from app.core.database.engine import create_database_engine
+from app.core.database.framework_schema import assert_framework_schema
 from pydantic import SecretStr
 from sqlalchemy import and_, func, inspect, select, text
 
@@ -29,9 +30,7 @@ def main() -> None:
     engine = create_database_engine(settings)
     try:
         with engine.connect() as connection:
-            tables = set(inspect(connection).get_table_names(schema="public")) - {
-                "alembic_version"
-            }
+            tables = set(inspect(connection).get_table_names(schema="public")) - {"alembic_version"}
             assert tables == set(Base.metadata.tables)
             print("business_tables=" + str(len(tables)))
             for kind in ("json", "jsonb"):
@@ -55,8 +54,7 @@ def main() -> None:
                 for constraint in table.foreign_key_constraints:
                     target = constraint.referred_table.alias("fk_target")
                     pairs = [
-                        (item.parent, target.c[item.column.name])
-                        for item in constraint.elements
+                        (item.parent, target.c[item.column.name]) for item in constraint.elements
                     ]
                     join = and_(*(left == right for left, right in pairs))
                     orphan += (
@@ -73,12 +71,23 @@ def main() -> None:
             print("foreign_keys=" + str(foreign_keys))
             print("orphan_rows=" + str(orphan))
             assert orphan == 0
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "009_finance_subledger"
+            assert_framework_schema(connection)
+            for kind in ("json", "jsonb"):
+                count = connection.scalar(
+                    text(
+                        "SELECT count(*) FROM information_schema.columns "
+                        "WHERE table_schema='agent_checkpoints' AND data_type=:kind"
+                    ),
+                    {"kind": kind},
+                )
+                print("framework_" + kind + "_columns=" + str(count))
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version"))
+                == "010_agent_runtime_foundation"
+            )
             print(
                 "migration_head="
-                + str(
-                    connection.scalar(text("SELECT version_num FROM alembic_version"))
-                )
+                + str(connection.scalar(text("SELECT version_num FROM alembic_version")))
             )
     finally:
         engine.dispose()

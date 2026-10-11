@@ -9,6 +9,11 @@ services:
       AUTH_SIGNING_KEY: ${AUTH_SIGNING_KEY:?Run python scripts/dev.py auth-key}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       STORAGE_ROOT: /app/storage
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:

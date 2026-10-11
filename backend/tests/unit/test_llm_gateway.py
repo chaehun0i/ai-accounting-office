@@ -55,3 +55,14 @@ def test_invalid_output_fails_without_retry() -> None:
     with pytest.raises(LLMError) as error:
         LLMGateway(InvalidProvider()).generate("classify", "{}", Classification)
     assert error.value.code == "OUTPUT_SCHEMA_INVALID"
+
+
+def test_unexpected_provider_error_does_not_leak() -> None:
+    class BrokenProvider(FakeProvider):
+        def generate(self, *args, **kwargs):
+            raise ValueError("민감한 원문 응답")
+
+    with pytest.raises(LLMError) as error:
+        LLMGateway(BrokenProvider(), max_retries=0).generate("classify", "{}", Classification)
+    assert error.value.code == "PROVIDER_TEMPORARY"
+    assert "민감한" not in str(error.value)

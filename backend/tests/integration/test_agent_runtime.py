@@ -84,6 +84,35 @@ def test_postgres_interrupt_reconstructed_resume(api_client, agent_environment):
     assert start(api_client, writer, source, key)["id"] == run["id"]
     with checkpoints.open(run["graph_thread_id"]) as saver:
         assert saver.get_tuple({"configurable": {"thread_id": run["graph_thread_id"]}})
+    import os
+    import subprocess
+    import sys
+
+    # 별도 Python 프로세스에서도 같은 PostgreSQL 체크포인트를 읽을 수 있습니다.
+    env = {**os.environ, "VERIFY_AGENT_THREAD": run["graph_thread_id"]}
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os; from sqlalchemy.engine import make_url; "
+            "from app.agents.checkpoints.postgres import PostgresCheckpoints; "
+            "c=PostgresCheckpoints(make_url(os.environ['TEST_POSTGRES_URL'])"
+            ".set(drivername='postgresql').render_as_string(hide_password=False)); "
+            "thread=os.environ['VERIFY_AGENT_THREAD'];\n"
+            "with c.open(thread) as saver: "
+            "assert saver.get_tuple({'configurable': {'thread_id': thread}}) is not None",
+        ],
+        env=env,
+        check=True,
+        timeout=30,
+    )
+    assert (
+        connection.scalar(
+            text("SELECT count(*) FROM journal_entries WHERE source_transaction_id=:transaction"),
+            {"transaction": UUID(source["id"])},
+        )
+        == 0
+    )
     steps = api_client.get(f"/agent/runs/{run['id']}/steps", headers=writer)
     assert steps.status_code == 200 and len(steps.json()) >= 8
     # Gateway/Graph/checkpointer 객체를 모두 재구성해도 기존 thread를 재개합니다.

@@ -28,6 +28,8 @@ class LLMGateway:
                 error = LLMError("TIMEOUT")
             except LLMError as exc:
                 error = exc
+            except Exception:
+                error = LLMError("PROVIDER_TEMPORARY")
             if error.code not in {"TIMEOUT", "RATE_LIMITED", "PROVIDER_TEMPORARY"}:
                 raise error from None
             if attempt == self.max_retries:
