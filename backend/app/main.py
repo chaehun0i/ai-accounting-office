@@ -10,6 +10,7 @@ from app.accounting.api.router import router as accounting_router
 from app.accounting.journals.api.router import router as journal_router
 from app.accounting.ledger.api.router import router as ledger_router
 from app.accounting.transactions.api.router import router as transaction_router
+from app.agents.api.router import router as agent_router
 from app.companies.api.router import router as companies_router
 from app.composition import create_services
 from app.core.config import Settings, load_settings
@@ -95,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
     )
     app.include_router(onboarding_router)
+    app.include_router(agent_router)
     app.include_router(intake_router)
     app.include_router(accounting_router)
     app.include_router(transaction_router)
