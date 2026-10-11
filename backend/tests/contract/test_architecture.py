@@ -185,3 +185,18 @@ def test_graph_cannot_execute_privileged_commands() -> None:
         source = path.read_text(encoding="utf-8")
         for forbidden in ("journal.post", "period.close", "payment.execute", "tax.filing.submit"):
             assert forbidden not in source
+
+
+def test_tool_adapters_use_application_services_only() -> None:
+    for path in (APP / "tools").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
+            for name in names:
+                assert name.split(".")[0] not in {"sqlalchemy", "psycopg", "asyncpg", "sqlite3"}
+                assert "infrastructure" not in name.split(".")

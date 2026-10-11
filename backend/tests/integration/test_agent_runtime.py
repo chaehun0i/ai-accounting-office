@@ -164,6 +164,8 @@ def test_wrong_company_permission_and_invalid_input(api_client, agent_environmen
         ).status_code
         == 404
     )
+    unauthenticated = {k: v for k, v in writer.items() if k != "Authorization"}
+    assert api_client.get("/agent/runs/" + str(uuid4()), headers=unauthenticated).status_code == 401
     assert (
         api_client.post(
             "/agent/runs/bookkeeper",
