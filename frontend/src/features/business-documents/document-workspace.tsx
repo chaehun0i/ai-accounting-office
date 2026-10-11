@@ -88,7 +88,7 @@ export function DocumentWorkspace({ company }: { company: Company }) {
       {documentActions(selected, company.permissions).map(action => <button key={action} disabled={busy} onClick={() => { requestKey.current = crypto.randomUUID(); setPending(action); }}>{action === "approve" ? "문서 승인·확정" : "승인 요청"}</button>)}
       {selected.status === "APPROVED" && company.permissions.includes("credit_note.create") && <><button onClick={() => open({ kind: "CREDIT_NOTE", original: selected, editing: null })}>감액 정정문서 작성</button><button onClick={() => open({ kind: "DEBIT_NOTE", original: selected, editing: null })}>증액 정정문서 작성</button></>}
       {selected.transaction_id && <p><Link href={`/transactions#transaction-${selected.transaction_id}`}>생성된 거래 확인</Link></p>}
-      {selected.obligation_id && <p><Link href={(selected.document_type === "SALES_INVOICE" || selected.original_document_type === "SALES_INVOICE" ? "/receivables" : "/payables") + `#${selected.obligation_id}`}>채권·채무와 정산 내역 확인</Link></p>}
+      {selected.obligation_id && <p>{company.permissions.includes(selected.document_type === "SALES_INVOICE" || selected.original_document_type === "SALES_INVOICE" ? "receivable.read" : "payable.read") ? <Link href={(selected.document_type === "SALES_INVOICE" || selected.original_document_type === "SALES_INVOICE" ? "/receivables" : "/payables") + `#${selected.obligation_id}`}>채권·채무와 정산 내역 확인</Link> : "채권·채무 내역은 조회 권한이 있는 담당자가 확인할 수 있습니다."}</p>}
       {selected.original_document_id && <p>원문서 식별자: {selected.original_document_id} · 정정 사유: {selected.reason_code}</p>}
       <p>가져오기 출처: {selected.source_import_id ?? "직접 작성"} · 증빙: {selected.evidence_id ?? "연결된 증빙 없음"}</p>
     </article>}
