@@ -73,6 +73,17 @@ def test_document_approval_creates_transaction_and_obligation(
 def test_credit_note_preserves_original_and_adjusts_outstanding(api_client, auth_service):
     owner, writer, _, _, cp, _ = finance_setup(api_client, auth_service)
     value = create(api_client, writer, "/sales-invoices", body(cp))
+    replay_key = str(uuid4())
+    reused = api_client.post(
+        "/sales-invoices", headers={**writer, "Idempotency-Key": replay_key}, json=body(cp)
+    )
+    assert reused.status_code == 201 and reused.json()["id"] == value["id"]
+    changed = api_client.post(
+        "/sales-invoices",
+        headers={**writer, "Idempotency-Key": replay_key},
+        json=body(cp, supply="999"),
+    )
+    assert changed.status_code == 409 and changed.json()["code"] == "IDEMPOTENCY_CONFLICT"
     value = transition(api_client, writer, "/sales-invoices", value, "submit").json()
     value = transition(api_client, owner, "/sales-invoices", value, "approve").json()
     note = create(
@@ -240,3 +251,46 @@ def test_document_security_stale_and_source_conflict(api_client, auth_service):
         ).status_code
         == 404
     )
+
+
+def test_inactive_counterparty_and_self_approval_fail_closed(api_client, auth_service):
+    from sqlalchemy import update
+    from sqlalchemy.orm import Session
+
+    from app.companies.infrastructure.models import MembershipModel
+    from app.master_data.counterparties.infrastructure.models import CounterpartyModel
+
+    owner, writer, _, _, cp, connection = finance_setup(api_client, auth_service)
+    value = create(api_client, writer, "/sales-invoices", body(cp))
+    submitted = transition(api_client, writer, "/sales-invoices", value, "submit").json()
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        session.execute(
+            update(CounterpartyModel)
+            .where(CounterpartyModel.id == UUID(cp))
+            .values(status="INACTIVE")
+        )
+        session.commit()
+    denied = transition(api_client, owner, "/sales-invoices", submitted, "approve")
+    assert denied.status_code == 404
+    assert (
+        api_client.get("/sales-invoices/" + value["id"], headers=writer).json()["transaction_id"]
+        is None
+    )
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        session.execute(
+            update(CounterpartyModel)
+            .where(CounterpartyModel.id == UUID(cp))
+            .values(status="ACTIVE")
+        )
+        session.execute(
+            update(MembershipModel)
+            .where(
+                MembershipModel.company_id == UUID(writer["X-Company-ID"]),
+                MembershipModel.role_code == "ACCOUNTANT",
+            )
+            .values(role_code="OWNER")
+        )
+        session.commit()
+    denied = transition(api_client, writer, "/sales-invoices", submitted, "approve")
+    assert denied.status_code == 409
+    assert denied.json()["code"] == "SELF_APPROVAL_NOT_ALLOWED"

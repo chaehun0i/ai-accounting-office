@@ -98,7 +98,6 @@ class DocumentService:
             )
             if replay:
                 return self._get(uow, value.company_id, value.document_type, replay)
-            uow.documents.lock_counterparty(value.company_id, value.counterparty_id)
             for kind, resource in [
                 ("import", value.source_import_id),
                 ("evidence", value.evidence_id),
@@ -161,6 +160,8 @@ class DocumentService:
                 if target is None:
                     raise ResourceNotFound()
                 validate_correction(original, value, target.outstanding_amount)
+            # 문서→원문서→보조부→거래처 순서를 승인 명령과 동일하게 유지합니다.
+            uow.documents.lock_counterparty(value.company_id, value.counterparty_id)
             value = replace(value, source_fingerprint=digest)
             uow.documents.save(value, original_version)
             uow.documents.event(
@@ -199,7 +200,6 @@ class DocumentService:
                 raise VersionConflict()
             status = require_transition(value, action)
             validate_document(value)
-            uow.documents.lock_counterparty(company, value.counterparty_id)
             now = datetime.now(UTC)
             result = replace(value, status=status, version=value.version + 1, updated_at=now)
             if action == "approve":
@@ -231,6 +231,7 @@ class DocumentService:
                     if target is None:
                         raise ResourceNotFound()
                     validate_correction(original, value, target.outstanding_amount)
+                uow.documents.lock_counterparty(company, value.counterparty_id)
                 direction = "INFLOW" if value.kind == "AR" else "OUTFLOW"
                 if kind == DocumentType.CREDIT_NOTE:
                     direction = "OUTFLOW" if direction == "INFLOW" else "INFLOW"
@@ -297,6 +298,7 @@ class DocumentService:
                     )
                     result = replace(result, obligation_id=obligation_id)
             else:
+                uow.documents.lock_counterparty(company, value.counterparty_id)
                 uow.documents.save(result)
             uow.documents.event(
                 result, actor.user_id, command, key, digest, value.status.value, now
