@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.accounting.accounts.infrastructure.models import AccountModel
+from app.accounting.dimensions.infrastructure.models import JournalLineDimensionModel
 from app.accounting.journals.infrastructure.models import JournalLineModel, JournalModel
 from app.accounting.ledger.domain.entities import LedgerFact
 from app.accounting.transactions.infrastructure.models import TransactionModel
@@ -16,7 +17,11 @@ class LedgerRepository:
         self.session = session
 
     def facts(
-        self, company: UUID, date_to: date, account_id: UUID | None = None
+        self,
+        company: UUID,
+        date_to: date,
+        account_id: UUID | None = None,
+        dimension_value_id: UUID | None = None,
     ) -> list[LedgerFact]:
         query = (
             select(
@@ -52,6 +57,16 @@ class LedgerRepository:
                 JournalModel.entry_date <= date_to,
             )
         )
+        if dimension_value_id:
+            query = query.where(
+                select(JournalLineDimensionModel.id)
+                .where(
+                    JournalLineDimensionModel.company_id == company,
+                    JournalLineDimensionModel.journal_line_id == JournalLineModel.id,
+                    JournalLineDimensionModel.dimension_value_id == dimension_value_id,
+                )
+                .exists()
+            )
         if account_id:
             query = query.where(AccountModel.id == account_id)
         query = query.order_by(

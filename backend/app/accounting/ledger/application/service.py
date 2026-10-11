@@ -18,7 +18,11 @@ from app.identity.users.domain.entities import Principal
 
 class LedgerReader(Protocol):
     def facts(
-        self, company: UUID, date_to: date, account_id: UUID | None = None
+        self,
+        company: UUID,
+        date_to: date,
+        account_id: UUID | None = None,
+        dimension_value_id: UUID | None = None,
     ) -> list[LedgerFact]: ...
 
 
@@ -32,7 +36,13 @@ class AccountingReports:
         self.factory = factory
 
     def ledger(
-        self, actor: Principal, company: UUID, account: UUID, date_from: date, date_to: date
+        self,
+        actor: Principal,
+        company: UUID,
+        account: UUID,
+        date_from: date,
+        date_to: date,
+        dimension_value_id: UUID | None = None,
     ) -> list[LedgerRow]:
         if date_from > date_to:
             raise InvalidInput()
@@ -40,6 +50,17 @@ class AccountingReports:
             require_company(uow, actor, company, "ledger.read")
             if uow.accounts.get(company_id=company, resource_id=account) is None:
                 raise ResourceNotFound()
+            if dimension_value_id:
+                dimensions = uow.dimensions.list_dimensions(company)
+                if not any(
+                    v.id == dimension_value_id
+                    for d in dimensions
+                    for v in uow.dimensions.values(company, d.id)
+                ):
+                    raise ResourceNotFound()
+                return ledger(
+                    uow.ledger.facts(company, date_to, account, dimension_value_id), date_from
+                )
             return ledger(uow.ledger.facts(company, date_to, account), date_from)
 
     def trial(self, actor: Principal, company: UUID, period_id: UUID) -> list[TrialRow]:
