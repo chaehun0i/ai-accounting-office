@@ -133,7 +133,8 @@ def upgrade() -> None:
         ),
         sa.Column("version", sa.Integer(), server_default=sa.text("1"), nullable=False),
         sa.CheckConstraint(
-            "(status='DRAFT' AND confirmed_at IS NULL) OR (status<>'DRAFT' AND confirmed_at IS NOT NULL)",
+            "(status='DRAFT' AND confirmed_at IS NULL) "
+            "OR (status<>'DRAFT' AND confirmed_at IS NOT NULL)",
             name=op.f("ck_collections_confirmed"),
         ),
         sa.CheckConstraint("currency_code='KRW'", name=op.f("ck_collections_currency")),
@@ -210,7 +211,8 @@ def upgrade() -> None:
         ),
         sa.Column("version", sa.Integer(), server_default=sa.text("1"), nullable=False),
         sa.CheckConstraint(
-            "(status='DRAFT' AND confirmed_at IS NULL) OR (status<>'DRAFT' AND confirmed_at IS NOT NULL)",
+            "(status='DRAFT' AND confirmed_at IS NULL) "
+            "OR (status<>'DRAFT' AND confirmed_at IS NOT NULL)",
             name=op.f("ck_payments_confirmed"),
         ),
         sa.CheckConstraint("currency_code='KRW'", name=op.f("ck_payments_currency")),
@@ -367,7 +369,8 @@ def upgrade() -> None:
             name=op.f("ck_payables_status"),
         ),
         sa.CheckConstraint(
-            "original_amount > 0 AND outstanding_amount >= 0 AND outstanding_amount <= original_amount",
+            "original_amount > 0 AND outstanding_amount >= 0 "
+            "AND outstanding_amount <= original_amount",
             name=op.f("ck_payables_amount"),
         ),
         sa.CheckConstraint("version >= 1", name=op.f("ck_payables_version")),
@@ -458,7 +461,8 @@ def upgrade() -> None:
             "status IN ('OPEN','PARTIAL','SETTLED','WRITEOFF')", name=op.f("ck_receivables_status")
         ),
         sa.CheckConstraint(
-            "original_amount > 0 AND outstanding_amount >= 0 AND outstanding_amount <= original_amount",
+            "original_amount > 0 AND outstanding_amount >= 0 "
+            "AND outstanding_amount <= original_amount",
             name=op.f("ck_receivables_amount"),
         ),
         sa.CheckConstraint("version >= 1", name=op.f("ck_receivables_version")),
@@ -624,11 +628,52 @@ def upgrade() -> None:
         ["payment_id"],
         unique=False,
     )
-    # 재무 보조부 스키마 변경 끝.
+    # 확정된 배분 이력은 직접 SQL로도 수정하지 못하게 합니다.
+    for header, allocation, parent in (
+        ("collections", "collection_allocations", "collection_id"),
+        ("payments", "payment_allocations", "payment_id"),
+    ):
+        op.execute(f"""
+        CREATE FUNCTION protect_{header}_confirmed() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF OLD.status <> 'DRAFT' THEN
+            RAISE EXCEPTION 'confirmed settlement is immutable' USING ERRCODE='23514';
+          END IF;
+          IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+          RETURN NEW;
+        END $$;
+        CREATE TRIGGER protect_{header}_confirmed BEFORE UPDATE OR DELETE ON {header}
+        FOR EACH ROW EXECUTE FUNCTION protect_{header}_confirmed();
+        CREATE FUNCTION protect_{allocation}_confirmed() RETURNS trigger LANGUAGE plpgsql AS $$
+        DECLARE state text;
+        BEGIN
+          IF TG_OP <> 'INSERT' THEN
+            SELECT status INTO state FROM {header}
+              WHERE company_id=OLD.company_id AND id=OLD.{parent} FOR UPDATE;
+            IF state <> 'DRAFT' THEN
+              RAISE EXCEPTION 'confirmed allocation is immutable' USING ERRCODE='23514';
+            END IF;
+          END IF;
+          IF TG_OP <> 'DELETE' THEN
+            SELECT status INTO state FROM {header}
+              WHERE company_id=NEW.company_id AND id=NEW.{parent} FOR UPDATE;
+            IF state <> 'DRAFT' THEN
+              RAISE EXCEPTION 'confirmed allocation is immutable' USING ERRCODE='23514';
+            END IF;
+          END IF;
+          IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+          RETURN NEW;
+        END $$;
+        CREATE TRIGGER protect_{allocation}_confirmed BEFORE INSERT OR UPDATE OR DELETE
+        ON {allocation} FOR EACH ROW EXECUTE FUNCTION protect_{allocation}_confirmed();
+        """)
 
 
 def downgrade() -> None:
-    # 관계형 재무 보조부와 회사 범위 제약을 생성합니다.
+    # 새로 추가한 재무 보조부만 역순으로 제거합니다.
+    for table in ("collection_allocations", "payment_allocations", "collections", "payments"):
+        op.execute(f"DROP TRIGGER protect_{table}_confirmed ON {table}")
+        op.execute(f"DROP FUNCTION protect_{table}_confirmed()")
     op.drop_index(op.f("ix_payment_allocations_payment_id"), table_name="payment_allocations")
     op.drop_index(op.f("ix_payment_allocations_payable_id"), table_name="payment_allocations")
     op.drop_index(op.f("ix_payment_allocations_company_id"), table_name="payment_allocations")
