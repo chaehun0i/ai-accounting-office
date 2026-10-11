@@ -29,6 +29,14 @@ class SettlementRepository:
         self.target_column = "receivable_id" if kind == "AR" else "payable_id"
         self.date_column = "received_date" if kind == "AR" else "payment_date"
 
+    def origin(self, company: UUID, journal: UUID) -> UUID | None:
+        return self.session.scalar(
+            select(self.model.id).where(
+                self.model.company_id == company,
+                self.model.journal_entry_id == journal,
+            )
+        )
+
     def get(self, company_id: UUID, resource_id: UUID, *, lock: bool = False) -> Settlement | None:
         query = select(self.model).where(
             self.model.company_id == company_id, self.model.id == resource_id

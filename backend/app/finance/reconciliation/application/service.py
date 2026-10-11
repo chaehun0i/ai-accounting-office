@@ -12,7 +12,7 @@ from app.finance.reconciliation.domain.reports import (
     aging,
 )
 from app.finance.settlements.application.contracts import FinanceUnitOfWork
-from app.finance.settlements.application.service import CONTROL_NAMES, permission
+from app.finance.settlements.application.policy import CONTROL_NAMES, permission
 from app.finance.settlements.domain.rules import ZERO
 from app.identity.users.domain.entities import Principal
 

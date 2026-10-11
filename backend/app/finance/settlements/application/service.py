@@ -2,110 +2,30 @@
 
 import builtins
 from collections.abc import Callable
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from hashlib import sha256
 from uuid import UUID, uuid4
 
 from app.accounting.journals.application.posted_facts import posted_journal
 from app.accounting.journals.domain.errors import AccountingError
 from app.companies.application.service import require_company
 from app.contracts.access_errors import ResourceNotFound
-from app.finance.receivables.domain.entities import Obligation
+from app.finance.receivables.application.service import ObligationService
 from app.finance.settlements.application.contracts import FinanceUnitOfWork
+from app.finance.settlements.application.policy import (
+    CONTROL_NAMES,
+    fingerprint,
+    permission,
+    require_currency,
+)
 from app.finance.settlements.domain.entities import Allocation, Settlement
 from app.finance.settlements.domain.rules import check_version, positive
 from app.identity.users.domain.entities import Principal
 
-CONTROL_NAMES = {"AR": {"매출채권"}, "AP": {"매입채무", "미지급금"}}
 
-
-def permission(kind: str, *, command: bool = False) -> str:
-    if kind not in CONTROL_NAMES:
-        raise ResourceNotFound()
-    return (
-        ("collection.record" if kind == "AR" else "payment.record")
-        if command
-        else ("receivable.read" if kind == "AR" else "payable.read")
-    )
-
-
-def fingerprint(*parts: object) -> str:
-    # 길이 접두사를 사용하여 구분 문자가 포함된 입력도 구별합니다.
-    normalized = [format(part, ".4f") if isinstance(part, Decimal) else str(part) for part in parts]
-    return sha256("".join(f"{len(part)}:{part}" for part in normalized).encode()).hexdigest()
-
-
-class FinanceService:
+class FinanceService(ObligationService):
     def __init__(self, factory: Callable[[], FinanceUnitOfWork]) -> None:
         self.factory = factory
-
-    def list(
-        self, actor: Principal, company: UUID, kind: str, as_of: date
-    ) -> builtins.list[Obligation]:
-        with self.factory() as uow:
-            require_company(uow, actor, company, permission(kind))
-            return uow.obligations(kind).list(company, as_of)
-
-    def get(
-        self, actor: Principal, company: UUID, kind: str, resource: UUID, as_of: date
-    ) -> Obligation:
-        with self.factory() as uow:
-            require_company(uow, actor, company, permission(kind))
-            value = uow.obligations(kind).get(company, resource, as_of)
-            if value is None or value.origin_date > as_of:
-                raise ResourceNotFound()
-            return value
-
-    def recognize(
-        self, actor: Principal, company: UUID, kind: str, journal_id: UUID, due_date: date
-    ) -> builtins.list[Obligation]:
-        with self.factory() as uow:
-            require_company(uow, actor, company, permission(kind, command=True))
-            journal = posted_journal(uow, company, journal_id)
-            if journal.reversal_of_id or due_date < journal.entry_date:
-                raise AccountingError(
-                    "BUSINESS_RULE_VIOLATION", "발생 전표와 지급기일을 확인해 주세요."
-                )
-            repo = uow.obligations(kind)
-            result = []
-            for line in journal.lines:
-                account = uow.accounts.get(company_id=company, resource_id=line.account_id)
-                assert account is not None
-                amount = line.debit_amount if kind == "AR" else line.credit_amount
-                if account.account_name not in CONTROL_NAMES[kind] or amount == 0:
-                    continue
-                if line.counterparty_id is None:
-                    raise AccountingError(
-                        "BUSINESS_RULE_VIOLATION", "채권·채무 분개에 거래처를 연결해 주세요."
-                    )
-                old = repo.origin(company, journal.id, line.line_no)
-                if old:
-                    if old.due_date != due_date:
-                        raise AccountingError(
-                            "IDEMPOTENCY_CONFLICT",
-                            "이미 등록된 발생 전표의 지급기일이 다릅니다.",
-                            409,
-                        )
-                    result.append(old)
-                    continue
-                resource = repo.add(
-                    company,
-                    journal.id,
-                    line.line_no,
-                    line.counterparty_id,
-                    line.account_id,
-                    amount,
-                    due_date,
-                )
-                value = repo.get(company, resource, date.max)
-                assert value is not None
-                result.append(value)
-            if not result:
-                raise AccountingError(
-                    "BUSINESS_RULE_VIOLATION", "선택한 전표에는 등록할 채권·채무 분개가 없습니다."
-                )
-            return result
 
     def settlements(
         self, actor: Principal, company: UUID, kind: str, target: UUID | None = None
@@ -135,6 +55,7 @@ class FinanceService:
         digest = fingerprint(journal_id, settlement_date, total_amount, method, reference_no)
         with self.factory() as uow:
             require_company(uow, actor, company, permission(kind, command=True))
+            require_currency(uow, company)
             uow.lock_command(company, actor.user_id, command, key)
             repo = uow.settlements(kind)
             replay = repo.replay(company, actor.user_id, command, key, digest)
@@ -147,7 +68,7 @@ class FinanceService:
                 raise AccountingError(
                     "BUSINESS_RULE_VIOLATION", "수금·지급 전표와 일자를 확인해 주세요."
                 )
-            if any(value.journal_entry_id == journal_id for value in repo.list(company)):
+            if repo.origin(company, journal_id):
                 raise AccountingError(
                     "IDEMPOTENCY_CONFLICT", "이미 등록한 수금·지급 전표입니다.", 409
                 )
@@ -189,6 +110,7 @@ class FinanceService:
         digest = fingerprint(resource, expected_version, parts)
         with self.factory() as uow:
             require_company(uow, actor, company, permission(kind, command=True))
+            require_currency(uow, company)
             uow.lock_command(company, actor.user_id, command, key)
             repo = uow.settlements(kind)
             replay = repo.replay(company, actor.user_id, command, key, digest)
@@ -238,6 +160,16 @@ class FinanceService:
             result = repo.get(company, resource)
             assert result is not None
             repo.receipt(company, actor.user_id, command, key, digest, result)
+            uow.governance.audit(
+                company,
+                actor.user_id,
+                command,
+                value.journal_entry_id,
+                key,
+                value.status,
+                result.status,
+                datetime.now(UTC),
+            )
             return result
 
     @staticmethod

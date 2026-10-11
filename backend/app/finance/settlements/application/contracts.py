@@ -31,6 +31,7 @@ class Obligations(Protocol):
 
 
 class Settlements(Protocol):
+    def origin(self, company: UUID, journal: UUID) -> UUID | None: ...
     def get(
         self, company_id: UUID, resource_id: UUID, *, lock: bool = False
     ) -> Settlement | None: ...

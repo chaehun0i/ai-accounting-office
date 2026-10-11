@@ -111,17 +111,72 @@ class ObligationRepository:
         return self._read(row, as_of) if row else None
 
     def list(self, company_id: UUID, as_of: date) -> list[Obligation]:
-        rows = self.session.scalars(
-            select(self.model)
+        rows = self.session.execute(
+            select(self.model, JournalModel, CounterpartyModel, TransactionModel.import_id)
             .join(
                 JournalModel,
                 (JournalModel.id == self.model.origin_journal_id)
                 & (JournalModel.company_id == company_id),
             )
+            .join(
+                CounterpartyModel,
+                (CounterpartyModel.id == self.model.counterparty_id)
+                & (CounterpartyModel.company_id == company_id),
+            )
+            .outerjoin(
+                TransactionModel,
+                (TransactionModel.id == JournalModel.source_transaction_id)
+                & (TransactionModel.company_id == company_id),
+            )
             .where(self.model.company_id == company_id, JournalModel.entry_date <= as_of)
             .order_by(self.model.due_date, self.model.id)
         )
-        return [self._read(cast(ReceivableModel | PayableModel, row), as_of) for row in rows]
+        paid: dict[UUID, Decimal] = {
+            key: amount
+            for key, amount in self.session.execute(
+                select(
+                    getattr(self.allocation, self.target_column),
+                    func.sum(self.allocation.allocated_amount),
+                )
+                .join(self.header, getattr(self.allocation, self.header_column) == self.header.id)
+                .where(
+                    self.allocation.company_id == company_id,
+                    self.header.company_id == company_id,
+                    self.header.status != "DRAFT",
+                    getattr(self.header, self.date_column) <= as_of,
+                )
+                .group_by(getattr(self.allocation, self.target_column))
+            ).all()
+        }
+        evidence: dict[UUID, list[UUID]] = {}
+        for journal_id, evidence_id in self.session.execute(
+            select(JournalEvidenceModel.journal_entry_id, JournalEvidenceModel.evidence_id).where(
+                JournalEvidenceModel.company_id == company_id
+            )
+        ):
+            evidence.setdefault(journal_id, []).append(evidence_id)
+        return [
+            Obligation(
+                id=row.id,
+                company_id=company_id,
+                counterparty_id=row.counterparty_id,
+                counterparty_name=cp.display_name,
+                origin_journal_id=row.origin_journal_id,
+                origin_line_no=row.origin_line_no,
+                account_id=row.account_id,
+                original_amount=row.original_amount,
+                outstanding_amount=row.original_amount - paid.get(row.id, Decimal(0)),
+                currency_code=row.currency_code,
+                due_date=row.due_date,
+                status=target_status(row.original_amount, paid.get(row.id, Decimal(0))),
+                version=row.version,
+                origin_date=journal.entry_date,
+                source_transaction_id=journal.source_transaction_id,
+                import_id=import_id,
+                evidence_ids=tuple(evidence.get(journal.id, [])),
+            )
+            for row, journal, cp, import_id in rows
+        ]
 
     def origin(self, company: UUID, journal: UUID, line_no: int) -> Obligation | None:
         row = cast(
