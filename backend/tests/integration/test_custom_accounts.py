@@ -117,3 +117,33 @@ def test_custom_account_api_permission_and_extra_fields(api_client, auth_service
         ).status_code
         == 403
     )
+
+
+def test_split_control_accounts_reconcile(api_client, auth_service):
+    from tests.integration.test_finance_flow import finance_setup, post_journal, recognize
+
+    owner, writer, payload, accounts, cp, _ = finance_setup(api_client, auth_service)
+    for kind, control, opposite in [("AR", "외상매출금", "매출"), ("AP", "외상매입금", "소모품비")]:
+        journal = post_journal(
+            api_client,
+            owner,
+            writer,
+            payload,
+            [
+                {
+                    "account_id": accounts[control],
+                    "counterparty_id": cp,
+                    "debit_amount" if kind == "AR" else "credit_amount": "100",
+                },
+                {
+                    "account_id": accounts[opposite],
+                    "credit_amount" if kind == "AR" else "debit_amount": "100",
+                },
+            ],
+        )
+        target = recognize(api_client, writer, journal, kind)
+        assert target["original_amount"] == "100.0000"
+        path = "receivables" if kind == "AR" else "payables"
+        report = api_client.get(f"/{path}/reconciliation?as_of=2026-12-31", headers=writer).json()
+        assert report["status"] == "MATCHED"
+        assert report["gl_amount"] == "100.0000"
