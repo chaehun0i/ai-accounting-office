@@ -8,6 +8,7 @@ from app.accounting.dimensions.domain.entities import Dimension, DimensionValue
 from app.accounting.dimensions.domain.rules import (
     validate_dates,
     validate_definition,
+    validate_policy,
     validate_selection,
 )
 from app.accounting.journals.domain.errors import AccountingError
@@ -115,3 +116,18 @@ def test_valid_effective_boundaries_and_four_types(axis):
     for kind in ("BUSINESS_UNIT", "DEPARTMENT", "PROJECT", "COST_CENTER"):
         for day in (v.effective_from, v.effective_to):
             validate_selection(d.company_id, day, (v.id,), [replace(d, dimension_type=kind)], [v])
+
+
+@pytest.mark.parametrize("kind,policy", [("UNKNOWN", "OPTIONAL"), ("DEPARTMENT", "UNKNOWN")])
+def test_invalid_type_and_policy(kind, policy):
+    with pytest.raises(InvalidInput):
+        validate_policy([], kind, "ACTIVE", policy)
+
+
+def test_same_type_required_configuration(axis):
+    d, _ = axis
+    required = replace(d, required_policy="REQUIRED")
+    with pytest.raises(AccountingError):
+        validate_policy([required], d.dimension_type, "ACTIVE", "REQUIRED")
+    validate_policy([required], d.dimension_type, "ACTIVE", "REQUIRED", d.id)
+    validate_policy([required], d.dimension_type, "INACTIVE", "REQUIRED")

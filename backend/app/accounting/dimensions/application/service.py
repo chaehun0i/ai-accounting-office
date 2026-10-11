@@ -9,7 +9,12 @@ from uuid import UUID, uuid4
 
 from app.accounting.dimensions.application.contracts import DimensionUnitOfWork
 from app.accounting.dimensions.domain.entities import Dimension, DimensionValue
-from app.accounting.dimensions.domain.rules import TYPES, validate_dates, validate_definition
+from app.accounting.dimensions.domain.rules import (
+    TYPES,
+    validate_dates,
+    validate_definition,
+    validate_policy,
+)
 from app.companies.application.service import require_company
 from app.contracts.access_errors import (
     InvalidInput,
@@ -52,10 +57,11 @@ class DimensionService:
         now = datetime.now(UTC)
         with self.factory() as uow:
             require_company(uow, actor, company, "dimension.manage")
-            if any(
-                d.dimension_code == dimension_code for d in uow.dimensions.list_dimensions(company)
-            ):
+            uow.dimensions.lock_scope(company)
+            definitions = uow.dimensions.list_dimensions(company)
+            if any(d.dimension_code == dimension_code for d in definitions):
                 raise StateConflict()
+            validate_policy(definitions, dimension_type, "ACTIVE", required_policy)
             value = Dimension(
                 id=uuid4(),
                 company_id=company,
@@ -84,6 +90,7 @@ class DimensionService:
     ) -> Dimension:
         with self.factory() as uow:
             require_company(uow, actor, company, "dimension.manage")
+            uow.dimensions.lock_scope(company)
             current = uow.dimensions.get(company, resource, lock=True)
             if current is None:
                 raise ResourceNotFound()
@@ -92,6 +99,13 @@ class DimensionService:
                 raise InvalidInput()
             if current.version != expected_version:
                 raise VersionConflict()
+            validate_policy(
+                uow.dimensions.list_dimensions(company),
+                current.dimension_type,
+                status,
+                required_policy,
+                current.id,
+            )
             value = replace(
                 current,
                 name=name.strip(),
@@ -123,6 +137,7 @@ class DimensionService:
         validate_dates(effective_from, effective_to)
         with self.factory() as uow:
             require_company(uow, actor, company, "dimension.manage")
+            uow.dimensions.lock_scope(company)
             if uow.dimensions.get(company, dimension, lock=True) is None:
                 raise ResourceNotFound()
             values = uow.dimensions.values(company, dimension, lock=True)

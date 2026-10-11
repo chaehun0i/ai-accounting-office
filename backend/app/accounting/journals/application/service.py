@@ -29,6 +29,7 @@ def validate_journal(uow: JournalUnitOfWork, value: Journal, *, balanced: bool =
             "PERIOD_NOT_OPEN", "전표 날짜에 해당하는 열린 회계기간을 선택해 주세요.", 409
         )
     uow.lock_accounts(value.company_id, tuple(line.account_id for line in value.lines))
+    uow.dimensions.lock_scope(value.company_id)
     dimensions = uow.dimensions.list_dimensions(value.company_id, lock=True)
     dimension_values = [
         v for d in dimensions for v in uow.dimensions.values(value.company_id, d.id, lock=True)

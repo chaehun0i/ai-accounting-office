@@ -11,6 +11,27 @@ from app.contracts.access_errors import InvalidInput
 TYPES = ("BUSINESS_UNIT", "DEPARTMENT", "PROJECT", "COST_CENTER")
 
 
+def validate_policy(
+    dimensions: list[Dimension], kind: str, status: str, policy: str, resource: UUID | None = None
+) -> None:
+    if kind not in TYPES or policy not in ("OPTIONAL", "REQUIRED"):
+        raise InvalidInput()
+    if (
+        status == "ACTIVE"
+        and policy == "REQUIRED"
+        and any(
+            d.id != resource
+            and d.dimension_type == kind
+            and d.status == "ACTIVE"
+            and d.required_policy == "REQUIRED"
+            for d in dimensions
+        )
+    ):
+        raise AccountingError(
+            "DIMENSION_DUPLICATE_TYPE", "같은 분석 유형에는 필수 관리차원을 하나만 설정해 주세요."
+        )
+
+
 def validate_definition(code: str, name: str, status: str) -> None:
     if not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,39}", code) or not 1 <= len(name.strip()) <= 200:
         raise InvalidInput()

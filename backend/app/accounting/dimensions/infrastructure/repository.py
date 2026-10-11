@@ -10,11 +10,18 @@ from sqlalchemy.orm import Session
 
 from app.accounting.dimensions.domain.entities import Dimension, DimensionValue
 from app.accounting.dimensions.infrastructure.models import DimensionModel, DimensionValueModel
+from app.companies.infrastructure.models import CompanyModel
 
 
 class DimensionRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def lock_scope(self, company: UUID) -> None:
+        # 새 분석축 생성도 Posting과 직렬화하여 필수정책의 phantom 변경을 막습니다.
+        self.session.execute(
+            select(CompanyModel.id).where(CompanyModel.id == company).with_for_update()
+        ).scalar_one()
 
     def list_dimensions(self, company: UUID, *, lock: bool = False) -> list[Dimension]:
         query = (

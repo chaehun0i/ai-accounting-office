@@ -69,13 +69,14 @@ def test_dimension_journal_post_and_filtered_ledger(api_client, auth_service):
         "/trial-balance", headers=writer, params={"period_id": payload["accounting_period_id"]}
     ).json()
     assert sum(Decimal(r["period_debit"]) for r in trial) == 100
-    with pytest.raises(IntegrityError):
+    with pytest.raises(IntegrityError) as blocked:
         with connection.begin_nested():
             connection.execute(
                 text("DELETE FROM journal_line_dimensions WHERE journal_line_id=:id"),
                 {"id": journal["lines"][0]["id"]},
             )
-    with pytest.raises(IntegrityError):
+    assert blocked.value.orig.sqlstate == "23514"
+    with pytest.raises(IntegrityError) as blocked:
         with connection.begin_nested():
             connection.execute(
                 text(
@@ -84,7 +85,8 @@ def test_dimension_journal_post_and_filtered_ledger(api_client, auth_service):
                 ),
                 {"id": journal["lines"][0]["id"]},
             )
-    with pytest.raises(IntegrityError):
+    assert blocked.value.orig.sqlstate == "23514"
+    with pytest.raises(IntegrityError) as blocked:
         with connection.begin_nested():
             connection.execute(
                 text(
@@ -96,6 +98,7 @@ def test_dimension_journal_post_and_filtered_ledger(api_client, auth_service):
                 ),
                 {"id": journal["lines"][0]["id"], "new_id": uuid4()},
             )
+    assert blocked.value.orig.sqlstate == "23514"
 
 
 def test_dimension_version_hierarchy_and_company_scope(api_client, auth_service):
@@ -238,6 +241,30 @@ def test_cross_company_values_and_csrf(api_client, auth_service):
         },
     )
     assert response.status_code == 404
+
+
+def test_required_dimension_policy_and_draft_compatibility(api_client, auth_service):
+    _, writer, payload, _ = prepare(api_client, auth_service)
+    create_dimension(api_client, writer, required_policy="REQUIRED")
+    duplicate = api_client.post(
+        "/accounting/dimensions",
+        headers=writer,
+        json={
+            "dimension_code": "OTHER",
+            "name": "중복 필수 부서",
+            "dimension_type": "DEPARTMENT",
+            "required_policy": "REQUIRED",
+        },
+    )
+    assert duplicate.status_code == 422
+    assert duplicate.json()["code"] == "DIMENSION_DUPLICATE_TYPE"
+    draft = api_client.post(
+        "/journals", headers={**writer, "Idempotency-Key": str(uuid4())}, json=payload
+    )
+    assert draft.status_code == 201
+    submitted = command(api_client, writer, draft.json(), "submit")
+    assert submitted.status_code == 422
+    assert submitted.json()["code"] == "DIMENSION_VALUE_INVALID"
     payload["lines"][0]["dimension_value_ids"] = [other_value["id"]]
     response = api_client.post(
         "/journals", headers={**writer, "Idempotency-Key": str(uuid4())}, json=payload

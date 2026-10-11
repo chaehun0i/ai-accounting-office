@@ -21,6 +21,7 @@ async function main() {
       await route.fulfill({response});
     } catch {
       // 브라우저 오류 원문에 인증 헤더가 포함될 수 있어 출력하지 않습니다.
+      console.error("테스트 API 연결 실패: " + url.pathname);
       await route.abort().catch(()=>{});
     }
   });
@@ -100,7 +101,10 @@ async function main() {
     }
     await journal.getByRole("button", { name: "전표 초안 저장", exact: true }).click();
     await journal.getByRole("heading", { name: "전표 상세", exact: true }).waitFor();
+    const submitting = page.waitForResponse(r=>r.url().endsWith("/submit") && r.request().method()==="POST");
     await journal.getByRole("button", { name: "제출", exact: true }).click();
+    const submitted = await submitting;
+    assert.equal(submitted.status(),200,"전표 제출 HTTP " + submitted.status());
     await journal.getByRole("button", { name: "승인 요청", exact: true }).click();
     await journal.getByText("브라우저 복식부기 검증 · 승인 대기", { exact: true }).waitFor();
     await page.getByRole("button", { name: "로그아웃", exact: true }).click();
@@ -137,11 +141,11 @@ async function main() {
     if (dimensionMode) {
       const isolated = await request("/companies", {company_name:"관리차원 격리 검증 회사",business_number:"9876543210",taxpayer_type:"INDIVIDUAL",opening_date:"2026-01-01",address:"합성 검증 주소"}, owner.access_token);
       await page.reload();
-      await page.getByRole("button", {name:"회계 브라우저 검증 회사",exact:true}).click();
+      await page.locator("button.company-switch").click();
       await page.getByRole("dialog").getByLabel("회사", {exact:true}).selectOption(isolated.id);
       await page.getByRole("dialog").getByRole("button", {name:"선택 완료",exact:true}).click();
-      await page.getByRole("button", {name:"관리차원 격리 검증 회사",exact:true}).waitFor();
       await page.getByRole("dialog").getByRole("button", {name:"닫기",exact:true}).click();
+      await page.getByRole("button", {name:"관리차원 격리 검증 회사",exact:true}).waitFor();
       await page.goto(origin + "/accounting");
       await page.getByRole("button", {name:"관리차원",exact:true}).click();
       await page.getByText("등록된 관리차원이 없습니다. 필요한 분석축부터 추가해 주세요.",{exact:true}).waitFor();
@@ -150,6 +154,7 @@ async function main() {
     await page.screenshot({ path: ".local/accounting-browser-success.png", fullPage: true });
     console.log(dimensionMode ? "관리차원 브라우저 검증 통과: 생성, 항목 생성, 새로고침, 분개 선택, 별도 승인, 확정, 원장 필터, 시산표" : "브라우저 검증 통과: 로그인, 회사 선택, 거래 생성, 분개 추가·삭제, 제출, 별도 사용자 승인, 장부 반영, 원장, 시산표, 전표 이동");
   } catch (error) {
+    console.error("화면 안내:", await page.getByRole("alert").allTextContents());
     await page.screenshot({ path: ".local/accounting-browser-failure.png", fullPage: true });
     throw error;
   } finally { await browser.close(); }
