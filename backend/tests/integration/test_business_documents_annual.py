@@ -28,6 +28,7 @@ def test_native_documents_preserve_exact_source_facts(
     totals = {}
     transactions = set()
     obligations = set()
+    latencies = []
     for sheet, path, expected_count, expected_total in [
         ("Sales_Invoices", "/sales-invoices", counts[0], Decimal(expected_totals[0])),
         ("Purchase_Invoices", "/purchase-invoices", counts[1], Decimal(expected_totals[1])),
@@ -61,13 +62,17 @@ def test_native_documents_preserve_exact_source_facts(
                 due_date=row["due_date"],
                 source_system=source_code + "_DOCUMENT_ADAPTER_V1",
             )
+            command_started = perf_counter()
             value = create(api_client, writer, path, payload)
+            latencies.append(perf_counter() - command_started)
             response = transition(api_client, writer, path, value, "submit")
             assert response.status_code == 200, response.text
             submitted = response.json()
+            command_started = perf_counter()
             response = transition(
                 api_client, owner, path, submitted, "approve", "annual-" + row["invoice_no"]
             )
+            latencies.append(perf_counter() - command_started)
             assert response.status_code == 200, response.text
             approved = response.json()
             assert Decimal(approved["total_amount"]) == Decimal(
@@ -89,6 +94,10 @@ def test_native_documents_preserve_exact_source_facts(
         totals[sheet] = total
     assert len(transactions) == len(obligations) == sum(counts)
     record_property(source_code + "_documents_seconds", round(perf_counter() - started, 3))
+    record_property(
+        source_code + "_command_p95_seconds",
+        round(sorted(latencies)[max(0, len(latencies) * 95 // 100 - 1)], 3),
+    )
     assert totals == {
         "Sales_Invoices": Decimal(expected_totals[0]),
         "Purchase_Invoices": Decimal(expected_totals[1]),

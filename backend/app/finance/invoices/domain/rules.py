@@ -27,6 +27,10 @@ def validate_document(value: Document) -> None:
             require_money(line.supply_amount)
             require_money(line.tax_amount)
             require_money(line.total_amount)
+            if line.quantity is not None:
+                require_money(line.quantity)
+            if line.unit_price is not None:
+                require_money(line.unit_price)
         except ValueError:
             raise AccountingError(
                 "DOCUMENT_TOTAL_MISMATCH", "문서 항목의 금액을 확인해 주세요."

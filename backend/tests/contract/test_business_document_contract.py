@@ -3,6 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
+from app.accounting.transactions.api.schemas import TransactionCreate
 from app.finance.invoices.api.schemas import InvoiceCreate, LineInput, NoteCreate, VersionCommand
 from app.main import create_app
 
@@ -35,3 +36,15 @@ def test_document_commands_cannot_inject_status_or_company():
         VersionCommand(expected_version=1, status="APPROVED")
     with pytest.raises(ValidationError):
         VersionCommand(expected_version=1, company_id="forged")
+    with pytest.raises(ValidationError):
+        TransactionCreate.model_validate(
+            {
+                "transaction_date": "2026-01-02",
+                "accounting_date": "2026-01-02",
+                "description": "위조 출처",
+                "amount": "100",
+                "direction": "INFLOW",
+                "source_id": "forged",
+                "source_type": "BUSINESS_DOCUMENT",
+            }
+        )

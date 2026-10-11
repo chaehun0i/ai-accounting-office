@@ -59,6 +59,12 @@ def test_document_approval_creates_transaction_and_obligation(
     assert approved.status_code == 200, approved.text
     assert approved.json()["status"] == "APPROVED"
     assert approved.json()["transaction_id"]
+    transaction = api_client.get(
+        "/transactions/" + approved.json()["transaction_id"], headers=writer
+    )
+    assert transaction.status_code == 200, transaction.text
+    assert transaction.json()["source_type"] == "BUSINESS_DOCUMENT"
+    assert transaction.json()["amount"] == amount
     assert transition(api_client, owner, path, value, "approve", key).json() == approved.json()
     assert transition(api_client, owner, path, value, "approve", key, 999).status_code == 409
     rows = api_client.get(obligations + "?as_of=2026-12-31", headers=writer).json()

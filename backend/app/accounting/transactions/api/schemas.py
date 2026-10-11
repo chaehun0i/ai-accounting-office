@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-class TransactionCreate(BaseModel):
+class TransactionFields(BaseModel):
     model_config = ConfigDict(extra="forbid")
     transaction_date: date
     accounting_date: date
@@ -15,9 +15,6 @@ class TransactionCreate(BaseModel):
     tax_amount: Decimal = Field(default=Decimal("0"), ge=0, max_digits=19, decimal_places=4)
     currency_code: Literal["KRW"] = "KRW"
     direction: Literal["INFLOW", "OUTFLOW"]
-    source_type: Literal[
-        "MANUAL", "BANK_TRANSACTION", "CARD_TRANSACTION", "SALES", "PURCHASE", "EXPENSE"
-    ] = "MANUAL"
     source_system: str = Field(default="MANUAL", min_length=1, max_length=80)
     source_id: str = Field(min_length=1, max_length=100)
     counterparty_id: UUID | None = None
@@ -33,13 +30,29 @@ class TransactionCreate(BaseModel):
         return value
 
 
+class TransactionCreate(TransactionFields):
+    source_type: Literal[
+        "MANUAL", "BANK_TRANSACTION", "CARD_TRANSACTION", "SALES", "PURCHASE", "EXPENSE"
+    ] = "MANUAL"
+
+
 class TransactionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: int = Field(ge=1)
     description: str = Field(min_length=1, max_length=2000)
 
 
-class TransactionRead(TransactionCreate):
+class TransactionRead(TransactionFields):
+    # 문서 원천은 승인 애플리케이션만 생성하며 조회 계약에서만 허용합니다.
+    source_type: Literal[
+        "MANUAL",
+        "BANK_TRANSACTION",
+        "CARD_TRANSACTION",
+        "SALES",
+        "PURCHASE",
+        "EXPENSE",
+        "BUSINESS_DOCUMENT",
+    ]
     id: UUID
     company_id: UUID
     source_fingerprint: str
