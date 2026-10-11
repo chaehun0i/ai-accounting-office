@@ -27,6 +27,17 @@ class Import:
 
 
 @dataclass(frozen=True)
+class PromotionRow:
+    sheet_index: int
+    row_number: int
+    source_id: str
+    row_digest: str
+    transaction_id: UUID
+    status: str
+    review_code: str | None = None
+
+
+@dataclass(frozen=True)
 class Receipt:
     id: UUID
     company_id: UUID
@@ -37,6 +48,9 @@ class Receipt:
     counterparty_count: int
     status: str
     created_at: datetime
+    confirmed_version: int = 1
+    promoted_at: datetime | None = None
+    rows: tuple[PromotionRow, ...] = ()
 
 
 @dataclass(frozen=True)
