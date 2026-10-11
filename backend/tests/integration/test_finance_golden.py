@@ -15,7 +15,7 @@ from tests.integration.test_finance_flow import (
 
 
 @pytest.mark.parametrize("document_path", [False, True])
-def test_golden_corp_accounting_and_finance(api_client, auth_service, document_path):
+def test_golden_corp_accounting_and_finance(api_client, auth_service, document_path=False):
     owner, writer, payload, accounts, customer, _ = finance_setup(api_client, auth_service)
     response = api_client.post(
         "/counterparties",
