@@ -147,7 +147,9 @@ def build_registry(
         if command_id is None:
             raise InvalidInput()
         checked = cast(Result[Journal], validate(context, payload))
-        value = proposals.handoff(context.principal, checked.data, command_id)
+        value = proposals.handoff(
+            context.principal, checked.data, command_id, cast(ProposalInput, payload).source_version
+        )
         return Result[Journal](
             as_of=value.entry_date, data=value, evidence_refs=list(value.evidence_ids)
         )

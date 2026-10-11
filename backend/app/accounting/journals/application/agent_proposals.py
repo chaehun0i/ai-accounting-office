@@ -82,6 +82,8 @@ class AgentProposalService:
             validate_journal(uow, value)
             return value
 
-    def handoff(self, actor: Principal, value: Journal, run_id: UUID) -> Journal:
+    def handoff(
+        self, actor: Principal, value: Journal, run_id: UUID, source_version: int
+    ) -> Journal:
         # 사람의 Graph 응답은 회계 승인이 아닙니다. 기존 초안 생성 명령까지만 호출합니다.
-        return self.commands.create(actor, value, f"agent:{run_id}")
+        return self.commands.create(actor, value, f"agent:{run_id}", source_version=source_version)

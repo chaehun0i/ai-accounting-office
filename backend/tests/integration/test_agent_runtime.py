@@ -253,6 +253,8 @@ def test_stale_resume_and_rejection(api_client, agent_environment):
 
 
 def test_source_change_during_interrupt_fails_safe(api_client, agent_environment):
+    from app.contracts.access_errors import VersionConflict
+
     owner, writer, source, runtime, checkpoints, connection = agent_environment
     run = start(api_client, writer, source)
     connection.execute(
@@ -266,6 +268,33 @@ def test_source_change_during_interrupt_fails_safe(api_client, agent_environment
     assert response.json()["status"] == "FAILED", response.text
     assert response.json()["error_code"] == "VERSION_CONFLICT"
     assert response.json()["result_journal_id"] is None
+    services = api_client.app.state.services
+    actor = services.auth.authenticate(writer["Authorization"].removeprefix("Bearer "))
+    proposals = AgentProposalService(services.journals, services.journal_commands)
+    accounts = api_client.get("/accounts", headers=writer).json()
+    accounts = [a for a in accounts if a["posting_allowed"] and a["status"] == "ACTIVE"]
+    candidate = proposals.candidate(
+        actor,
+        UUID(writer["X-Company-ID"]),
+        UUID(source["id"]),
+        2,
+        UUID(accounts[0]["id"]),
+        UUID(accounts[1]["id"]),
+        (),
+    )
+    # 검증과 실제 초안 저장 사이의 변경도 Accounting Command의 source lock 안에서 차단합니다.
+    connection.execute(
+        text("UPDATE transactions SET version=version+1 WHERE id=:id"), {"id": UUID(source["id"])}
+    )
+    with pytest.raises(VersionConflict):
+        proposals.handoff(actor, candidate, uuid4(), 2)
+    assert (
+        connection.scalar(
+            text("SELECT count(*) FROM journal_entries WHERE source_transaction_id=:transaction"),
+            {"transaction": UUID(source["id"])},
+        )
+        == 0
+    )
 
 
 def test_runtime_audit_append_only_and_checkpoint_allowlist(api_client, agent_environment):
