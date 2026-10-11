@@ -20,6 +20,7 @@ from app.intake.api.schemas import (
     MappingUpdate,
     PreviewCommand,
     PreviewRead,
+    PromoteCommand,
     ReceiptRead,
     UploadCommand,
     ValidationErrorRead,
@@ -162,12 +163,8 @@ def confirm(
     service: Service,
     key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=100)],
 ) -> ReceiptRead:
-    return ReceiptRead.model_validate(
-        asdict(
-            service.confirm(
-                actor, company_id, identifier, idempotency_key=key, **payload.model_dump()
-            )
-        )
+    return ReceiptRead.from_receipt(
+        service.confirm(actor, company_id, identifier, idempotency_key=key, **payload.model_dump())
     )
 
 
@@ -185,4 +182,22 @@ def errors(
 def receipt(
     identifier: UUID, actor: Actor, company_id: CompanyScope, service: Service
 ) -> ReceiptRead:
-    return ReceiptRead.model_validate(asdict(service.receipt(actor, company_id, identifier)))
+    return ReceiptRead.from_receipt(service.receipt(actor, company_id, identifier))
+
+
+@router.post("/{identifier}/promote", response_model=ReceiptRead, dependencies=[Depends(csrf)])
+def promote(
+    identifier: UUID,
+    payload: PromoteCommand,
+    actor: Actor,
+    company_id: CompanyScope,
+    container: Container,
+    key: Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=100)],
+) -> ReceiptRead:
+    if container.promotion is None:
+        raise DatabaseUnavailable()
+    return ReceiptRead.from_receipt(
+        container.promotion.promote(
+            actor, company_id, identifier, idempotency_key=key, **payload.model_dump()
+        )
+    )

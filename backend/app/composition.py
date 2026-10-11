@@ -65,7 +65,6 @@ class Services:
     accounting: AccountingMasterService | None = None
     master_data: MasterDataService | None = None
     intake: IntakeService | None = None
-    promotion: PromotionService | None = None
     onboarding: OnboardingService | None = None
     onboarding_imports: OnboardingImportService | None = None
     transactions: TransactionService | None = None
@@ -80,6 +79,7 @@ class Services:
     runtime_audit: RuntimeAudit | None = None
 
     dimensions: DimensionService | None = None
+    promotion: PromotionService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:

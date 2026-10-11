@@ -173,9 +173,15 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     )
     from dataclasses import replace
 
+    from app.intake.promotion.application.service import PromotionService
+    from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemyUnitOfWork
+
     app.state.services = replace(
         app.state.services,
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
+        promotion=PromotionService(
+            lambda: PromotionSQLAlchemyUnitOfWork(factory), app.state.services.intake
+        ),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
         yield client
