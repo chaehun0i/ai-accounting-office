@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { localDate } from "@/shared/calendar";
+import { displayAmount } from "@/shared/amount";
 import { OfficeDialog } from "@/shared/ui/dialog";
 import { allocationSummary, agingLabel, collected, financeStatus, type Obligation, type Settlement } from "./model";
 
@@ -114,12 +115,12 @@ export function FinanceWorkspace({ company, kind }: { company: Company; kind: "A
     {error && <div role="alert"><p>{error}</p><button onClick={() => { setLoading(true); setRevision(value => value + 1); }}>최신 내용 다시 불러오기</button></div>}
     {notice && <p role="status">{notice}</p>}
     {loading ? <p role="status">잔액을 불러오는 중입니다…</p> : <>
-      {aging && <div className="summary-grid"><p>남은 금액 <strong>{aging.total_outstanding}원</strong></p><p>기한 경과 <strong>{aging.overdue}원</strong></p><p>7일 내 기한 <strong>{aging.due_7d}원</strong></p><p>30일 내 기한 <strong>{aging.due_30d}원</strong></p></div>}
-      {rows.length === 0 ? <p>조회 기준일에 등록된 {title}이 없습니다. 확정 전표의 거래처와 계정을 확인한 뒤 등록해 주세요.</p> : <div className="table-scroll"><table><caption>{title} 잔액 · {asOf} 기준</caption><thead><tr><th>거래처</th><th>발생일</th><th>기한</th><th>발생액</th><th>{action}액</th><th>남은 금액</th><th>기한 경과</th><th>상태</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><button onClick={() => setSelected(row)}>{row.counterparty_name}</button></td><td>{row.origin_date}</td><td>{row.due_date}</td><td>{row.original_amount}</td><td>{collected(row)}</td><td>{row.outstanding_amount}</td><td>{row.status === "SETTLED" ? "—" : agingLabel(row.due_date, asOf)}</td><td>{financeStatus[row.status]}</td></tr>)}</tbody></table></div>}
-      <h3>원장과 잔액 대사</h3>{reconciliation && <><p role="status">{reconciliation.status === "MATCHED" ? "보조부와 원장 잔액이 일치합니다." : "잔액에 차이가 있습니다. 미등록 발생 전표 또는 미확정 배분을 확인해 주세요."}</p><p>보조부 {reconciliation.subledger_amount}원 · 원장 {reconciliation.gl_amount}원 · 차이 {reconciliation.difference}원</p><ul>{reconciliation.rows.map(row => <li key={row.account_id}>{row.account_name}: {row.status === "MATCHED" ? "일치" : `차이 ${row.difference}원`}</li>)}</ul></>}
+      {aging && <div className="summary-grid"><p>남은 금액 <strong>{displayAmount(aging.total_outstanding)}원</strong></p><p>기한 경과 <strong>{displayAmount(aging.overdue)}원</strong></p><p>7일 내 기한 <strong>{displayAmount(aging.due_7d)}원</strong></p><p>30일 내 기한 <strong>{displayAmount(aging.due_30d)}원</strong></p></div>}
+      {rows.length === 0 ? <p>조회 기준일에 등록된 {title}이 없습니다. 확정 전표의 거래처와 계정을 확인한 뒤 등록해 주세요.</p> : <div className="table-scroll"><table><caption>{title} 잔액 · {asOf} 기준</caption><thead><tr><th>거래처</th><th>발생일</th><th>기한</th><th>발생액</th><th>{action}액</th><th>남은 금액</th><th>기한 경과</th><th>상태</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><button onClick={() => setSelected(row)}>{row.counterparty_name}</button></td><td>{row.origin_date}</td><td>{row.due_date}</td><td>{displayAmount(row.original_amount)}</td><td>{displayAmount(collected(row))}</td><td>{displayAmount(row.outstanding_amount)}</td><td>{row.status === "SETTLED" ? "—" : agingLabel(row.due_date, asOf)}</td><td>{financeStatus[row.status]}</td></tr>)}</tbody></table></div>}
+      <h3>원장과 잔액 대사</h3>{reconciliation && <><p role="status">{reconciliation.status === "MATCHED" ? "보조부와 원장 잔액이 일치합니다." : "잔액에 차이가 있습니다. 미등록 발생 전표 또는 미확정 배분을 확인해 주세요."}</p><p>보조부 {displayAmount(reconciliation.subledger_amount)}원 · 원장 {displayAmount(reconciliation.gl_amount)}원 · 차이 {displayAmount(reconciliation.difference)}원</p><ul>{reconciliation.rows.map(row => <li key={row.account_id}>{row.account_name}: {row.status === "MATCHED" ? "일치" : `차이 ${displayAmount(row.difference)}원`}</li>)}</ul></>}
       <h3>{action} 기록</h3><p>실제 은행 이체 기능이 아닙니다. 이미 확정한 회계 전표에 배분 근거를 연결합니다.</p>
       {!canRecord && <p>현재 권한으로는 조회만 가능합니다. 등록이 필요하면 회사 관리자에게 권한을 요청해 주세요.</p>}
-      {settlements.length === 0 ? <p>등록된 {action} 기록이 없습니다.</p> : <ul>{settlements.map(value => <li key={value.id}>{value.settlement_date} · {value.total_amount}원 · {financeStatus[value.status]} · 미배분 {value.unapplied_amount}원 {canRecord && value.status === "DRAFT" && <button onClick={() => startAllocation(value)}>배분 검토</button>}</li>)}</ul>}
+      {settlements.length === 0 ? <p>등록된 {action} 기록이 없습니다.</p> : <ul>{settlements.map(value => <li key={value.id}>{value.settlement_date} · {displayAmount(value.total_amount)}원 · {financeStatus[value.status]} · 미배분 {displayAmount(value.unapplied_amount)}원 {canRecord && value.status === "DRAFT" && <button onClick={() => startAllocation(value)}>배분 검토</button>}</li>)}</ul>}
     </>}
     <OfficeDialog open={dialog !== null} onClose={() => setDialog(null)} busy={busy} title={dialog === "source" ? `${title} 등록` : `${action} 등록`} description="승인과 장부 반영이 끝난 전표를 선택해 주세요.">
       {error && <p role="alert">{error}</p>}
@@ -130,12 +131,12 @@ export function FinanceWorkspace({ company, kind }: { company: Company; kind: "A
     </OfficeDialog>
     <OfficeDialog open={editing !== null} onClose={() => setEditing(null)} busy={busy} title={`${action} 배분`} description="대상별 금액을 입력하고 저장한 뒤 확정합니다. 초과 배분은 허용되지 않습니다.">
       {error && <p role="alert">{error}</p>}
-      {editing && <><p>총액 {editing.total_amount}원 · 배분 {allocation?.allocated ?? "금액 확인 필요"}원 · 미배분 {allocation?.unapplied ?? "—"}원</p>
-        {rows.filter(row => row.status !== "SETTLED").map(row => <label key={row.id}>{row.counterparty_name} · 남은 {row.outstanding_amount}원<input aria-label={`${row.counterparty_name} 배분액`} value={amounts[row.id] ?? ""} onChange={event => setAmounts(values => ({ ...values, [row.id]: event.target.value }))} inputMode="decimal" /></label>)}
+      {editing && <><p>총액 {displayAmount(editing.total_amount)}원 · 배분 {allocation ? displayAmount(allocation.allocated) : "금액 확인 필요"}원 · 미배분 {allocation ? displayAmount(allocation.unapplied) : "—"}원</p>
+        {rows.filter(row => row.status !== "SETTLED").map(row => <label key={row.id}>{row.counterparty_name} · 남은 {displayAmount(row.outstanding_amount)}원<input aria-label={`${row.counterparty_name} 배분액`} value={amounts[row.id] ?? ""} onChange={event => setAmounts(values => ({ ...values, [row.id]: event.target.value }))} inputMode="decimal" /></label>)}
         <button onClick={saveAllocation} disabled={busy || !allocation?.valid || !dirty}>배분 저장</button><button onClick={confirm} disabled={busy || !!dirty}>배분 확정</button><p>미배분액은 잔액으로 보존됩니다. 확정 후에는 이 기록의 배분을 수정할 수 없습니다.</p></>}
     </OfficeDialog>
     <OfficeDialog open={selected !== null} onClose={() => setSelected(null)} title={`${title} 상세`} description="발생 전표와 배분 내역을 통해 출처를 확인합니다.">
-      {selected && <><h3>{selected.counterparty_name}</h3><p>남은 금액 {selected.outstanding_amount}원</p><Link href={`/journals#journal-${selected.origin_journal_id}`}>발생 전표 확인</Link><p>거래 출처: {selected.source_transaction_id ?? "직접 작성한 전표"}</p><p>파일 접수 출처: {selected.import_id ?? "파일 접수 출처 없음"}</p><p>연결 증빙 {selected.evidence_ids.length}건</p><ul>{settlements.filter(value => value.allocations.some(line => line.target_id === selected.id)).map(value => <li key={value.id}>{value.settlement_date} · {financeStatus[value.status]} · {value.allocations.find(line => line.target_id === selected.id)?.allocated_amount}원</li>)}</ul></>}
+      {selected && <><h3>{selected.counterparty_name}</h3><p>남은 금액 {displayAmount(selected.outstanding_amount)}원</p><Link href={`/journals#journal-${selected.origin_journal_id}`}>발생 전표 확인</Link><p>거래 출처: {selected.source_transaction_id ?? "직접 작성한 전표"}</p><p>파일 접수 출처: {selected.import_id ?? "파일 접수 출처 없음"}</p><p>연결 증빙 {selected.evidence_ids.length}건</p><ul>{settlements.filter(value => value.allocations.some(line => line.target_id === selected.id)).map(value => <li key={value.id}>{value.settlement_date} · {financeStatus[value.status]} · {displayAmount(value.allocations.find(line => line.target_id === selected.id)?.allocated_amount ?? "0")}원</li>)}</ul></>}
     </OfficeDialog>
   </section>;
 }

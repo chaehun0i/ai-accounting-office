@@ -2,6 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { allocationSummary, agingLabel, financeStatus } from "../src/features/finance/model.ts";
 import { canVisit } from "../src/features/navigation/routes.ts";
+import { displayAmount } from "../src/shared/amount.ts";
+
+test("금액은 큰 수도 손실 없이 쉼표와 필요한 소수부만 표시합니다", () => {
+  assert.equal(displayAmount("1650000.0000"), "1,650,000");
+  assert.equal(displayAmount("999999999999999.1234"), "999,999,999,999,999.1234");
+  assert.equal(displayAmount("-12.3400"), "-12.34");
+  assert.equal(displayAmount("-0.3400"), "-0.34");
+  assert.equal(displayAmount("잘못된 입력"), "금액 확인 필요");
+});
 
 test("복수 배분과 미배분액은 정수 소수점 단위로 계산합니다", () => {
   assert.deepEqual(allocationSummary("6000000", ["4000000", "2000000"]), {
