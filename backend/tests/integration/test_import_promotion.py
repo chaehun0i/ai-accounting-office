@@ -1,5 +1,6 @@
 """실제 업로드부터 거래 생성·재시도·롤백·회사 경계까지 검증합니다."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
@@ -132,7 +133,7 @@ def test_security_stale_and_invalid_state(api_client, auth_service):
         session.execute(
             update(MembershipModel)
             .where(MembershipModel.company_id == UUID(headers["X-Company-ID"]))
-            .values(status="REVOKED")
+            .values(status="REVOKED", revoked_at=datetime.now(UTC))
         )
     assert promote(api_client, headers, value, receipt).status_code == 403
 
@@ -204,3 +205,40 @@ def test_file_tamper_requester_permission_and_csrf(api_client, auth_service):
     monkey = __import__("unittest.mock", fromlist=["patch"])
     with monkey.patch.object(storage, "read", return_value=b"changed file"):
         assert promote(api_client, headers, value, receipt).json()["code"] == "PREVIEW_STALE"
+
+
+def test_current_supported_limit_promotion_benchmark(api_client, auth_service):
+    from time import perf_counter
+
+    headers, factory = prepare(api_client, auth_service)
+    content = (
+        "source_id,date,amount,currency\n"
+        + "".join(f"bench-{n},2026-01-02,1.0001,KRW\n" for n in range(1000))
+    ).encode()
+    value, receipt = confirmed(api_client, headers, content)
+    started = perf_counter()
+    result = promote(api_client, headers, value, receipt)
+    elapsed = perf_counter() - started
+    assert result.status_code == 200, result.text
+    assert result.json()["transaction_count"] == 1000
+    print(f"Promotion benchmark: rows=1000 seconds={elapsed:.3f}")
+
+
+def test_xlsx_exact_promotion(api_client, auth_service):
+    from app.intake.infrastructure.parser import XLSX_MIME
+    from tests.unit.test_intake_parser import workbook
+
+    headers, factory = prepare(api_client, auth_service)
+    sheet = b'<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>source_id</t></is></c><c r="B1" t="inlineStr"><is><t>date</t></is></c><c r="C1" t="inlineStr"><is><t>amount</t></is></c><c r="D1" t="inlineStr"><is><t>currency</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>xlsx-1</t></is></c><c r="B2" t="inlineStr"><is><t>2026-01-02</t></is></c><c r="C2"><v>10.0001</v></c><c r="D2" t="inlineStr"><is><t>KRW</t></is></c></row></sheetData></worksheet>'  # noqa: E501
+    value = api_client.post(
+        "/imports",
+        headers=headers,
+        data={"source_type": "SALES"},
+        files={"file": ("sales.xlsx", workbook({"xl/worksheets/sheet1.xml": sheet}), XLSX_MIME)},
+    ).json()
+    receipt = confirm(api_client, headers, value, preview(api_client, headers, value)).json()
+    result = promote(api_client, headers, value, receipt)
+    assert result.status_code == 200, result.text
+    assert result.json()["rows"][0]["source_id"] == "xlsx-1"
+    with factory.begin() as session:
+        assert str(session.scalar(select(TransactionModel.amount))) == "10.0001"

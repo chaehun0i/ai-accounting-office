@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
+import { canPromote, promotionCommand } from "./promotion";
 import type { Company } from "@/features/companies/selection-state";
 
 type Import = { id: string; version: number; original_filename: string; source_type: string };
@@ -118,7 +119,7 @@ export function DataImport({ company }: { company: Company }) {
     await perform(async () => {
       const result = await authenticatedRequest<Receipt>(`/imports/${value.id}/promote`, {
         method: "POST", headers: { ...headers, "Idempotency-Key": promotionKey },
-        body: JSON.stringify({ expected_version: receipt.confirmed_version, receipt_id: receipt.id, source_digest: receipt.source_digest }),
+        body: JSON.stringify(promotionCommand(receipt)),
       });
       setReceipt(result);
     });
@@ -156,7 +157,7 @@ export function DataImport({ company }: { company: Company }) {
       <h3>{receipt.transaction_count > 0 ? "거래 생성 완료" : "파일 확인 완료"}</h3>
       <p>{receipt.transaction_count > 0 ? "거래가 준비되었습니다. 전표 작성과 승인·장부 반영은 별도로 진행해 주세요." : "파일과 검증 결과를 보존했습니다. 아직 거래나 장부에 반영되지 않았습니다."}</p>
       {receipt.status === "CONFIRMED" && source !== "OPENING_BALANCE" && <>
-        <button className="primary" disabled={busy || !canConfirm || !company.permissions.includes("transaction.create")} onClick={promote}>확인한 자료로 거래 생성</button>
+        <button className="primary" disabled={busy || !canPromote(receipt, company.permissions)} onClick={promote}>확인한 자료로 거래 생성</button>
         <p>실패하면 파일을 다시 올리지 않고 같은 버튼으로 재시도할 수 있습니다.</p>
       </>}
       {source === "OPENING_BALANCE" && <p>기초잔액은 초기 회사 설정의 기초 전표 흐름에서 처리해 주세요.</p>}
