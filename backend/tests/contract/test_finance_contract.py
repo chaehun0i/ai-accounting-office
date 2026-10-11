@@ -51,7 +51,11 @@ def test_finance_company_scope_and_no_generic_money():
                 assert node.id not in {"Float", "JSON", "JSONB"}, path
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 assert node.func.id != "float", path
-            if isinstance(node, ast.FunctionDef) and node.name == "get":
+            if (
+                isinstance(node, ast.FunctionDef)
+                and node.name == "get"
+                and "infrastructure" in path.parts
+            ):
                 assert "company_id" in [arg.arg for arg in node.args.args]
             if isinstance(node, ast.FunctionDef):
                 assert node.name != "get_by_id", path

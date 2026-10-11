@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from time import monotonic
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -33,6 +34,24 @@ def amount(value):
 
 def test_syn_mfg_001_full_year(api_client, auth_service):
     owner, writer, payload, accounts, _, connection = finance_setup(api_client, auth_service)
+    renewed_at = monotonic()
+
+    def renew_access():
+        nonlocal renewed_at
+        if monotonic() - renewed_at < 240:
+            return
+        # 연간 회귀가 오래 걸려도 운영 토큰 수명을 늘리지 않고 다시 인증합니다.
+        for headers, email in (
+            (owner, "onboarding@example.com"),
+            (writer, "accountant@example.com"),
+        ):
+            response = api_client.post(
+                "/auth/login", json={"email": email, "password": "StrongPassword!2026"}
+            )
+            assert response.status_code == 200, response.text
+            headers["Authorization"] = "Bearer " + response.json()["access_token"]
+        renewed_at = monotonic()
+
     company = UUID(writer["X-Company-ID"])
     # 과거 회계기간만 테스트 DB에 준비합니다. 운영 migration이나 양식은 수정하지 않습니다.
     periods = {}
@@ -70,6 +89,7 @@ def test_syn_mfg_001_full_year(api_client, auth_service):
         counterparties[row["counterparty_code"]] = response.json()["id"]
 
     def posted(day, lines, description):
+        renew_access()
         return post_journal(
             api_client,
             owner,

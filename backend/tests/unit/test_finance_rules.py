@@ -72,6 +72,9 @@ def test_due_windows_and_settled_exclusion() -> None:
             status="OPEN",
             version=1,
             origin_date=today - timedelta(days=100),
+            source_transaction_id=None,
+            import_id=None,
+            evidence_ids=(),
         )
         for days in (-1, 0, 7, 8, 30, 31, 90)
     ]
