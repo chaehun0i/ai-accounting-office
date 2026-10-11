@@ -13,16 +13,14 @@ TYPES = ("BUSINESS_UNIT", "DEPARTMENT", "PROJECT", "COST_CENTER")
 
 def validate_definition(code: str, name: str, status: str) -> None:
     if not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,39}", code) or not 1 <= len(name.strip()) <= 200:
-        raise InvalidInput(
-            "코드는 영문 대문자·숫자·밑줄·하이픈 40자 이내, 이름은 200자 이내로 입력해 주세요."
-        )
+        raise InvalidInput()
     if status not in ("ACTIVE", "INACTIVE"):
-        raise InvalidInput("사용 상태를 확인해 주세요.")
+        raise InvalidInput()
 
 
 def validate_dates(start: date | None, end: date | None) -> None:
     if start and end and start > end:
-        raise InvalidInput("종료일은 시작일보다 빠를 수 없습니다.")
+        raise InvalidInput()
 
 
 def validate_selection(

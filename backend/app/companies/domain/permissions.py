@@ -26,6 +26,8 @@ PERMISSION_GRANTS: dict[str, tuple[str, ...]] = {
     "company.accounting_settings.update": ("OWNER", "ADMIN"),
     "company.tax_profile.update": ("OWNER", "ADMIN", "TAX_ACCOUNTANT"),
     "company.tax_profile.approve": ("OWNER", "TAX_REVIEWER"),
+    "dimension.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
+    "dimension.manage": ("OWNER", "ADMIN", "ACCOUNTANT"),
     "account.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "account.create": ("OWNER", "ADMIN", "ACCOUNTANT"),
     "account.update": ("OWNER", "ADMIN", "ACCOUNTANT"),

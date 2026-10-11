@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import asdict
 from typing import cast
 from uuid import UUID
@@ -14,7 +16,7 @@ class DimensionRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def list(self, company: UUID, *, lock: bool = False) -> list[Dimension]:
+    def list_dimensions(self, company: UUID, *, lock: bool = False) -> list[Dimension]:
         query = (
             select(DimensionModel)
             .where(DimensionModel.company_id == company)

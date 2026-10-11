@@ -1,5 +1,7 @@
 """회사별 관리차원 변경은 동일 분석축 잠금과 버전 검사 안에서 수행합니다."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, date, datetime
@@ -22,10 +24,10 @@ class DimensionService:
     def __init__(self, factory: Callable[[], DimensionUnitOfWork]) -> None:
         self.factory = factory
 
-    def list(self, actor: Principal, company: UUID) -> list[Dimension]:
+    def list_dimensions(self, actor: Principal, company: UUID) -> list[Dimension]:
         with self.factory() as uow:
             require_company(uow, actor, company, "dimension.read")
-            return uow.dimensions.list(company)
+            return uow.dimensions.list_dimensions(company)
 
     def values(self, actor: Principal, company: UUID, resource: UUID) -> list[DimensionValue]:
         with self.factory() as uow:
@@ -46,12 +48,14 @@ class DimensionService:
     ) -> Dimension:
         validate_definition(dimension_code, name, "ACTIVE")
         if dimension_type not in TYPES or required_policy not in ("OPTIONAL", "REQUIRED"):
-            raise InvalidInput("관리차원 유형과 필수 여부를 확인해 주세요.")
+            raise InvalidInput()
         now = datetime.now(UTC)
         with self.factory() as uow:
             require_company(uow, actor, company, "dimension.manage")
-            if any(d.dimension_code == dimension_code for d in uow.dimensions.list(company)):
-                raise StateConflict("이미 사용 중인 관리차원 코드입니다.")
+            if any(
+                d.dimension_code == dimension_code for d in uow.dimensions.list_dimensions(company)
+            ):
+                raise StateConflict()
             value = Dimension(
                 id=uuid4(),
                 company_id=company,
@@ -129,12 +133,12 @@ class DimensionService:
             if current and current.version != expected_version:
                 raise VersionConflict()
             if any(v.value_code == value_code and v.id != resource for v in values):
-                raise StateConflict("이미 사용 중인 관리항목 코드입니다.")
+                raise StateConflict()
             parent = parent_value_id
             seen: set[UUID] = set()
             while parent:
                 if parent == resource or parent in seen:
-                    raise InvalidInput("상위 항목에 자기 자신이나 하위 항목을 선택할 수 없습니다.")
+                    raise InvalidInput()
                 seen.add(parent)
                 if parent not in by_id:
                     raise ResourceNotFound()

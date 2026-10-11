@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Protocol
 from uuid import UUID
 
@@ -6,7 +8,7 @@ from app.accounting.dimensions.domain.entities import Dimension, DimensionValue
 
 
 class Dimensions(Protocol):
-    def list(self, company: UUID, *, lock: bool = False) -> list[Dimension]: ...
+    def list_dimensions(self, company: UUID, *, lock: bool = False) -> list[Dimension]: ...
     def get(self, company: UUID, resource: UUID, *, lock: bool = False) -> Dimension | None: ...
     def values(
         self, company: UUID, dimension: UUID, *, lock: bool = False
