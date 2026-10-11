@@ -45,8 +45,8 @@ export function AccountCatalog({ companyId, canCreate = false }: { companyId: st
       <p>추가한 계정은 현재 회사에서만 사용할 수 있습니다. 기존 기본 계정은 유지됩니다.</p>
       <label>계정코드<input name="code" required maxLength={20} pattern="[A-Z0-9][A-Z0-9_-]*" placeholder="예: CUSTOM_001" /></label>
       <label>계정명<input name="name" required maxLength={200} placeholder="예: 온라인 판매수수료" /></label>
-      <label>계정 구분<select name="type">{Object.entries(labels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label>
-      <label>상위 계정<select name="parent"><option value="">별도 계정으로 추가</option>{accounts?.filter(a => !a.posting_allowed).map(a => <option key={a.id} value={a.id}>{a.account_name}</option>)}</select></label>
+      <label>계정 구분<select name="type" aria-label="계정 구분">{Object.entries(labels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label>
+      <label>상위 계정<select name="parent" aria-label="상위 계정"><option value="">별도 계정으로 추가</option>{accounts?.filter(a => !a.posting_allowed).map(a => <option key={a.id} value={a.id}>{a.account_name}</option>)}</select></label>
       <label><input name="contra" type="checkbox" />차감 계정으로 사용 (감가상각누계액 등)</label>
       <button disabled={busy} type="submit">{busy ? "저장 중…" : "추가"}</button><button type="button" disabled={busy} onClick={() => setEditing(false)}>취소</button>
     </form>}
@@ -59,3 +59,4 @@ export function AccountCatalog({ companyId, canCreate = false }: { companyId: st
     {accounts && <div className="table-scroll"><table><thead><tr><th>계정코드</th><th>계정과목</th><th>구분</th><th>전표 입력</th><th>등록 구분</th></tr></thead><tbody>{visible?.map(row => <tr key={row.id}><td>{row.account_code}</td><td>{row.account_name}</td><td>{labels[row.account_type] ?? "확인 필요"}</td><td>{row.posting_allowed ? "사용 가능" : "분류 계정"}</td><td>{row.template_account_id ? "기본 계정" : "우리 회사 계정"}</td></tr>)}</tbody></table>{accounts.length > 0 && visible?.length === 0 && <p role="status">검색 결과가 없습니다. 계정명이나 코드를 다시 확인해 주세요.</p>}{accounts.length === 0 && <p>계정과목 준비 상태를 운영 담당자에게 확인해 주세요.</p>}</div>}
   </section>;
 }
+
