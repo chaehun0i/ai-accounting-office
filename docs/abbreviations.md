@@ -34,7 +34,6 @@
 | K_IFRS | Korean International Financial Reporting Standards | 한국채택국제회계기준 코드 |
 | KRW | Korean Won | 현재 활성 기능통화, 대한민국 원 |
 | FIFO | First In, First Out | 선입선출법, 재고 초안의 typed 선택값 |
-| GL / TB | General Ledger / Trial Balance | 총계정원장 / 시산표, 후속 범위 |
 | OCR | Optical Character Recognition | 문서 문자 인식, 이번 범위에 자동 확정 없음 |
 | LLM | Large Language Model | 대규모 언어모델, 현재 Mapping/계산에 사용 안 함 |
 | ESG | Environmental, Social and Governance | 참고 프로젝트의 업무 영역, 신규 Domain 이식 없음 |
@@ -56,5 +55,10 @@
 | Reduced Motion | 움직임 줄이기 | 사용자의 OS 설정에 따라 이동·확대·점멸 효과를 끄는 접근성 정책 |
 | Radix Dialog | 대화상자 UI 라이브러리 | 팝업 포커스 제한·Escape·배경 스크롤 잠금을 제공 |
 | Framer Motion / Lucide | 애니메이션 / 아이콘 라이브러리 | 페이지 전환 / 업무 메뉴·제목의 일관된 아이콘을 제공 |
-
 | ERP | Enterprise Resource Planning | 회계 등 기업 업무를 통합 관리하는 시스템 |
+| AR | Accounts Receivable | 매출채권, 수금할 금액과 배분 상태를 관리하는 보조부 |
+| AP | Accounts Payable | 매입채무·미지급금, 지급할 금액과 배분 상태를 관리하는 보조부 |
+| Aging | 기한 경과 분석 | 조회 기준일과 만기일로 남은 금액을 구간별 집계 |
+| Allocation | 배분 | 하나의 수금·지급을 하나 이상의 채권·채무에 연결 |
+| UNAPPLIED | 미배분액 있음 | 정산 총액 중 아직 채권·채무에 배분하지 않은 금액 보존 |
+| Reconciliation | 대사 | 보조부와 총계정원장 금액 비교, 차이를 자동 보정하지 않음 |
