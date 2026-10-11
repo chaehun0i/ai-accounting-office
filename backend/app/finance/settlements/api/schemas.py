@@ -56,8 +56,8 @@ class ObligationRead(BaseModel):
     company_id: UUID
     counterparty_id: UUID
     counterparty_name: str
-    origin_journal_id: UUID
-    origin_line_no: int
+    origin_journal_id: UUID | None
+    origin_line_no: int | None
     account_id: UUID
     original_amount: Decimal
     outstanding_amount: Decimal
@@ -69,6 +69,7 @@ class ObligationRead(BaseModel):
     source_transaction_id: UUID | None
     import_id: UUID | None
     evidence_ids: list[UUID]
+    source_invoice_id: UUID | None = None
 
 
 class SettlementRead(BaseModel):

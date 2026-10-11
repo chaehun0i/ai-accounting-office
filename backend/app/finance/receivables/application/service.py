@@ -3,6 +3,7 @@
 import builtins
 from collections.abc import Callable
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from app.accounting.journals.application.posted_facts import posted_journal
@@ -59,6 +60,36 @@ class ObligationService:
                     raise AccountingError(
                         "BUSINESS_RULE_VIOLATION", "채권·채무 분개에 거래처를 연결해 주세요."
                     )
+                invoice = (
+                    repo.invoice_source(company, journal.source_transaction_id)
+                    if journal.source_transaction_id
+                    else None
+                )
+                if invoice:
+                    if (
+                        invoice.account_id != line.account_id
+                        or invoice.counterparty_id != line.counterparty_id
+                        or invoice.original_amount != amount
+                        or invoice.due_date != due_date
+                        or (
+                            invoice.origin_journal_id is not None
+                            and (
+                                invoice.origin_journal_id != journal.id
+                                or invoice.origin_line_no != line.line_no
+                            )
+                        )
+                    ):
+                        raise AccountingError(
+                            "IMPORT_SOURCE_CONFLICT",
+                            "업무문서와 발생 전표가 일치하지 않습니다.",
+                            409,
+                        )
+                    if invoice.origin_journal_id is None:
+                        repo.attach_journal(company, invoice.id, journal.id, line.line_no)
+                    attached = repo.get(company, invoice.id, date.max)
+                    assert attached is not None
+                    result.append(attached)
+                    continue
                 old = repo.origin(company, journal.id, line.line_no)
                 if old:
                     if old.due_date != due_date:
@@ -86,3 +117,61 @@ class ObligationService:
                     "BUSINESS_RULE_VIOLATION", "선택한 전표에는 등록할 채권·채무 분개가 없습니다."
                 )
             return result
+
+    @staticmethod
+    def recognize_invoice_in(
+        uow: FinanceUnitOfWork,
+        actor: Principal,
+        company: UUID,
+        kind: str,
+        invoice: UUID,
+        transaction: UUID,
+        counterparty: UUID,
+        amount: Decimal,
+        due: date,
+        recognized: date,
+    ) -> UUID:
+        """승인된 업무문서 명령의 동일 작업단위에서만 채권·채무를 인식합니다."""
+        require_company(uow, actor, company, "invoice.approve")
+        require_currency(uow, company)
+        candidates = [
+            account
+            for account in uow.accounts.list(company)
+            if account.account_name == ("외상매출금" if kind == "AR" else "외상매입금")
+            and account.status == "ACTIVE"
+            and account.posting_allowed
+        ]
+        if len(candidates) != 1:
+            raise AccountingError(
+                "BUSINESS_RULE_VIOLATION", "회사 회계설정에서 채권·채무 계정을 확인해 주세요."
+            )
+        existing = uow.obligations(kind).invoice_source(company, transaction)
+        if existing:
+            if existing.source_invoice_id != invoice or existing.original_amount != amount:
+                raise AccountingError("IMPORT_SOURCE_CONFLICT", "원천 업무문서가 다릅니다.", 409)
+            return existing.id
+        return uow.obligations(kind).add_invoice(
+            company, invoice, transaction, counterparty, candidates[0].id, amount, due, recognized
+        )
+
+    @staticmethod
+    def adjust_invoice_in(
+        uow: FinanceUnitOfWork,
+        actor: Principal,
+        company: UUID,
+        kind: str,
+        target: UUID,
+        note: UUID,
+        note_type: str,
+        amount: Decimal,
+        effective: date,
+    ) -> None:
+        require_company(uow, actor, company, "invoice.approve")
+        value = uow.obligations(kind).get(company, target, date.max, lock=True)
+        if value is None:
+            raise ResourceNotFound()
+        if note_type == "CREDIT_NOTE" and amount > value.outstanding_amount:
+            raise AccountingError(
+                "CREDIT_NOTE_EXCEEDS_OPEN_AMOUNT", "감액할 수 있는 미정산 금액을 초과했습니다."
+            )
+        uow.obligations(kind).adjust(company, target, note, note_type, amount, effective)

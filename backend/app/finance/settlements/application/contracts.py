@@ -12,6 +12,22 @@ from app.finance.settlements.domain.entities import Allocation, Settlement
 
 
 class Obligations(Protocol):
+    def invoice_source(self, company: UUID, transaction: UUID) -> Obligation | None: ...
+    def add_invoice(
+        self,
+        company: UUID,
+        invoice: UUID,
+        transaction: UUID,
+        counterparty: UUID,
+        account: UUID,
+        amount: Decimal,
+        due: date,
+        recognized: date,
+    ) -> UUID: ...
+    def adjust(
+        self, company: UUID, target: UUID, note: UUID, kind: str, amount: Decimal, effective: date
+    ) -> None: ...
+    def attach_journal(self, company: UUID, target: UUID, journal: UUID, line_no: int) -> None: ...
     def get(
         self, company_id: UUID, resource_id: UUID, as_of: date, *, lock: bool = False
     ) -> Obligation | None: ...
