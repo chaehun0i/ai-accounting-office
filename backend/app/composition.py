@@ -24,6 +24,9 @@ from app.core.config import Settings
 from app.core.database.engine import create_database_engine
 from app.core.database.session import create_session_factory
 from app.core.security import PasswordSecurity, TokenSecurity
+from app.finance.reconciliation.application.service import FinanceReports
+from app.finance.settlements.application.service import FinanceService
+from app.finance.settlements.infrastructure.unit_of_work import FinanceSQLAlchemyUnitOfWork
 from app.identity.auth.application.service import AuthService
 from app.identity.infrastructure.unit_of_work import IdentitySQLAlchemyUnitOfWork
 from app.identity.invitations.application.service import InvitationService
@@ -54,6 +57,8 @@ class Services:
     journal_commands: JournalCommands | None = None
     accounting_reports: AccountingReports | None = None
     opening_balances: OpeningService | None = None
+    finance: FinanceService | None = None
+    finance_reports: FinanceReports | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -99,6 +104,8 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
         AccountingReports(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
         OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
+        FinanceService(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
+        FinanceReports(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
     )
 
 
