@@ -5,23 +5,32 @@ from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 
+import pytest
+
 from tests.integration.test_business_documents import body, create, transition
 from tests.integration.test_finance_flow import finance_setup
 
 
-def test_manufacturing_314_documents_preserve_exact_source_facts(
-    api_client, auth_service, record_property
+@pytest.mark.parametrize(
+    "fixture_path,source_code,counts,expected_totals",
+    [
+        ("finance/native-2025-v1", "SYN_MFG_001", (240, 74), ("781044000", "195277500")),
+        ("invoices/native-service-v1", "SYN_SERVICE_001", (2, 1), ("8800000", "1100000")),
+    ],
+)
+def test_native_documents_preserve_exact_source_facts(
+    api_client, auth_service, record_property, fixture_path, source_code, counts, expected_totals
 ):
     owner, writer, _, _, _, _ = finance_setup(api_client, auth_service)
-    base = Path(__file__).parents[1] / "fixtures/finance/native-2025-v1"
+    base = Path(__file__).parents[1] / "fixtures" / fixture_path
     counterparties = {}
     started = perf_counter()
     totals = {}
     transactions = set()
     obligations = set()
     for sheet, path, expected_count, expected_total in [
-        ("Sales_Invoices", "/sales-invoices", 240, Decimal("781044000")),
-        ("Purchase_Invoices", "/purchase-invoices", 74, Decimal("195277500")),
+        ("Sales_Invoices", "/sales-invoices", counts[0], Decimal(expected_totals[0])),
+        ("Purchase_Invoices", "/purchase-invoices", counts[1], Decimal(expected_totals[1])),
     ]:
         with (base / (sheet + ".csv")).open(encoding="utf-8-sig", newline="") as source:
             rows = list(csv.DictReader(source))
@@ -41,13 +50,16 @@ def test_manufacturing_314_documents_preserve_exact_source_facts(
                 assert response.status_code == 201, response.text
                 counterparties[code] = response.json()["id"]
             payload = body(
-                counterparties[code], row["invoice_no"], row["supply_amount"], row["vat_amount"]
+                counterparties[code],
+                row["invoice_no"],
+                row["supply_amount"].replace(",", ""),
+                row["vat_amount"].replace(",", ""),
             )
             payload.update(
                 issue_date=row["invoice_date"],
                 accounting_date=row["invoice_date"],
                 due_date=row["due_date"],
-                source_system="SYN_MFG_001_DOCUMENT_ADAPTER_V1",
+                source_system=source_code + "_DOCUMENT_ADAPTER_V1",
             )
             value = create(api_client, writer, path, payload)
             response = transition(api_client, writer, path, value, "submit")
@@ -58,7 +70,9 @@ def test_manufacturing_314_documents_preserve_exact_source_facts(
             )
             assert response.status_code == 200, response.text
             approved = response.json()
-            assert Decimal(approved["total_amount"]) == Decimal(row["total_amount"])
+            assert Decimal(approved["total_amount"]) == Decimal(
+                row["total_amount"].replace(",", "")
+            )
             total += Decimal(approved["total_amount"])
             transactions.add(approved["transaction_id"])
             obligations.add(approved["obligation_id"])
@@ -73,9 +87,9 @@ def test_manufacturing_314_documents_preserve_exact_source_facts(
         assert result.status_code == 200, result.text
         assert len(result.json()) == expected_count
         totals[sheet] = total
-    assert len(transactions) == len(obligations) == 314
-    record_property("documents_314_seconds", round(perf_counter() - started, 3))
+    assert len(transactions) == len(obligations) == sum(counts)
+    record_property(source_code + "_documents_seconds", round(perf_counter() - started, 3))
     assert totals == {
-        "Sales_Invoices": Decimal("781044000"),
-        "Purchase_Invoices": Decimal("195277500"),
+        "Sales_Invoices": Decimal(expected_totals[0]),
+        "Purchase_Invoices": Decimal(expected_totals[1]),
     }

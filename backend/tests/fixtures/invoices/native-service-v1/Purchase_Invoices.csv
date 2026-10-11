@@ -1,0 +1,2 @@
+invoice_no,invoice_date,counterparty_code,supply_amount,vat_amount,total_amount,due_date
+PUR-001,2026-01-10,SUPP001,1000000,100000,1100000,2026-01-31

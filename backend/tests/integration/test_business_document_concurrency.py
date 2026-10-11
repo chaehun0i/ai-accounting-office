@@ -84,7 +84,9 @@ def test_parallel_invoice_confirm_single_transaction(isolated_document_client, s
     )
     if same_key:
         assert results[0].json() == results[1].json()
-    transactions = client.get("/transactions", headers=writer).json()
+    transactions = client.get(
+        "/transactions?date_from=2026-01-01&date_to=2026-12-31", headers=writer
+    ).json()
     assert len(transactions) == 1
     assert len(client.get("/receivables?as_of=2026-12-31", headers=writer).json()) == 1
 
@@ -129,4 +131,11 @@ def test_parallel_credit_notes_cannot_exceed_outstanding(isolated_document_clien
     assert sorted(response.status_code for response in results) == [200, 422]
     remaining = client.get("/receivables?as_of=2026-12-31", headers=writer).json()
     assert remaining[0]["outstanding_amount"] == "4400000.0000"
-    assert len(client.get("/transactions", headers=writer).json()) == 2
+    assert (
+        len(
+            client.get(
+                "/transactions?date_from=2026-01-01&date_to=2026-12-31", headers=writer
+            ).json()
+        )
+        == 2
+    )
