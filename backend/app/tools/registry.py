@@ -6,6 +6,7 @@ from time import monotonic
 from pydantic import BaseModel, ValidationError
 
 from app.contracts.access_errors import AuthorizationDenied, InvalidInput
+from app.contracts.errors import ApplicationError
 from app.core.digests import digest
 from app.tools.contracts import ToolContext, ToolDefinition
 
@@ -20,6 +21,12 @@ FORBIDDEN = frozenset(
         "arbitrary_db_query",
     }
 )
+
+
+class ToolFailure(ApplicationError):
+    code = "TOOL_FAILED"
+    status_code = 503
+    message = "자료를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
 
 
 class ToolRegistry:
@@ -64,15 +71,21 @@ class ToolRegistry:
                 raise InvalidInput() from None
             input_digest = digest(payload.model_dump(mode="json"))
             result = definition.handler(context, payload)
-            result = definition.output_schema.model_validate(result.model_dump())
+            try:
+                result = definition.output_schema.model_validate(result.model_dump())
+            except ValidationError:
+                raise ToolFailure() from None
             if monotonic() - start > definition.timeout_seconds:
-                raise TimeoutError()
+                raise ToolFailure()
             output_digest = digest(result.model_dump(mode="json"))
             status = "SUCCEEDED"
             return result
-        except Exception as error:
-            error_code = getattr(error, "code", "TOOL_FAILED")
+        except ApplicationError as error:
+            error_code = error.code
             raise
+        except Exception:
+            error_code = "TOOL_FAILED"
+            raise ToolFailure() from None
         finally:
             if self.record:
                 self.record(

@@ -70,6 +70,10 @@ def create_mcp_server(registry: ToolRegistry, context: Callable[[], ToolContext]
             return types.CallToolResult(
                 is_error=True, content=[types.TextContent(type="text", text=error.code)]
             )
+        except Exception:
+            return types.CallToolResult(
+                is_error=True, content=[types.TextContent(type="text", text="TOOL_FAILED")]
+            )
 
     async def resources(
         ctx: ServerRequestContext[None], params: types.PaginatedRequestParams | None

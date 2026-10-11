@@ -11,7 +11,7 @@ from app.contracts.access_errors import AuthorizationDenied, InvalidInput
 from app.identity.users.domain.entities import Principal
 from app.tools.adapters.langchain import langchain_tools
 from app.tools.contracts import Empty, Result, ToolContext, ToolDefinition
-from app.tools.registry import FORBIDDEN, ToolRegistry
+from app.tools.registry import FORBIDDEN, ToolFailure, ToolRegistry
 
 
 def context():
@@ -64,13 +64,11 @@ def test_permission_and_langchain_schema():
 def test_output_validation():
     from dataclasses import replace
 
-    from pydantic import ValidationError
-
     registry = ToolRegistry(lambda c, p: None)
 
     class WrongOutput(BaseModel):
         unrelated: str = "값"
 
     registry.register(replace(definition(), handler=lambda c, p: WrongOutput()))
-    with pytest.raises(ValidationError):
+    with pytest.raises(ToolFailure):
         registry.execute("test.read", {}, context())
