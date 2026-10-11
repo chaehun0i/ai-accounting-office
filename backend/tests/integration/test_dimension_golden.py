@@ -1,5 +1,7 @@
 """원본 fixture를 바꾸지 않고 관리차원을 붙인 동일 회계 흐름을 재검증합니다."""
 
+from sqlalchemy import text
+
 from tests.integration import test_finance_full_year, test_finance_golden
 from tests.integration.test_dimensions import create_dimension, create_value
 
@@ -46,3 +48,19 @@ def test_dimension_golden_accounting_finance(api_client, auth_service, monkeypat
 def test_dimension_native_full_year(api_client, auth_service, monkeypatch):
     dimension_adapter(monkeypatch, test_finance_full_year)
     test_finance_full_year.test_syn_mfg_001_full_year(api_client, auth_service)
+    _, connection = auth_service
+    base = (
+        "SELECT l.company_id,l.account_id,sum(l.debit_amount),sum(l.credit_amount) "
+        "FROM journal_lines l JOIN journal_entries j ON j.id=l.journal_entry_id "
+        "AND j.company_id=l.company_id "
+    )
+    tail = "WHERE j.status='POSTED' GROUP BY l.company_id,l.account_id ORDER BY l.account_id"
+    plain = connection.execute(text(base + tail)).all()
+    dimension = connection.execute(
+        text(
+            base + "JOIN journal_line_dimensions d ON d.journal_line_id=l.id "
+            "AND d.company_id=l.company_id " + tail
+        )
+    ).all()
+    assert plain and plain == dimension
+    assert sum(row[2] for row in plain) == sum(row[3] for row in plain)

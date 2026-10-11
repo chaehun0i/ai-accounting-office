@@ -75,6 +75,27 @@ def test_dimension_journal_post_and_filtered_ledger(api_client, auth_service):
                 text("DELETE FROM journal_line_dimensions WHERE journal_line_id=:id"),
                 {"id": journal["lines"][0]["id"]},
             )
+    with pytest.raises(IntegrityError):
+        with connection.begin_nested():
+            connection.execute(
+                text(
+                    "UPDATE journal_line_dimensions SET dimension_value_id=dimension_value_id "
+                    "WHERE journal_line_id=:id"
+                ),
+                {"id": journal["lines"][0]["id"]},
+            )
+    with pytest.raises(IntegrityError):
+        with connection.begin_nested():
+            connection.execute(
+                text(
+                    "INSERT INTO journal_line_dimensions "
+                    "(id,company_id,journal_line_id,dimension_id,"
+                    "dimension_type,dimension_value_id) "
+                    "SELECT :new_id, company_id, journal_line_id, dimension_id, dimension_type, "
+                    "dimension_value_id FROM journal_line_dimensions WHERE journal_line_id=:id"
+                ),
+                {"id": journal["lines"][0]["id"], "new_id": uuid4()},
+            )
 
 
 def test_dimension_version_hierarchy_and_company_scope(api_client, auth_service):
@@ -189,8 +210,13 @@ def test_cross_company_values_and_csrf(api_client, auth_service):
     response = api_client.post(
         "/companies",
         headers=owner,
-        json={"company_name": "분리된 회사", "taxpayer_type": "CORPORATION",
-              "business_number": "9876543210", "opening_date": "2026-01-01", "address": "검증 주소"},
+        json={
+            "company_name": "분리된 회사",
+            "taxpayer_type": "CORPORATION",
+            "business_number": "9876543210",
+            "opening_date": "2026-01-01",
+            "address": "검증 주소",
+        },
     )
     assert response.status_code == 201, response.text
     foreign = {**owner, "X-Company-ID": response.json()["id"]}
