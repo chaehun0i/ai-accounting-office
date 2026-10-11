@@ -20,6 +20,15 @@ Backend는 `backend` 작업 디렉터리 기준 `../.env`를 읽고 OS 환경변
 | ACCESS_TOKEN_TTL_SECONDS | 600 | 60..900 |
 | REFRESH_TOKEN_TTL_SECONDS | 2592000 | 3600..2592000 |
 | BACKEND_API_ORIGIN | http://127.0.0.1:8000 | frontend/.env.local; Next.js 서버 프록시, build/dev 시작 시 반영 |
+| LLM_PROVIDER | fake | fake/gemini; 기본값은 외부 호출 없는 검증용 공급자 |
+| GEMINI_API_KEY | 선택 | SecretStr, Gemini 호출 시만 필요; 로그·DB 저장 금지 |
+| GEMINI_MODEL | 빈 값 | 배포 환경이 지정하는 모델명, Gemini 호출 시 필요 |
+| LLM_TIMEOUT_SECONDS | 30 | 1..120, Gateway 호출 전체 시간 예산 |
+| LLM_MAX_RETRIES | 1 | 0..3, 시간 초과·429·일시 장애만 제한 재시도 |
+| MCP_ACCESS_TOKEN | stdio 실행 시 | 현재 사용자 access token, OS 환경으로만 전달; 출력 금지 |
+| MCP_COMPANY_ID | stdio 실행 시 | 로컬 호스트가 선택한 회사 UUID, 요청마다 서버 membership/RBAC 검증 |
+
+Gemini 키/모델이 없어도 health·Accounting·Fake Agent는 동작합니다. Gemini를 선택했지만 키/모델이 없으면 해당 실행만 `PROVIDER_NOT_CONFIGURED`로 실패합니다. Compose는 LLM 설정을 backend에 전달합니다. `MCP_*`는 Settings가 아닌 로컬 stdio 진입점 전용 환경입니다. 토큰 만료 시 재인증하여 서버를 재실행하세요.
 
 URL credential은 URL-encode해야 합니다. Compose 환경변수와 backend URL은 자동 조합하지 않으므로 변경 시 일치시켜야 합니다. Redis는 로컬 전용이며 인증 없이 loopback에만 공개합니다. 운영 배포 구성은 이번 범위가 아닙니다.
 

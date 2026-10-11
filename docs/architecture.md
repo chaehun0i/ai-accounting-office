@@ -1,46 +1,47 @@
-# 설계 추적과 모듈 경계
+# 현재 구조와 기술 경계
 
-현재 기준선은 [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf)입니다. fallback 없이 확인한 최신 설계와 적용은 [파일·증빙·인테이크](storage-evidence-intake.md)에 기록했습니다.
+단일 설계 기준은 [AI_Accounting_Office_v0.2.6_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf)입니다. 활성 문서만 사용하며 이전 버전 fallback은 없습니다. 이전 구현별 검증 문서는 당시 이력이며 현재 구현 상태의 정본은 이 문서와 README입니다.
 
-## 초기 DB Foundation 설계 추적
+## 실제 구현
 
-아래 v0.2.3 문서는 이전 구현 당시의 이력입니다. 현재 범위에 이전 버전 fallback으로 적용하지 않습니다.
+Identity/Company/RBAC, 회계 Master, Storage/Evidence/Intake, Onboarding/Data Exchange, Transaction/Journal/Approval/Posting/Reversal/GL/TB, Governance 및 Finance Subledger가 구현되어 있습니다. Finance는 채권·채무·수금·지급·배분·Aging·GL 대사를 소유합니다. 실제 은행 이체·Tax·Asset/Inventory·Closing 전체는 구현하지 않았습니다.
 
-| 문서 | 적용 |
-| --- | --- |
-| [51 Bootstrap](https://docs.google.com/document/d/1z73FQSN4SZ3mNRm42-8k3umUfJFXfVjedH75bpTad1s/edit) | Skeleton 다음 DB Foundation만 구현 |
-| [59 Complete DDL Migration Map](https://docs.google.com/document/d/1A_JnJ_-arKHFakEsQAo-El0RpwxVKW1R_jjnqx2O518/edit) | 후속 001_identity/002_tenant_company_rbac 번호 보존 |
-| [53 PostgreSQL DDL Skeleton](https://docs.google.com/document/d/1arwJGAxHJY2oWQfK9EOFKjl_n6iE4hTS-P0txr4Q67g/edit) | UUID, NUMERIC(19,4), TIMESTAMPTZ convention |
-| [42 Relational First 정책](https://docs.google.com/document/d/12Aplp-KL-P9H_Har_wAWm6ZYN7ljJVERgnG8SxiupSk/edit) | JSON/JSONB 금지, 관계 ARRAY 금지 |
-| [48 Repository Architecture](https://docs.google.com/document/d/1LcVMzK_CUeXzhyiWjOmXKpvNZ65HiZ_qisbMAs8EQ1Q/edit) | ORM 없는 Application 계약, 정본·모듈 경계 |
-| [52 DoD](https://docs.google.com/document/d/1EekWD2gPPJ0nzNpopBD31hKy9BsfOvyLxxYIGFjO1CE/edit) | 실제 PostgreSQL·회귀·보안 검사 |
-| [41 Physical ERD](https://docs.google.com/document/d/1mfHCGFCCJqhQ4VEWd04PSgQSBNHZaXOUDSbgUp9EEYk/edit) | 물리 타입 확인, 업무 테이블 선행 구현 금지 |
-| [46 Error/Idempotency/Concurrency](https://docs.google.com/document/d/1oNaQ-Hep-VsRwksEIP-8owfVsafUYY8kup-TdzBmnFc/edit) | 안전한 오류 코드와 concurrency 분류 |
+이번 P0 Runtime은 기존 거래에서 Tool 조회 → 구조화 계정 제안 → 결정론적 검증 → 사람 응답 대기 → 전표 **초안** 전달을 수행합니다. 실제 Gemini 호출은 선택 사항이며 기본 공급자는 Fake입니다. 전체 Chat UI나 자율 회계 승인은 제공하지 않습니다.
 
-## Backend 책임
+기본 의존 방향은 `API → Application → Domain`입니다. Infrastructure가 계약을 구현하고 UoW가 transaction을 소유합니다. Repository는 commit하지 않습니다. Domain/Application은 ORM·FastAPI·Provider SDK에 의존하지 않습니다.
 
-`core`는 config/errors/logging 등 cross-cutting primitive만 소유합니다. 업무 로직은 두지 않습니다. `health.py`는 업무 모듈이 아닌 process liveness router/schema입니다. application factory는 설정·미들웨어·라우터 조합만 수행합니다.
+## Agent 기술 경계
 
-`identity`, `companies`, `intake`, `accounting`, `finance`, `tax`, `closing`, `reporting`, `evidence`, `approvals`, `audit`, `jobs`, `agents`, `llm`, `tools`중 Identity/Company/Accounting/Master Data/Storage/Evidence/Intake는 실제 구현이 있으며 나머지는 Python package 경계입니다. 기능이 생길 때 `domain/application/infrastructure/api`를 추가합니다. 지금 비어 있는 service/repository/model 파일을 미리 만들지 않습니다.
+`Agent Graph → Canonical Tool Registry → Tool Adapter → Application Service → Domain/Repository`
 
-기본 의존성은 `api → application → domain`이며 infrastructure가 domain interface를 구현합니다. Router는 Repository를 호출하지 않습니다. domain은 FastAPI/ORM/LLM SDK에 의존하지 않습니다. Application Command가 transaction/UoW를 소유하고 Repository는 임의 commit하지 않습니다.
+| 기술 | 소유 책임 | 허용 import 위치 |
+| --- | --- | --- |
+| Gemini 공식 SDK | 구조화된 분류·계정 선택 | `llm/providers` |
+| LangGraph | 노드·분기·interrupt·checkpoint·resume | `agents/graphs`, `agents/runtime`, `agents/checkpoints` |
+| langchain-core | 동일 Registry의 Tool 변환 및 실행 설정 타입 | `tools/adapters/langchain.py`, `agents/runtime` |
+| MCP 공식 SDK | 동일 Registry의 로컬 외부 호스트 연결 | `tools/adapters/mcp*` |
+| FastAPI Application | 권한·회사·업무 검증 및 명령 | 기존 Application Service |
 
-accounting은 장부 정본, tax는 세무 계산·신고 정본, evidence는 provenance를 소유합니다. jobs/agents/tools 실행 이력이나 LLM 출력이 정본을 대체하지 않습니다. generic entity/payload/settings model을 만들지 않습니다. 숫자는 Decimal/Domain Rule/Application Service/deterministic query가 계산합니다.
+Graph는 Session·Repository·SQL에 접근하지 않습니다. `agents/checkpoints`의 psycopg 연결은 공식 framework 체크포인트 전용 예외이며 업무 쿼리에 사용하지 않습니다. Tool Adapter에는 SQL이나 Repository import가 없습니다. Principal·company는 서버가 주입하며 모델 입력으로 받지 않습니다.
 
-Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repository 방향만 허용합니다. Runtime이 principal/company/permission을 주입하고 LLM은 이를 생성하지 않습니다. Posting, Close/Reopen, Filing, Payment 확정은 Human Approval과 Application Command를 통과합니다. 실제 Agent/Tool/Approval은 아직 없습니다.
+Registry 한 곳이 이름·버전·설명·permission·class·side effect·timeout·Pydantic 입출력 schema를 소유합니다. Internal/LangChain/MCP Adapter가 별도 Tool 정의를 만들지 않습니다. `journal.post`, `period.close/reopen`, `payment.execute`, `tax.filing.submit`, arbitrary SQL은 등록할 수 없습니다.
 
-## 현재 architecture guard
+Human Interrupt의 CONTINUE는 Graph 진행 허용입니다. Accounting APPROVED와 다릅니다. 기존 JournalCommands가 DRAFT를 만들고, 이후 제출·별도 사용자 승인·Posting은 기존 회계 흐름을 따라야 합니다. 숫자는 Transaction의 Decimal 금액에서만 구성합니다.
 
-`backend/tests/contract/test_architecture.py`가 agents/llm의 Python AST를 검사합니다. 다른 app 모듈 import는 app.tools만 허용하며 상대 import, app에서의 import, ORM/DB driver, importlib와 직접 __import__/eval/exec 우회를 검사합니다. 금지 예제도 테스트합니다.
+## 데이터베이스
 
-이는 정적 import 계약이며 Python sandbox가 아닙니다. 별칭·간접 호출·외부 라이브러리를 통한 동적 실행의 모든 경우를 증명하지 않습니다. Agent runtime을 구현할 때 capability/runtime 제한과 실제 side-effect 테스트를 추가해야 합니다. Domain/Application/contracts의 SQLAlchemy/FastAPI/DB infrastructure 의존을 추가 검사합니다. Repository 파일의 commit/rollback/begin/begin_nested 호출도 금지합니다. 실제 모듈에 더해 금지 예제를 검증하며 향후 계층이 추가되면 자동 검사 대상이 됩니다.
+기존 `db_foundation → 001_identity → … → 009_finance_subledger` 이력을 수정하지 않고 `010_agent_runtime_foundation`을 추가했습니다. 설계 migration map의 target 순서와 이미 배포된 번호는 구분하며, 이번 다음 사용 가능한 forward revision을 사용했습니다.
 
-## 데이터베이스와 후속 범위
+제품 실행 정본은 `jobs`, `agent_runs`, `agent_steps`, `tool_executions`, `job_events`입니다. 업무 스키마는 JSON/JSONB 0을 유지합니다. 실행 이력에는 digest·오류 코드·상태·resource FK를 기록하며 prompt·provider response·전체 Tool payload는 저장하지 않습니다. Tool Execution과 Job Event는 DB trigger로 append-only입니다.
 
-SQLAlchemy/Alembic, strict UUID/Decimal/UTC 타입, UoW와 회사 범위를 필수로 받는 Repository Protocol이 존재합니다. baseline 위에 Identity/Company 업무 테이블 10개를 001/002, 회계 마스터 12개를 003 revision으로 등록합니다. 자동 create_all은 없습니다.
+ADR-035에 따라 공식 PostgresSaver가 `agent_checkpoints`에 자체 migration/table을 설치합니다. `checkpoints.checkpoint`, `checkpoints.metadata`의 JSONB만 허용합니다. 나머지 blob table은 공식 실행 직렬화이며 Accounting/Finance 정본으로 조회하지 않습니다. 체크포인트와 감사의 보존·백업은 운영에서 함께 관리해야 합니다.
 
-[DB Foundation 구조와 migration 정책](database-foundation.md)에 타입·transaction·error·schema guard 및 후속 migration map을 설명합니다. 실제 PostgreSQL의 JSON/JSONB column 0개를 integration과 online migration 전후에 검사합니다. API JSON serialization은 DB 저장 형식과 별개입니다. 현재 Identity/Company 구조와 구현 결정을 [인증·회사 계약](identity-company.md)에 기록했습니다. 회계 마스터는 [현재 구조와 결정](accounting-master.md)을 따릅니다. Storage/Evidence/Intake 11개 테이블을 004에 추가했으며 005 Onboarding/Data Exchange의 10개 관계형 테이블을 추가하여 전체 업무 테이블은 43개입니다. 이후 006 Transaction의 FK를 연결합니다. [온보딩 계약](onboarding-data-exchange.md)을 따릅니다. [현재 계약](storage-evidence-intake.md)을 따릅니다.
+`assert_relational_schema`는 업무 정책을, `assert_framework_schema`는 공식 table/column/JSONB 허용 목록을 검사합니다. `scripts/verify_accounting_schema.py`는 실제 테이블/FK/orphan/JSON 수치를 출력합니다. 실측 결과는 [Agent 검증 기록](agent-runtime-verification.md)에 기록합니다.
 
-## 품질 도구 결정
+010과 공식 checkpoint 설치 후 전용 PostgreSQL 실측은 업무 테이블 **67**, 업무 FK **163**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 별도 framework는 공식 테이블 4개와 허용된 JSONB 2개이며 업무 테이블 수에 더하지 않습니다. 기존 009 상태는 업무 테이블 62개였습니다.
 
-프론트엔드 lint는 ESLint 10과 typescript-eslint 권장 규칙을 사용합니다. 초기 eslint-config-next가 가져오는 간접 의존성의 high 취약점 5개를 피하고 최소 셸에 필요한 검사만 유지하기 위한 선택입니다. React hooks나 복잡한 Next.js UI가 추가되는 범위에서 필요한 규칙을 안전한 버전으로 확장합니다. TypeScript strict와 next typegen, production build 검증은 별도로 유지합니다.
+## 검증과 현재 한계
+
+AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 우회, Repository transaction 소유 및 Graph의 고위험 명령을 검사합니다. 이는 Python sandbox가 아니며 실행 시 Registry allowlist·회사·RBAC와 기존 Domain 불변식을 함께 적용합니다.
+
+현재 실행은 API 요청 안에서 제한된 Graph를 수행합니다. PostgreSQL lease·heartbeat·thread lock과 동일 시작 키 재시도·명시적 resume으로 복구하며, 상시 queue 소비 worker·취소·운영 스케줄러는 다음 범위입니다. SSE는 DB 이력 replay이며 지속 연결 fanout은 아닙니다. 자세한 API와 제한은 [Agent Runtime](agent-runtime.md)을 참고하세요.
