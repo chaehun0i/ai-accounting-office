@@ -6,6 +6,8 @@ export const officeRoutes = [
   { href: "/imports", label: "파일 가져오기", group: "데이터 준비", permission: "import.create" },
   { href: "/transactions", label: "거래", group: "회계 업무", permission: "transaction.read" },
   { href: "/journals", label: "전표 · 승인", group: "회계 업무", permission: "journal.read" },
+  { href: "/receivables", label: "채권", group: "수금 · 지급", permission: "receivable.read" },
+  { href: "/payables", label: "채무", group: "수금 · 지급", permission: "payable.read" },
   { href: "/ledger", label: "총계정원장", group: "장부 조회", permission: "ledger.read" },
   { href: "/trial-balance", label: "합계잔액시산표", group: "장부 조회", permission: "ledger.read" },
   { href: "/accounting", label: "설정 관리", group: "설정", permission: "account.read" },

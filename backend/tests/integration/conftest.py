@@ -132,6 +132,9 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         TransactionSQLAlchemyUnitOfWork,
     )
     from app.approvals.infrastructure.unit_of_work import AccountingSQLAlchemyUnitOfWork
+    from app.finance.reconciliation.application.service import FinanceReports
+    from app.finance.settlements.application.service import FinanceService
+    from app.finance.settlements.infrastructure.unit_of_work import FinanceSQLAlchemyUnitOfWork
     from app.onboarding.application.merge import OnboardingImportService
     from app.onboarding.application.service import OnboardingService
     from app.onboarding.infrastructure.template import parse_onboarding
@@ -162,6 +165,8 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
         AccountingReports(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
         OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
+        FinanceService(lambda: FinanceSQLAlchemyUnitOfWork(factory)),
+        FinanceReports(lambda: FinanceSQLAlchemyUnitOfWork(factory)),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
         yield client

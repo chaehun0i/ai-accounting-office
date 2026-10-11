@@ -73,6 +73,7 @@ def main() -> None:
             print("foreign_keys=" + str(foreign_keys))
             print("orphan_rows=" + str(orphan))
             assert orphan == 0
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "009_finance_subledger"
             print(
                 "migration_head="
                 + str(

@@ -1,5 +1,5 @@
 // 화면 합계도 정수 소수점 단위로 계산하며 서버 결과를 최종 기준으로 사용합니다.
-export type EditableLine = {account_id:string; debit_amount:string; credit_amount:string; memo:string};
+export type EditableLine = {account_id:string; debit_amount:string; credit_amount:string; memo:string; counterparty_id?:string|null};
 export function units(text:string):bigint {if(!/^\d+(\.\d{0,4})?$/.test(text))throw new Error("금액은 소수점 네 자리까지 입력해 주세요.");const [whole,fraction=""]=text.split(".");return BigInt(whole)*BigInt(10000)+BigInt(fraction.padEnd(4,"0"));}
 export function money(value:bigint):string {const sign=value<BigInt(0)?"-":"";const n=value<BigInt(0)?-value:value;return sign+(n/BigInt(10000)).toString()+"."+(n%BigInt(10000)).toString().padStart(4,"0");}
 export function lineTotals(lines:EditableLine[]) {let debit=BigInt(0),credit=BigInt(0);let valid=lines.length>=2;for(const l of lines){const d=units(l.debit_amount||"0"),c=units(l.credit_amount||"0");debit+=d;credit+=c;valid=valid&&Boolean(l.account_id)&&((d>BigInt(0)&&c===BigInt(0))||(c>BigInt(0)&&d===BigInt(0)));}return {debit:money(debit),credit:money(credit),difference:money(debit-credit),valid,balanced:valid&&debit===credit};}
