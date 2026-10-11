@@ -242,29 +242,6 @@ def test_cross_company_values_and_csrf(api_client, auth_service):
     )
     assert response.status_code == 404
 
-
-def test_required_dimension_policy_and_draft_compatibility(api_client, auth_service):
-    _, writer, payload, _ = prepare(api_client, auth_service)
-    create_dimension(api_client, writer, required_policy="REQUIRED")
-    duplicate = api_client.post(
-        "/accounting/dimensions",
-        headers=writer,
-        json={
-            "dimension_code": "OTHER",
-            "name": "중복 필수 부서",
-            "dimension_type": "DEPARTMENT",
-            "required_policy": "REQUIRED",
-        },
-    )
-    assert duplicate.status_code == 422
-    assert duplicate.json()["code"] == "DIMENSION_DUPLICATE_TYPE"
-    draft = api_client.post(
-        "/journals", headers={**writer, "Idempotency-Key": str(uuid4())}, json=payload
-    )
-    assert draft.status_code == 201
-    submitted = command(api_client, writer, draft.json(), "submit")
-    assert submitted.status_code == 422
-    assert submitted.json()["code"] == "DIMENSION_VALUE_INVALID"
     payload["lines"][0]["dimension_value_ids"] = [other_value["id"]]
     response = api_client.post(
         "/journals", headers={**writer, "Idempotency-Key": str(uuid4())}, json=payload
@@ -288,3 +265,27 @@ def test_required_dimension_policy_and_draft_compatibility(api_client, auth_serv
         },
     )
     assert response.status_code == 404
+
+
+def test_required_dimension_policy_and_draft_compatibility(api_client, auth_service):
+    _, writer, payload, _ = prepare(api_client, auth_service)
+    create_dimension(api_client, writer, required_policy="REQUIRED")
+    duplicate = api_client.post(
+        "/accounting/dimensions",
+        headers=writer,
+        json={
+            "dimension_code": "OTHER",
+            "name": "중복 필수 부서",
+            "dimension_type": "DEPARTMENT",
+            "required_policy": "REQUIRED",
+        },
+    )
+    assert duplicate.status_code == 422
+    assert duplicate.json()["code"] == "DIMENSION_DUPLICATE_TYPE"
+    draft = api_client.post(
+        "/journals", headers={**writer, "Idempotency-Key": str(uuid4())}, json=payload
+    )
+    assert draft.status_code == 201
+    submitted = command(api_client, writer, draft.json(), "submit")
+    assert submitted.status_code == 422
+    assert submitted.json()["code"] == "DIMENSION_VALUE_INVALID"
