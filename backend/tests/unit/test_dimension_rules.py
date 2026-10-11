@@ -108,3 +108,10 @@ def test_same_type_duplicate_even_different_dimension(axis):
             d.company_id, date(2025, 6, 1), (v.id, other.id), [d, second], [v, other]
         )
     assert caught.value.code == "DIMENSION_DUPLICATE_TYPE"
+
+
+def test_valid_effective_boundaries_and_four_types(axis):
+    d, v = axis
+    for kind in ("BUSINESS_UNIT", "DEPARTMENT", "PROJECT", "COST_CENTER"):
+        for day in (v.effective_from, v.effective_to):
+            validate_selection(d.company_id, day, (v.id,), [replace(d, dimension_type=kind)], [v])
