@@ -135,7 +135,7 @@ export function FinanceWorkspace({ company, kind }: { company: Company; kind: "A
         <button onClick={saveAllocation} disabled={busy || !allocation?.valid || !dirty}>배분 저장</button><button onClick={confirm} disabled={busy || !!dirty}>배분 확정</button><p>미배분액은 잔액으로 보존됩니다. 확정 후에는 이 기록의 배분을 수정할 수 없습니다.</p></>}
     </OfficeDialog>
     <OfficeDialog open={selected !== null} onClose={() => setSelected(null)} title={`${title} 상세`} description="발생 전표와 배분 내역을 통해 출처를 확인합니다.">
-      {selected && <><h3>{selected.counterparty_name}</h3><p>남은 금액 {selected.outstanding_amount}원</p><Link href={`/journals?journal=${selected.origin_journal_id}`}>발생 전표 확인</Link><p>거래 출처: {selected.source_transaction_id ?? "직접 작성한 전표"}</p><p>파일 접수 출처: {selected.import_id ?? "파일 접수 출처 없음"}</p><p>연결 증빙 {selected.evidence_ids.length}건</p><ul>{settlements.filter(value => value.allocations.some(line => line.target_id === selected.id)).map(value => <li key={value.id}>{value.settlement_date} · {financeStatus[value.status]} · {value.allocations.find(line => line.target_id === selected.id)?.allocated_amount}원</li>)}</ul></>}
+      {selected && <><h3>{selected.counterparty_name}</h3><p>남은 금액 {selected.outstanding_amount}원</p><Link href={`/journals#journal-${selected.origin_journal_id}`}>발생 전표 확인</Link><p>거래 출처: {selected.source_transaction_id ?? "직접 작성한 전표"}</p><p>파일 접수 출처: {selected.import_id ?? "파일 접수 출처 없음"}</p><p>연결 증빙 {selected.evidence_ids.length}건</p><ul>{settlements.filter(value => value.allocations.some(line => line.target_id === selected.id)).map(value => <li key={value.id}>{value.settlement_date} · {financeStatus[value.status]} · {value.allocations.find(line => line.target_id === selected.id)?.allocated_amount}원</li>)}</ul></>}
     </OfficeDialog>
   </section>;
 }
