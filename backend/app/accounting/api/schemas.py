@@ -55,6 +55,14 @@ class AccountRead(BaseModel):
     version: int
 
 
+class AccountCreate(Command):
+    account_code: str = Field(pattern=r"^[A-Z0-9][A-Z0-9_-]{0,19}$")
+    account_name: str = Field(min_length=1, max_length=200)
+    account_type: AccountType
+    is_contra: bool = False
+    parent_account_id: UUID | None = None
+
+
 class TemplateRead(BaseModel):
     id: UUID
     template_code: str

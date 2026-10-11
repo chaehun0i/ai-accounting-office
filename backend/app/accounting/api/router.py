@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query
 
 from app.accounting.api.schemas import (
+    AccountCreate,
     AccountRead,
     AddressRead,
     BankReferenceRead,
@@ -100,6 +101,15 @@ def templates(actor: Actor, company_id: CompanyScope, service: Accounting) -> li
     return [
         TemplateRead.model_validate(asdict(row)) for row in service.templates(actor, company_id)
     ]
+
+
+@router.post("/accounts", response_model=AccountRead, status_code=201, dependencies=[Depends(csrf)])
+def create_account(
+    payload: AccountCreate, actor: Actor, company_id: CompanyScope, service: Accounting
+) -> AccountRead:
+    return AccountRead.model_validate(
+        asdict(service.create_account(actor, company_id, **payload.model_dump()))
+    )
 
 
 @router.get("/accounting/periods", response_model=list[PeriodRead])
