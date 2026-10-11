@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.accounting.accounts.infrastructure.models import AccountModel
+from app.accounting.dimensions.infrastructure.repository import DimensionRepository
 from app.accounting.journals.infrastructure.repository import JournalRepository
 from app.accounting.periods.infrastructure.models import PeriodModel
 from app.accounting.transactions.infrastructure.unit_of_work import TransactionSQLAlchemyUnitOfWork
@@ -11,10 +12,12 @@ from app.accounting.transactions.infrastructure.unit_of_work import TransactionS
 
 class JournalSQLAlchemyUnitOfWork(TransactionSQLAlchemyUnitOfWork):
     journals: JournalRepository
+    dimensions: DimensionRepository
 
     def __enter__(self) -> Self:
         super().__enter__()
         self.journals = JournalRepository(self.session)
+        self.dimensions = DimensionRepository(self.session)
         return self
 
     def lock_period(self, company_id: UUID, period_id: UUID) -> None:

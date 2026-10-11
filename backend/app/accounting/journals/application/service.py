@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import date
 from uuid import UUID
 
+from app.accounting.dimensions.domain.rules import validate_selection
 from app.accounting.journals.application.contracts import JournalUnitOfWork
 from app.accounting.journals.domain.entities import Journal, totals, validate_lines
 from app.accounting.journals.domain.errors import AccountingError
@@ -28,7 +29,19 @@ def validate_journal(uow: JournalUnitOfWork, value: Journal, *, balanced: bool =
             "PERIOD_NOT_OPEN", "전표 날짜에 해당하는 열린 회계기간을 선택해 주세요.", 409
         )
     uow.lock_accounts(value.company_id, tuple(line.account_id for line in value.lines))
+    dimensions = uow.dimensions.list_dimensions(value.company_id, lock=True)
+    dimension_values = [
+        v for d in dimensions for v in uow.dimensions.values(value.company_id, d.id, lock=True)
+    ]
     for line in value.lines:
+        validate_selection(
+            value.company_id,
+            value.entry_date,
+            line.dimension_value_ids,
+            dimensions,
+            dimension_values,
+            enforce_required=balanced,
+        )
         account = uow.accounts.get(company_id=value.company_id, resource_id=line.account_id)
         if account is None:
             raise ResourceNotFound()

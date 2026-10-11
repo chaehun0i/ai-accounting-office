@@ -15,6 +15,7 @@ class LineCreate(BaseModel):
     credit_amount: Decimal = Field(default=Decimal("0"), ge=0, max_digits=19, decimal_places=4)
     counterparty_id: UUID | None = None
     memo: str = Field(default="", max_length=2000)
+    dimension_value_ids: list[UUID] = Field(default_factory=list, max_length=4)
 
     @field_validator("debit_amount", "credit_amount", mode="before")
     @classmethod
