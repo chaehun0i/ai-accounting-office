@@ -86,6 +86,6 @@ export function AccountingMaster({ company, showCatalog = true }: { company: Com
         <button disabled={busy}>{busy ? "설정 중…" : "회계연도 설정"}</button>
       </form> : <p>회사 관리자가 회계연도를 설정할 수 있습니다.</p>}
     </>}
-    {showCatalog && <><h3>고정 계정과목</h3><AccountCatalog companyId={company.id} /></>}
+    {showCatalog && <><h3>계정과목</h3><AccountCatalog key={company.id} companyId={company.id} canCreate={company.permissions.includes("account.create")} /></>}
   </section>;
 }
