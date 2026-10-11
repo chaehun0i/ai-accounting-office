@@ -146,13 +146,13 @@ async function main() {
       await page.getByRole("dialog").getByRole("button", {name:"선택 완료",exact:true}).click();
       await page.getByRole("dialog").getByRole("button", {name:"닫기",exact:true}).click();
       await page.getByRole("button", {name:"관리차원 격리 검증 회사",exact:true}).waitFor();
-      await page.goto(origin + "/accounting");
+      await page.getByRole("navigation", {name:"업무 메뉴"}).getByRole("link", {name:"설정 관리",exact:true}).click();
       await page.getByRole("button", {name:"관리차원",exact:true}).click();
       await page.getByText("등록된 관리차원이 없습니다. 필요한 분석축부터 추가해 주세요.",{exact:true}).waitFor();
       assert.equal(await page.getByText(/SALES 영업팀/).count(),0);
     }
     await page.screenshot({ path: ".local/accounting-browser-success.png", fullPage: true });
-    console.log(dimensionMode ? "관리차원 브라우저 검증 통과: 생성, 항목 생성, 새로고침, 분개 선택, 별도 승인, 확정, 원장 필터, 시산표" : "브라우저 검증 통과: 로그인, 회사 선택, 거래 생성, 분개 추가·삭제, 제출, 별도 사용자 승인, 장부 반영, 원장, 시산표, 전표 이동");
+    console.log(dimensionMode ? "관리차원 브라우저 검증 통과: 생성, 항목 생성, 새로고침, 분개 선택, 별도 승인, 확정, 원장 필터, 시산표, 회사 전환 격리" : "브라우저 검증 통과: 로그인, 회사 선택, 거래 생성, 분개 추가·삭제, 제출, 별도 사용자 승인, 장부 반영, 원장, 시산표, 전표 이동");
   } catch (error) {
     console.error("화면 안내:", await page.getByRole("alert").allTextContents());
     await page.screenshot({ path: ".local/accounting-browser-failure.png", fullPage: true });
