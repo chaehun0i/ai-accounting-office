@@ -32,7 +32,8 @@ def configure_logging() -> None:
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
-    for name in ("uvicorn.access", "httpx"):
+    # SDK가 HTTP 구현을 교체해도 URL capability 마스킹을 동일하게 적용합니다.
+    for name in ("uvicorn.access", "httpx", "httpx2", "httpcore", "httpcore2"):
         transport = logging.getLogger(name)
         if not any(isinstance(item, SensitivePathFilter) for item in transport.filters):
             transport.addFilter(SensitivePathFilter())
