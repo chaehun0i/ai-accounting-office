@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from app.evidence.infrastructure.models import EvidenceModel
 from app.intake.domain.canonical_fields import Mapping, SourceType, TargetContext, normalize
 from app.intake.domain.digest import row_digest
-from app.intake.domain.entities import Column, Confirmation, Import, Receipt
+from app.intake.domain.entities import Column, Confirmation, Import, Receipt, PromotionRow
+from app.intake.promotion.infrastructure.models import ImportPromotionRowModel
 from app.intake.domain.validation import CanonicalRow, ValidationError
 from app.intake.domain.workbook import Workbook
 from app.intake.infrastructure.models import (
@@ -27,7 +28,7 @@ from app.intake.infrastructure.models import (
 from app.storage.infrastructure.models import StorageObjectModel
 
 
-def receipt_value(row: ImportReceiptModel) -> Receipt:
+def receipt_value(row: ImportReceiptModel, rows: tuple[PromotionRow, ...] = ()) -> Receipt:
     return Receipt(
         row.id,
         row.company_id,
@@ -38,6 +39,9 @@ def receipt_value(row: ImportReceiptModel) -> Receipt:
         row.counterparty_count,
         row.status,
         row.created_at,
+        row.confirmed_version,
+        row.promoted_at,
+        rows,
     )
 
 
@@ -338,7 +342,24 @@ class ImportRepository:
                 ImportReceiptModel.import_id == import_id,
             )
         )
-        return receipt_value(row) if row else None
+        results = (
+            tuple(
+                PromotionRow(**{k: getattr(r, k) for k in PromotionRow.__dataclass_fields__})
+                for r in self.session.scalars(
+                    select(ImportPromotionRowModel)
+                    .where(
+                        ImportPromotionRowModel.company_id == company_id,
+                        ImportPromotionRowModel.import_id == import_id,
+                    )
+                    .order_by(
+                        ImportPromotionRowModel.sheet_index, ImportPromotionRowModel.row_number
+                    )
+                )
+            )
+            if row
+            else ()
+        )
+        return receipt_value(row, results) if row else None
 
     def replay(self, company_id: UUID, actor: UUID, key: str) -> Confirmation | None:
         result = self.session.execute(
@@ -350,7 +371,11 @@ class ImportRepository:
                 ImportConfirmationModel.idempotency_key == key,
             )
         ).first()
-        return Confirmation(result[0].fingerprint, receipt_value(result[1])) if result else None
+        if not result:
+            return None
+        receipt = self.receipt(company_id=company_id, import_id=result[1].import_id)
+        assert receipt is not None
+        return Confirmation(result[0].fingerprint, receipt)
 
     def source(self, value: Import, source_id: str) -> str | None:
         return self.session.scalar(
@@ -376,7 +401,11 @@ class ImportRepository:
         if self.receipt(company_id=value.company_id, import_id=value.id) is None:
             self.session.add(
                 ImportReceiptModel(
-                    **{field: getattr(receipt, field) for field in receipt.__dataclass_fields__}
+                    **{
+                        field: getattr(receipt, field)
+                        for field in receipt.__dataclass_fields__
+                        if field != "rows"
+                    }
                 )
             )
             self.session.flush()
@@ -406,9 +435,9 @@ class ImportRepository:
         )
         row = self._row(value.company_id, value.id)
         assert row is not None
-        row.status = "COMPLETED"
+        row.status = receipt.status
         row.version += 1
         row.confirmed_at = now
-        row.completed_at = now
+        row.completed_at = now if receipt.status == "COMPLETED" else None
         row.updated_at = now
         self.session.flush()
