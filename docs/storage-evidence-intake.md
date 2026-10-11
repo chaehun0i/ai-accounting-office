@@ -48,7 +48,7 @@ Mapping은 Import/Sheet/Column 복합 FK와 원본 열 unique, sheet별 canonica
 
 Global Governance의 idempotency_records를 선행 구현하지 않습니다. 현재 Confirm 전용 typed 참조 테이블이 replay를 담당합니다.
 전체 API 응답, serialized rows, JSON/JSONB, generic payload/metadata/context/options 컬럼은 없습니다.
-Transaction/Journal/Tax 정본 및 Counterparty 정본을 생성하거나 수정하지 않습니다. Receipt의 transaction_count와 counterparty_count는 항상 0입니다.
+이 문서의 초기 Intake 단계는 Transaction/Journal/Tax 및 Counterparty 정본을 생성하지 않았습니다. 현재 Confirm도 거래를 생성하지 않으며, 별도 [정규 거래 승격](import-transaction-promotion.md) 명령만 Transaction을 생성합니다. 승격 후 Receipt의 transaction_count는 처리된 거래 수이며 counterparty_count는 0입니다. Journal/Posting은 별도 회계 명령입니다.
 
 ## Storage와 Evidence
 

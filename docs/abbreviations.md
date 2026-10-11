@@ -68,3 +68,6 @@
 | P0 | 최우선 플랫폼 기능 | 이번 Bookkeeper 실행 기반의 우선순위 |
 | Checkpoint / Interrupt | 실행 상태 저장 / 사람 응답 대기 | 중단한 Graph를 같은 thread에서 복구·재개 |
 | Lease / Heartbeat | 실행 소유권 임대 / 생존 갱신 | 중복 실행을 막고 중단된 작업의 재시도를 관리 |
+| Import Promotion | 확정 자료의 정규 거래 승격 | 파일 확인 후 별도 명령으로 Transaction을 생성하며 장부 반영과 구분 |
+| Row Locator | 원천 행 위치 | Import·시트 번호·행 번호로 원본을 추적하며 원본 행 전체를 저장하지 않음 |
+| CREATED / REUSED | 신규 거래 / 기존 거래 재사용 | 동일 원천·같은 내용은 중복 생성하지 않고 거래 참조를 재사용 |

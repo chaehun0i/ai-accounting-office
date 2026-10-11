@@ -51,3 +51,11 @@ AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 
 `011_accounting_dimensions`는 기존 003/007 이력을 보존하는 forward revision입니다. `accounting_dimensions`, `accounting_dimension_values`, `journal_line_dimensions`를 추가하고 회사·분석축 composite FK와 분개별 유형 UNIQUE를 적용합니다. `accounting/dimensions`의 Domain/Application/Infrastructure/API 경계를 따르며 기존 Journal 검증·Posting transaction 안에서 활성/기간/필수정책을 재검증합니다. POSTED 연결 변경은 DB trigger로도 차단합니다.
 
 원장에는 선택적 관리항목 EXISTS 필터만 추가합니다. 기본 GL/TB와 AR/AP 대사는 동일 Accounting 정본을 유지합니다. Agent Tool은 추가하지 않았고 framework checkpoint schema도 변경하지 않았습니다. [관리차원 계약](accounting-dimensions.md)에 적용 결정과 샘플 정합성, 재사용 판정을 기록합니다.
+
+## 확정 가져오기 거래 승격
+
+`012_import_transaction_promotion`은 `intake/promotion`의 명시적 Application 경계를 추가합니다. 기존 Confirm은 파일 해석·사용자 확인인 CONFIRMED, 별도 Promote는 Transaction 생성 후 COMPLETED입니다. Promotion이 기존 Transaction Application의 `save_in`을 같은 UoW에서 호출하므로 전체 행·영수증·typed 재시도 기록이 함께 rollback됩니다. Transaction ORM을 직접 쓰거나 Journal을 자동 생성하지 않습니다.
+
+`import_promotion_rows`는 원본 행을 복제하지 않고 locator·digest·거래 FK·review를 보존합니다. `import_promotion_commands`는 company/actor/command/key/fingerprint와 Receipt 참조만 저장합니다. 요청·Import·원천 identity 잠금과 기존 Transaction UNIQUE가 동시 재시도를 보호합니다. 회사·Receipt/Transaction composite FK가 다른 회사 참조를 차단합니다. Agent mutation Tool과 framework checkpoint 예외는 변경하지 않았습니다. API·상태·재사용·실측 검증은 [승격 계약](import-transaction-promotion.md)을 따릅니다.
+
+012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011 수치는 이전 revision의 기록이며 현재 head는 012입니다.
