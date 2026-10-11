@@ -17,6 +17,12 @@ class Settings(BaseSettings):
 
     storage_root: str = "../.local/storage"
 
+    llm_provider: Literal["fake", "gemini"] = "fake"
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = Field(default="", max_length=100)
+    llm_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    llm_max_retries: int = Field(default=1, ge=0, le=3)
+
     auth_signing_key: SecretStr | None = None
     access_token_ttl_seconds: int = Field(default=600, ge=60, le=900)
     refresh_token_ttl_seconds: int = Field(default=2592000, ge=3600, le=2592000)
