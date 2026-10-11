@@ -3,7 +3,7 @@ from datetime import date
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, text
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
@@ -29,6 +29,11 @@ class TransactionRepository:
         return self.entity(row) if row else None
 
     def source(self, company_id: UUID, system: str, source_id: str) -> Transaction | None:
+        # 아직 없는 원천도 직렬화하여 생성 경로 간 SELECT/INSERT 경쟁을 막습니다.
+        self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:identity, 0))"),
+            {"identity": f"transaction:{company_id}:{system}:{source_id}"},
+        )
         row = self.session.scalar(
             select(TransactionModel).where(
                 TransactionModel.company_id == company_id,
