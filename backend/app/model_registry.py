@@ -17,6 +17,7 @@ from app.companies.infrastructure.models import (
     RolePermissionModel,
     TenantModel,
 )
+from app.jobs.infrastructure import models as runtime_models  # noqa: F401, E402
 
 __all__ += [
     "CompanyModel",
