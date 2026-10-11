@@ -36,7 +36,6 @@ def test_manufacturing_314_documents_preserve_exact_source_facts(
                     json={
                         "display_name": code,
                         "legal_name": code,
-                        "counterparty_code": code,
                     },
                 )
                 assert response.status_code == 201, response.text
