@@ -180,3 +180,58 @@ def test_dimension_permission_and_input_contract(api_client, auth_service):
         json={"value_code": "DENIED", "name": "읽기 전용"},
     )
     assert denied.status_code == 403
+
+
+def test_cross_company_values_and_csrf(api_client, auth_service):
+    owner, writer, payload, _ = prepare(api_client, auth_service)
+    dimension = create_dimension(api_client, writer)
+    value = create_value(api_client, writer, dimension)
+    response = api_client.post(
+        "/companies",
+        headers=owner,
+        json={"company_name": "분리된 회사", "taxpayer_type": "CORPORATION",
+              "business_number": "9876543210", "opening_date": "2026-01-01", "address": "검증 주소"},
+    )
+    assert response.status_code == 201, response.text
+    foreign = {**owner, "X-Company-ID": response.json()["id"]}
+    other = create_dimension(api_client, foreign)
+    other_value = create_value(api_client, foreign, other)
+    assert (
+        api_client.get(
+            f"/accounting/dimensions/{dimension['id']}/values", headers=foreign
+        ).status_code
+        == 404
+    )
+    response = api_client.post(
+        f"/accounting/dimensions/{dimension['id']}/values",
+        headers=writer,
+        json={
+            "value_code": "BAD_PARENT",
+            "name": "다른 회사 상위항목",
+            "parent_value_id": other_value["id"],
+        },
+    )
+    assert response.status_code == 404
+    payload["lines"][0]["dimension_value_ids"] = [other_value["id"]]
+    response = api_client.post(
+        "/journals", headers={**writer, "Idempotency-Key": str(uuid4())}, json=payload
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "DIMENSION_VALUE_INVALID"
+    response = api_client.post(
+        f"/accounting/dimensions/{dimension['id']}/values",
+        headers={**writer, "X-CSRF-Protection": "0"},
+        json={"value_code": "NO_CSRF", "name": "거부"},
+    )
+    assert response.status_code == 403
+    response = api_client.get(
+        "/ledger",
+        headers=foreign,
+        params={
+            "account_id": payload["lines"][0]["account_id"],
+            "dimension_value_id": value["id"],
+            "date_from": "2026-01-01",
+            "date_to": "2026-12-31",
+        },
+    )
+    assert response.status_code == 404
