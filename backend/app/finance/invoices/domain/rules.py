@@ -5,6 +5,7 @@ from hashlib import sha256
 
 from app.accounting.journals.domain.errors import AccountingError
 from app.contracts.access_errors import InvalidInput, StateConflict
+from app.core.values import require_money
 from app.finance.invoices.domain.entities import Document, DocumentStatus, DocumentType
 
 
@@ -22,6 +23,14 @@ def validate_document(value: Document) -> None:
     ):
         raise InvalidInput()
     for line in value.lines:
+        try:
+            require_money(line.supply_amount)
+            require_money(line.tax_amount)
+            require_money(line.total_amount)
+        except ValueError:
+            raise AccountingError(
+                "DOCUMENT_TOTAL_MISMATCH", "문서 항목의 금액을 확인해 주세요."
+            ) from None
         amounts = (line.supply_amount, line.tax_amount, line.total_amount)
         if (
             not 1 <= len(line.description.strip()) <= 500
@@ -48,6 +57,10 @@ def validate_document(value: Document) -> None:
                 raise AccountingError(
                     "DOCUMENT_TOTAL_MISMATCH", "수량과 단가의 곱이 공급가액과 다릅니다."
                 )
+    try:
+        require_money(value.total_amount)
+    except ValueError:
+        raise AccountingError("DOCUMENT_TOTAL_MISMATCH", "문서 합계를 확인해 주세요.") from None
     if value.is_note:
         if (
             value.original_document_type
@@ -100,3 +113,47 @@ def require_transition(value: Document, action: str) -> DocumentStatus:
     if action == "approve" and value.status == DocumentStatus.REVIEW_REQUIRED:
         return DocumentStatus.APPLIED if value.is_note else DocumentStatus.APPROVED
     raise StateConflict()
+
+
+def correction_outstanding(
+    original: Decimal, allocated: Decimal, credits: Decimal, debits: Decimal
+) -> Decimal:
+    """원금·확정 배분·승인 정정 사실을 보존한 채 잔액을 재현합니다."""
+    for amount in (original, allocated, credits, debits):
+        try:
+            require_money(amount)
+        except ValueError:
+            raise InvalidInput() from None
+        if amount < 0:
+            raise InvalidInput()
+    remaining = original + debits - credits - allocated
+    if remaining < 0:
+        raise AccountingError(
+            "CREDIT_NOTE_EXCEEDS_OPEN_AMOUNT", "감액할 수 있는 미정산 금액을 초과했습니다."
+        )
+    require_money(remaining)
+    return remaining
+
+
+def validate_correction(original: Document, note: Document, outstanding: Decimal) -> None:
+    validate_document(note)
+    if (
+        original.is_note
+        or original.status != DocumentStatus.APPROVED
+        or note.original_document_id != original.id
+        or note.original_document_type != original.document_type
+        or note.company_id != original.company_id
+        or note.counterparty_id != original.counterparty_id
+        or note.accounting_date < original.accounting_date
+        or note.currency_code != original.currency_code
+    ):
+        raise InvalidInput()
+    if note.document_type == DocumentType.CREDIT_NOTE:
+        if outstanding == 0:
+            raise AccountingError(
+                "INVOICE_ALREADY_SETTLED", "정산이 끝난 문서의 환불은 별도 업무가 필요합니다.", 409
+            )
+        if note.total_amount > outstanding:
+            raise AccountingError(
+                "CREDIT_NOTE_EXCEEDS_OPEN_AMOUNT", "감액할 수 있는 미정산 금액을 초과했습니다."
+            )
