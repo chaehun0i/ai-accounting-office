@@ -30,6 +30,11 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     command.upgrade(config, "head")
     command.current(config, check_heads=True)
     command.check(config)
+    command.downgrade(config, "008_governance")
+    assert "receivables" not in inspect(db_connection).get_table_names(schema="public")
+    db_connection.commit()
+    command.upgrade(config, "head")
+    command.check(config)
     migration = MigrationContext.configure(db_connection, opts={"compare_type": True})
     assert migration.get_current_heads() == ("009_finance_subledger",)
     assert compare_metadata(migration, Base.metadata) == []
