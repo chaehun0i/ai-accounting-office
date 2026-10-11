@@ -142,6 +142,9 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
 
     onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(factory))
     app = create_app(settings)
+    from app.accounting.dimensions.application.service import DimensionService
+    from app.accounting.dimensions.infrastructure.unit_of_work import DimensionSQLAlchemyUnitOfWork
+
     app.state.services = Services(
         auth,
         CompanyService(lambda: CompanySQLAlchemyUnitOfWork(factory)),
@@ -167,6 +170,12 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
         FinanceService(lambda: FinanceSQLAlchemyUnitOfWork(factory)),
         FinanceReports(lambda: FinanceSQLAlchemyUnitOfWork(factory)),
+    )
+    from dataclasses import replace
+
+    app.state.services = replace(
+        app.state.services,
+        dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
     )
     with TestClient(app, headers={"X-CSRF-Protection": "1"}) as client:
         yield client

@@ -38,10 +38,16 @@ ADR-035에 따라 공식 PostgresSaver가 `agent_checkpoints`에 자체 migratio
 
 `assert_relational_schema`는 업무 정책을, `assert_framework_schema`는 공식 table/column/JSONB 허용 목록을 검사합니다. `scripts/verify_accounting_schema.py`는 실제 테이블/FK/orphan/JSON 수치를 출력합니다. 실측 결과는 [Agent 검증 기록](agent-runtime-verification.md)에 기록합니다.
 
-010과 공식 checkpoint 설치 후 전용 PostgreSQL 실측은 업무 테이블 **67**, 업무 FK **163**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 별도 framework는 공식 테이블 4개와 허용된 JSONB 2개이며 업무 테이블 수에 더하지 않습니다. 기존 009 상태는 업무 테이블 62개였습니다.
+011 적용 후 전용 PostgreSQL 업무 schema 실측은 업무 테이블 **70**, 업무 FK **170**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 별도 framework checkpointer를 설치하면 공식 테이블 4개와 허용된 JSONB 2개를 사용하며 업무 테이블 수에 더하지 않습니다. 통합 테스트 정리 후 스키마 검증 시 framework JSON/JSONB는 0개였습니다. 기존 009 상태는 업무 테이블 62개였습니다.
 
 ## 검증과 현재 한계
 
 AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 우회, Repository transaction 소유 및 Graph의 고위험 명령을 검사합니다. 이는 Python sandbox가 아니며 실행 시 Registry allowlist·회사·RBAC와 기존 Domain 불변식을 함께 적용합니다.
 
 현재 실행은 API 요청 안에서 제한된 Graph를 수행합니다. PostgreSQL lease·heartbeat·thread lock과 동일 시작 키 재시도·명시적 resume으로 복구하며, 상시 queue 소비 worker·취소·운영 스케줄러는 다음 범위입니다. SSE는 DB 이력 replay이며 지속 연결 fanout은 아닙니다. 자세한 API와 제한은 [Agent Runtime](agent-runtime.md)을 참고하세요.
+
+## 회사 관리차원
+
+`011_accounting_dimensions`는 기존 003/007 이력을 보존하는 forward revision입니다. `accounting_dimensions`, `accounting_dimension_values`, `journal_line_dimensions`를 추가하고 회사·분석축 composite FK와 분개별 유형 UNIQUE를 적용합니다. `accounting/dimensions`의 Domain/Application/Infrastructure/API 경계를 따르며 기존 Journal 검증·Posting transaction 안에서 활성/기간/필수정책을 재검증합니다. POSTED 연결 변경은 DB trigger로도 차단합니다.
+
+원장에는 선택적 관리항목 EXISTS 필터만 추가합니다. 기본 GL/TB와 AR/AP 대사는 동일 Accounting 정본을 유지합니다. Agent Tool은 추가하지 않았고 framework checkpoint schema도 변경하지 않았습니다. [관리차원 계약](accounting-dimensions.md)에 적용 결정과 샘플 정합성, 재사용 판정을 기록합니다.

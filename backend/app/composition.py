@@ -11,6 +11,8 @@ from sqlalchemy.engine import make_url
 from app.accounting.application.catalog import prepare_accounts
 from app.accounting.application.contracts import MasterUnitOfWork
 from app.accounting.application.service import AccountingMasterService
+from app.accounting.dimensions.application.service import DimensionService
+from app.accounting.dimensions.infrastructure.unit_of_work import DimensionSQLAlchemyUnitOfWork
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
 from app.accounting.journals.application.agent_proposals import AgentProposalService
 from app.accounting.journals.application.commands import JournalCommands
@@ -74,6 +76,8 @@ class Services:
     agent_runtime: AgentRuntime | None = None
     runtime_audit: RuntimeAudit | None = None
 
+    dimensions: DimensionService | None = None
+
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
     engine = create_database_engine(settings)
@@ -120,6 +124,9 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
         FinanceService(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
         FinanceReports(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
+    )
+    container = replace(
+        container, dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(sessions))
     )
     assert container.accounting and container.transactions and container.accounting_reports
     assert (

@@ -64,10 +64,13 @@ def read_ledger(
     actor: Actor,
     company_id: CompanyScope,
     service: Reports,
+    dimension_value_id: UUID | None = None,
 ) -> list[LedgerRead]:
     return [
         LedgerRead(**asdict(r))
-        for r in service.ledger(actor, company_id, account_id, date_from, date_to)
+        for r in service.ledger(
+            actor, company_id, account_id, date_from, date_to, dimension_value_id
+        )
     ]
 
 

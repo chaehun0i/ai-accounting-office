@@ -16,6 +16,7 @@ class JournalLine:
     credit_amount: Decimal
     counterparty_id: UUID | None = None
     memo: str = ""
+    dimension_value_ids: tuple[UUID, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)

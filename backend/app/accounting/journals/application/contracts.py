@@ -2,6 +2,7 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
+from app.accounting.dimensions.application.contracts import Dimensions
 from app.accounting.journals.domain.entities import Journal
 from app.accounting.transactions.application.contracts import TransactionUnitOfWork
 
@@ -17,6 +18,8 @@ class Journals(Protocol):
 
 
 class JournalUnitOfWork(TransactionUnitOfWork, Protocol):
+    @property
+    def dimensions(self) -> Dimensions: ...
     @property
     def journals(self) -> Journals: ...
     def lock_period(self, company_id: UUID, period_id: UUID) -> None: ...

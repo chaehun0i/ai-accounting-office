@@ -112,6 +112,7 @@ class JournalLineModel(UUIDPrimaryKey, Base):
     credit_amount: Mapped[Decimal]
     memo: Mapped[str] = mapped_column(Text)
     __table_args__ = (
+        UniqueConstraint("company_id", "id"),
         UniqueConstraint("journal_entry_id", "line_no"),
         ForeignKeyConstraint(
             ["company_id", "journal_entry_id"],

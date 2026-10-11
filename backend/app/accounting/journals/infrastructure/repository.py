@@ -7,6 +7,11 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
+from app.accounting.dimensions.infrastructure.models import (
+    DimensionModel,
+    DimensionValueModel,
+    JournalLineDimensionModel,
+)
 from app.accounting.journals.domain.entities import Journal, JournalLine
 from app.accounting.journals.infrastructure.models import (
     JournalEvidenceModel,
@@ -22,7 +27,23 @@ class JournalRepository:
 
     def entity(self, row: JournalModel) -> Journal:
         lines = tuple(
-            JournalLine(**{name: getattr(line, name) for name in JournalLine.__dataclass_fields__})
+            JournalLine(
+                **{
+                    name: getattr(line, name)
+                    for name in JournalLine.__dataclass_fields__
+                    if name != "dimension_value_ids"
+                },
+                dimension_value_ids=tuple(
+                    self.session.scalars(
+                        select(JournalLineDimensionModel.dimension_value_id)
+                        .where(
+                            JournalLineDimensionModel.company_id == row.company_id,
+                            JournalLineDimensionModel.journal_line_id == line.id,
+                        )
+                        .order_by(JournalLineDimensionModel.dimension_type)
+                    )
+                ),
+            )
             for line in self.session.scalars(
                 select(JournalLineModel)
                 .where(
@@ -81,11 +102,37 @@ class JournalRepository:
 
     def add_lines(self, value: Journal) -> None:
         for line in value.lines:
+            data = asdict(line)
+            data.pop("dimension_value_ids")
             self.session.add(
-                JournalLineModel(
-                    company_id=value.company_id, journal_entry_id=value.id, **asdict(line)
-                )
+                JournalLineModel(company_id=value.company_id, journal_entry_id=value.id, **data)
             )
+        self.session.flush()
+        for line in value.lines:
+            for identifier in line.dimension_value_ids:
+                pair = self.session.execute(
+                    select(DimensionValueModel, DimensionModel)
+                    .join(
+                        DimensionModel,
+                        (DimensionModel.id == DimensionValueModel.dimension_id)
+                        & (DimensionModel.company_id == value.company_id),
+                    )
+                    .where(
+                        DimensionValueModel.id == identifier,
+                        DimensionValueModel.company_id == value.company_id,
+                    )
+                ).one()
+                item, definition = pair
+                self.session.add(
+                    JournalLineDimensionModel(
+                        id=uuid4(),
+                        company_id=value.company_id,
+                        journal_line_id=line.id,
+                        dimension_value_id=identifier,
+                        dimension_id=item.dimension_id,
+                        dimension_type=definition.dimension_type,
+                    )
+                )
         for evidence in value.evidence_ids:
             self.session.add(
                 JournalEvidenceModel(
@@ -135,6 +182,16 @@ class JournalRepository:
         if cast(CursorResult[object], result).rowcount != 1:
             return False
         if replace_lines:
+            line_ids = select(JournalLineModel.id).where(
+                JournalLineModel.company_id == value.company_id,
+                JournalLineModel.journal_entry_id == value.id,
+            )
+            self.session.execute(
+                delete(JournalLineDimensionModel).where(
+                    JournalLineDimensionModel.company_id == value.company_id,
+                    JournalLineDimensionModel.journal_line_id.in_(line_ids),
+                )
+            )
             self.session.execute(
                 delete(JournalLineModel).where(
                     JournalLineModel.company_id == value.company_id,

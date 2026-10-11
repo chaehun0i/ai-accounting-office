@@ -63,7 +63,12 @@ def draft(
         updated_at=now,
         evidence_ids=tuple(payload.evidence_ids),
         lines=tuple(
-            JournalLine(id=uuid4(), line_no=i, **line.model_dump())
+            JournalLine(
+                id=uuid4(),
+                line_no=i,
+                **line.model_dump(exclude={"dimension_value_ids"}),
+                dimension_value_ids=tuple(line.dimension_value_ids),
+            )
             for i, line in enumerate(payload.lines, 1)
         ),
     )

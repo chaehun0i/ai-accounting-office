@@ -12,7 +12,19 @@ async function main() {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || "msedge", headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
-  page.setDefaultTimeout(60000);
+  page.setDefaultTimeout(120000);
+  const dimensionMode = process.argv.includes("--dimensions");
+  if (dimensionMode) await page.route("**/api/**", async route => {
+    const url = new URL(route.request().url());
+    try {
+      const response = await route.fetch({url: api + url.pathname.slice(4) + url.search, timeout:120000});
+      await route.fulfill({response});
+    } catch {
+      // 브라우저 오류 원문에 인증 헤더가 포함될 수 있어 출력하지 않습니다.
+      console.error("테스트 API 연결 실패: " + url.pathname);
+      await route.abort().catch(()=>{});
+    }
+  });
   const stamp = Date.now();
   const ownerEmail = `accounting-owner-${stamp}@example.com`, writerEmail = `accounting-writer-${stamp}@example.com`;
   const password = "SyntheticAccountingPassword!2026";
@@ -38,6 +50,25 @@ async function main() {
     const templates = await context.request.get(api + "/account-templates", { headers: { Authorization: `Bearer ${owner.access_token}`, "X-Company-ID": company.id } }).then(r => r.json());
     await request("/accounting/initialize", { fiscal_year: 2026, template_id: templates[0].id }, owner.access_token, company.id);
     await login(writerEmail);
+    let dimensionValue;
+    if (dimensionMode) {
+      await page.goto(origin + "/accounting");
+      await page.getByRole("button", {name:"관리차원", exact:true}).click();
+      await page.getByLabel("관리차원 코드", {exact:true}).fill("E2E_DEPT");
+      await page.getByLabel("관리차원 이름", {exact:true}).fill("검증 부서");
+      await page.getByLabel("분석 유형").selectOption("DEPARTMENT");
+      await page.getByRole("button", {name:"관리차원 추가",exact:true}).click();
+      await page.getByLabel("항목 코드", {exact:true}).fill("SALES");
+      await page.getByLabel("항목 이름", {exact:true}).fill("영업팀");
+      const saved = page.waitForResponse(r=>r.url().includes("/values") && r.request().method()==="POST");
+      await page.getByRole("button", {name:"항목 추가",exact:true}).click();
+      const valueResponse = await saved;
+      assert.equal(valueResponse.status(),201);
+      dimensionValue = (await valueResponse.json()).id;
+      await page.reload();
+      await page.getByRole("button", {name:"관리차원",exact:true}).click();
+      await page.getByText(/SALES 영업팀/).waitFor();
+    }
     await page.getByRole("navigation", { name: "업무 메뉴" }).getByRole("link", { name: "거래", exact: true }).click();
     const transactions = page.locator("section").filter({ has: page.getByRole("heading", { name: "회계 거래", exact: true }) });
     await transactions.getByLabel("조회 시작일").fill("2026-01-01");
@@ -64,9 +95,16 @@ async function main() {
     await journal.getByLabel("대변", { exact: true }).nth(1).fill("100.0000");
     await journal.getByRole("button", { name: "분개 추가", exact: true }).click();
     await journal.getByRole("button", { name: "분개 삭제", exact: true }).nth(2).click();
+    if (dimensionMode) {
+      await journal.getByLabel("검증 부서 1", {exact:true}).selectOption(dimensionValue);
+      await journal.getByLabel("검증 부서 2", {exact:true}).selectOption(dimensionValue);
+    }
     await journal.getByRole("button", { name: "전표 초안 저장", exact: true }).click();
     await journal.getByRole("heading", { name: "전표 상세", exact: true }).waitFor();
+    const submitting = page.waitForResponse(r=>r.url().endsWith("/submit") && r.request().method()==="POST");
     await journal.getByRole("button", { name: "제출", exact: true }).click();
+    const submitted = await submitting;
+    assert.equal(submitted.status(),200,"전표 제출 HTTP " + submitted.status());
     await journal.getByRole("button", { name: "승인 요청", exact: true }).click();
     await journal.getByText("브라우저 복식부기 검증 · 승인 대기", { exact: true }).waitFor();
     await page.getByRole("button", { name: "로그아웃", exact: true }).click();
@@ -88,6 +126,7 @@ async function main() {
     const period = reports.getByLabel("회계기간", { exact: true });
     await period.selectOption(await period.locator("option").nth(1).getAttribute("value"));
     await reports.getByLabel("원장 계정", { exact: true }).selectOption(accountId);
+    if (dimensionMode) await reports.getByLabel("관리항목", {exact:true}).selectOption(dimensionValue);
     await reports.getByRole("button", { name: "장부 조회", exact: true }).click();
     const journalLink = reports.getByRole("link", { name: "J-2026-000001", exact: true });
     await journalLink.waitFor();
@@ -99,9 +138,23 @@ async function main() {
     await page.getByLabel("회계기간", { exact: true }).selectOption(await page.getByLabel("회계기간", { exact: true }).locator("option").nth(1).getAttribute("value"));
     await page.locator("#office-content").getByRole("button", { name: "장부 조회", exact: true }).click();
     await page.getByText(/기간 차변 100.0000 · 기간 대변 100.0000/).waitFor();
+    if (dimensionMode) {
+      const isolated = await request("/companies", {company_name:"관리차원 격리 검증 회사",business_number:"9876543210",taxpayer_type:"INDIVIDUAL",opening_date:"2026-01-01",address:"합성 검증 주소"}, owner.access_token);
+      await page.reload();
+      await page.locator("button.company-switch").click();
+      await page.getByRole("dialog").getByLabel("회사", {exact:true}).selectOption(isolated.id);
+      await page.getByRole("dialog").getByRole("button", {name:"선택 완료",exact:true}).click();
+      await page.getByRole("dialog").getByRole("button", {name:"닫기",exact:true}).click();
+      await page.getByRole("button", {name:"관리차원 격리 검증 회사",exact:true}).waitFor();
+      await page.getByRole("navigation", {name:"업무 메뉴"}).getByRole("link", {name:"설정 관리",exact:true}).click();
+      await page.getByRole("button", {name:"관리차원",exact:true}).click();
+      await page.getByText("등록된 관리차원이 없습니다. 필요한 분석축부터 추가해 주세요.",{exact:true}).waitFor();
+      assert.equal(await page.getByText(/SALES 영업팀/).count(),0);
+    }
     await page.screenshot({ path: ".local/accounting-browser-success.png", fullPage: true });
-    console.log("브라우저 검증 통과: 로그인, 회사 선택, 거래 생성, 분개 추가·삭제, 제출, 별도 사용자 승인, 장부 반영, 원장, 시산표, 전표 이동");
+    console.log(dimensionMode ? "관리차원 브라우저 검증 통과: 생성, 항목 생성, 새로고침, 분개 선택, 별도 승인, 확정, 원장 필터, 시산표, 회사 전환 격리" : "브라우저 검증 통과: 로그인, 회사 선택, 거래 생성, 분개 추가·삭제, 제출, 별도 사용자 승인, 장부 반영, 원장, 시산표, 전표 이동");
   } catch (error) {
+    console.error("화면 안내:", await page.getByRole("alert").allTextContents());
     await page.screenshot({ path: ".local/accounting-browser-failure.png", fullPage: true });
     throw error;
   } finally { await browser.close(); }

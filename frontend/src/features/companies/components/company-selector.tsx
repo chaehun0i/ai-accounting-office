@@ -1,22 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useCompany } from "../company-provider";
 import { filterCompanies } from "../selection-state";
 
 export function CompanySelector() {
+  const instanceId = useId();
+  const searchId = `${instanceId}-search`;
+  const listId = `${instanceId}-list`;
+  const titleId = `${instanceId}-title`;
   const company = useCompany();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState("");
   const filtered = filterCompanies(company.companies, search);
-  return <section className="panel" aria-labelledby="company-title">
+  return <section className="panel" aria-labelledby={titleId}>
     <p className="eyebrow">회사 선택</p>
-    <h2 id="company-title">어느 회사에서 시작할까요?</h2>
+    <h2 id={titleId}>어느 회사에서 시작할까요?</h2>
     <p className="muted">접근할 수 있는 회사만 표시됩니다. 회사마다 이용 가능한 기능이 다를 수 있어요.</p>
-    <label htmlFor="company-search">회사명 검색</label>
-    <input id="company-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="회사 이름을 입력하세요" />
-    <label htmlFor="company-list">회사</label>
-    <select id="company-list" value={selected} onChange={event => setSelected(event.target.value)} disabled={company.loading}>
+    <label htmlFor={searchId}>회사명 검색</label>
+    <input id={searchId} type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="회사 이름을 입력하세요" />
+    <label htmlFor={listId}>회사</label>
+    <select id={listId} value={selected} onChange={event => setSelected(event.target.value)} disabled={company.loading}>
       <option value="">회사를 선택하세요</option>
       {filtered.map(item => <option key={item.id} value={item.id}>{item.company_name}</option>)}
     </select>

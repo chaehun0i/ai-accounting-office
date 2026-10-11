@@ -186,7 +186,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `010_agent_runtime_foundation`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 009를 보존하고 v0.2.6 정책에 따라 다음 forward revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
+현재 head는 `011_accounting_dimensions`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation → 011_accounting_dimensions` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 009를 보존하고 v0.2.6 정책에 따라 다음 forward revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
