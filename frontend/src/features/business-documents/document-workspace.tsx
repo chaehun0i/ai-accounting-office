@@ -75,7 +75,7 @@ export function DocumentWorkspace({ company }: { company: Company }) {
   return <section className="panel">
     <div className="section-heading"><div><h2>매출 · 매입 문서</h2><p>문서를 확정하면 거래와 채권·채무가 생성됩니다. 장부 반영은 별도 전표 승인 절차입니다.</p></div>
       {company.permissions.includes("invoice.create") && !kind.includes("NOTE") && <button className="button-accent" onClick={() => open({ kind, original: null, editing: null })}>새 {documentLabels[kind]} 작성</button>}</div>
-    <label>문서 종류<select value={kind} onChange={event => { setKind(event.target.value as DocumentKind); setSelected(null); setLoading(true); setError(""); }}>
+    <label>문서 종류<select aria-label="문서 종류" value={kind} onChange={event => { setKind(event.target.value as DocumentKind); setSelected(null); setLoading(true); setError(""); }}>
       {Object.entries(documentLabels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
     </select></label>
     {error && <p role="alert">{error}</p>}{saved && <p role="status">{saved}</p>}
@@ -95,7 +95,7 @@ export function DocumentWorkspace({ company }: { company: Company }) {
     <OfficeDialog open={!!editor} onClose={() => setEditor(null)} busy={busy} title={editor ? documentLabels[editor.kind] : "문서 작성"} description="공급가액과 세액은 원천 문서의 금액입니다. 세무 신고 검증 결과가 아닙니다.">
       {error && <p role="alert">{error}</p>}{editor && <form key={requestKey.current} onSubmit={save}>
         <label>문서번호<input name="number" required maxLength={100} defaultValue={editor.editing?.document_no ?? ""} /></label>
-        <label>거래처<select name="counterparty" required defaultValue={editor.original?.counterparty_id ?? editor.editing?.counterparty_id ?? ""}>{!editor.original && <option value="">거래처 선택</option>}{counterparties.filter(party => !editor.original || party.id === editor.original.counterparty_id).map(party => <option key={party.id} value={party.id}>{party.display_name}</option>)}</select></label>
+        <label>거래처<select aria-label="거래처" name="counterparty" required defaultValue={editor.original?.counterparty_id ?? editor.editing?.counterparty_id ?? ""}>{!editor.original && <option value="">거래처 선택</option>}{counterparties.filter(party => !editor.original || party.id === editor.original.counterparty_id).map(party => <option key={party.id} value={party.id}>{party.display_name}</option>)}</select></label>
         <label>발행일<input name="issue" type="date" required defaultValue={editor.editing?.issue_date ?? localDate()} /></label><label>회계 기준일<input name="accounting" type="date" required defaultValue={editor.editing?.accounting_date ?? localDate()} /></label><label>지급기일<input name="due" type="date" required defaultValue={editor.editing?.due_date ?? localDate()} /></label>
         {editor.original && <label>정정 사유<input name="reason" required maxLength={100} /></label>}
         {lines.map((line, index) => <fieldset key={index}><legend>항목 {index + 1}</legend><label>내용<input value={line.description} required maxLength={500} onChange={event => lineChange(index, "description", event.target.value)} /></label><label>공급가액<input inputMode="decimal" required value={line.supply_amount} onChange={event => lineChange(index, "supply_amount", event.target.value)} /></label><label>세액<input inputMode="decimal" required value={line.tax_amount} onChange={event => lineChange(index, "tax_amount", event.target.value)} /></label><button type="button" disabled={lines.length === 1} onClick={() => setLines(values => values.filter((_, i) => i !== index))}>항목 삭제</button></fieldset>)}

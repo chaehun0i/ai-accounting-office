@@ -131,6 +131,15 @@ class DocumentService:
                             "같은 원천 식별자의 문서 내용이 다릅니다.",
                             409,
                         )
+                    uow.documents.event(
+                        old,
+                        actor.user_id,
+                        command,
+                        key,
+                        fingerprint(digest, expected_version, original_version),
+                        old.status.value,
+                        datetime.now(UTC),
+                    )
                     return old
             if value.is_note:
                 assert value.original_document_type and value.original_document_id

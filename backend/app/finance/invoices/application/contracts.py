@@ -8,7 +8,7 @@ from app.finance.settlements.application.contracts import FinanceUnitOfWork
 
 class Documents(Protocol):
     def get(
-        self, company: UUID, kind: DocumentType, resource: UUID, *, lock: bool = False
+        self, company_id: UUID, kind: DocumentType, resource: UUID, *, lock: bool = False
     ) -> Document | None: ...
     def list(self, company: UUID, kind: DocumentType) -> list[Document]: ...
     def source(

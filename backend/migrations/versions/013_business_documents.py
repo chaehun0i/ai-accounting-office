@@ -64,7 +64,7 @@ DDL = {
         CONSTRAINT ck_sales_invoices_approval CHECK ((status IN ('DRAFT','REVIEW_REQUIRED') AND
         transaction_id IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (status IN
         ('APPROVED','APPLIED') AND transaction_id IS NOT NULL AND approved_by IS NOT NULL AND
-        approved_at IS NOT NULL)),
+        approved_at IS NOT NULL AND approved_by <> created_by)),
         CONSTRAINT fk_sales_invoices_company_id_companies FOREIGN KEY(company_id) REFERENCES
         companies (id) ON DELETE RESTRICT,
         CONSTRAINT fk_sales_invoices_created_by_users FOREIGN KEY(created_by) REFERENCES users
@@ -153,7 +153,7 @@ DDL = {
         CONSTRAINT ck_purchase_invoices_approval CHECK ((status IN ('DRAFT','REVIEW_REQUIRED') AND
         transaction_id IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (status IN
         ('APPROVED','APPLIED') AND transaction_id IS NOT NULL AND approved_by IS NOT NULL AND
-        approved_at IS NOT NULL)),
+        approved_at IS NOT NULL AND approved_by <> created_by)),
         CONSTRAINT fk_purchase_invoices_company_id_companies FOREIGN KEY(company_id) REFERENCES
         companies (id) ON DELETE RESTRICT,
         CONSTRAINT fk_purchase_invoices_created_by_users FOREIGN KEY(created_by) REFERENCES users
@@ -247,7 +247,7 @@ DDL = {
         CONSTRAINT ck_document_notes_approval CHECK ((status IN ('DRAFT','REVIEW_REQUIRED') AND
         transaction_id IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (status IN
         ('APPROVED','APPLIED') AND transaction_id IS NOT NULL AND approved_by IS NOT NULL AND
-        approved_at IS NOT NULL)),
+        approved_at IS NOT NULL AND approved_by <> created_by)),
         CONSTRAINT fk_document_notes_company_id_sales_invoice_id_sales_invoices FOREIGN
         KEY(company_id, sales_invoice_id) REFERENCES sales_invoices (company_id, id) ON DELETE
         RESTRICT,

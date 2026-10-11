@@ -113,10 +113,10 @@ class DocumentRepository:
         )
 
     def get(
-        self, company: UUID, kind: DocumentType, resource: UUID, *, lock: bool = False
+        self, company_id: UUID, kind: DocumentType, resource: UUID, *, lock: bool = False
     ) -> Document | None:
         model, _ = self.models(kind)
-        query = select(model).where(model.company_id == company, model.id == resource)
+        query = select(model).where(model.company_id == company_id, model.id == resource)
         if model is DocumentNoteModel:
             query = query.where(DocumentNoteModel.note_type == kind.value)
         row = self.session.scalar(query.with_for_update() if lock else query)
