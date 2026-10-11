@@ -34,6 +34,7 @@ from app.identity.users.domain.entities import Principal
 from app.identity.users.infrastructure.models import UserModel
 from app.intake.application.service import IntakeService
 from app.intake.domain.canonical_fields import SourceType, TargetContext
+from app.intake.domain.errors import SourceConflict
 from app.intake.infrastructure.parser import parse_file
 from app.intake.infrastructure.unit_of_work import IntakeSQLAlchemyUnitOfWork
 from app.intake.promotion.application.service import PromotionService
@@ -41,7 +42,9 @@ from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemy
 from app.storage.infrastructure.local import LocalObjectStorage
 
 
-@pytest.mark.parametrize("mode", ["same-key", "different-key", "different-import"])
+@pytest.mark.parametrize(
+    "mode", ["same-key", "different-key", "different-import", "conflicting-import"]
+)
 def test_concurrent_promotion_has_one_transaction(identity_database, tmp_path: Path, mode):
     factory = create_session_factory(identity_database)
     with factory.begin() as session:
@@ -100,11 +103,13 @@ def test_concurrent_promotion_has_one_transaction(identity_database, tmp_path: P
         promotion = PromotionService(lambda: PromotionSQLAlchemyUnitOfWork(factory), intake)
         uploads = []
         receipts = []
-        for n in range(2 if mode == "different-import" else 1):
+        for n in range(2 if mode in {"different-import", "conflicting-import"} else 1):
             uploaded = intake.upload(
                 actor,
                 company.id,
-                source=SourceType.SALES,
+                source=SourceType.PURCHASE
+                if mode == "conflicting-import" and n
+                else SourceType.SALES,
                 target=TargetContext.TRANSACTION_CANONICAL,
                 source_system="CONCURRENCY",
                 filename="data.csv",
@@ -126,22 +131,29 @@ def test_concurrent_promotion_has_one_transaction(identity_database, tmp_path: P
         barrier = Barrier(2)
 
         def promote(n):
-            index = n if mode == "different-import" else 0
+            index = n if mode in {"different-import", "conflicting-import"} else 0
             barrier.wait(timeout=20)
-            return promotion.promote(
-                actor,
-                company.id,
-                uploads[index].id,
-                expected_version=receipts[index].confirmed_version,
-                receipt_id=receipts[index].id,
-                source_digest=receipts[index].source_digest,
-                idempotency_key="same-key" if mode == "same-key" else f"key-{n}",
-            )
+            try:
+                return promotion.promote(
+                    actor,
+                    company.id,
+                    uploads[index].id,
+                    expected_version=receipts[index].confirmed_version,
+                    receipt_id=receipts[index].id,
+                    source_digest=receipts[index].source_digest,
+                    idempotency_key="same-key" if mode == "same-key" else f"key-{n}",
+                )
+
+            except SourceConflict as error:
+                return error
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             results = list(executor.map(promote, range(2)))
-        assert all(r.transaction_count == 1 for r in results)
-        assert results[0].rows[0].transaction_id == results[1].rows[0].transaction_id
+        if mode == "conflicting-import":
+            assert sum(isinstance(r, SourceConflict) for r in results) == 1
+        else:
+            assert all(r.transaction_count == 1 for r in results)
+            assert results[0].rows[0].transaction_id == results[1].rows[0].transaction_id
         with identity_database.connect() as connection:
             assert (
                 connection.scalar(

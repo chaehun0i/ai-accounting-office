@@ -242,3 +242,62 @@ def test_xlsx_exact_promotion(api_client, auth_service):
     assert result.json()["rows"][0]["source_id"] == "xlsx-1"
     with factory.begin() as session:
         assert str(session.scalar(select(TransactionModel.amount))) == "10.0001"
+
+
+def test_requester_and_transaction_permission_are_both_enforced(api_client, auth_service):
+    headers, factory = prepare(api_client, auth_service)
+    value, receipt = confirmed(api_client, headers)
+    registration = api_client.post(
+        "/auth/register",
+        json={"email": "another-intake@example.com", "password": "StrongPassword!2026"},
+    ).json()
+    with factory.begin() as session:
+        session.add(
+            MembershipModel(
+                company_id=UUID(headers["X-Company-ID"]),
+                user_id=UUID(registration["user"]["id"]),
+                role_code="ACCOUNTANT",
+                status="ACTIVE",
+                joined_at=datetime.now(UTC),
+                version=1,
+            )
+        )
+    other_headers = {**headers, "Authorization": "Bearer " + registration["access_token"]}
+    assert promote(api_client, other_headers, value, receipt).status_code == 403
+    with factory.begin() as session:
+        session.execute(
+            update(MembershipModel)
+            .where(MembershipModel.company_id == UUID(headers["X-Company-ID"]))
+            .values(role_code="VIEWER")
+        )
+    assert promote(api_client, headers, value, receipt).status_code == 403
+
+
+def test_ambiguous_counterparty_is_not_guessed(api_client, auth_service):
+    headers, factory = prepare(api_client, auth_service)
+    content = b"source_id,date,amount,currency,counterparty\ns1,2026-01-02,100,KRW,ambiguous-name\n"
+    value, receipt = confirmed(api_client, headers, content)
+    result = promote(api_client, headers, value, receipt)
+    assert result.status_code == 200, result.text
+    assert result.json()["review_count"] == 1
+    with factory.begin() as session:
+        transaction = session.scalar(select(TransactionModel))
+        assert transaction.counterparty_id is None and transaction.status == "NEEDS_INFORMATION"
+
+
+def test_stale_confirmed_version_and_extra_input(api_client, auth_service):
+    headers, factory = prepare(api_client, auth_service)
+    value, receipt = confirmed(api_client, headers)
+    assert (
+        promote(api_client, headers, value, receipt, company_id=headers["X-Company-ID"]).status_code
+        == 422
+    )
+    from app.intake.infrastructure.models import ImportModel
+
+    with factory.begin() as session:
+        session.execute(
+            update(ImportModel)
+            .where(ImportModel.id == UUID(value["id"]))
+            .values(version=receipt["confirmed_version"] + 1)
+        )
+    assert promote(api_client, headers, value, receipt).json()["code"] == "PREVIEW_STALE"
