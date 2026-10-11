@@ -46,6 +46,8 @@ COMMON = (
     CanonicalField("direction", "입출금 구분", "direction", False, ("입출금",)),
     CanonicalField("tax_amount", "세액", "decimal", False, ("부가세",)),
     CanonicalField("payment_method", "결제수단", "payment_method"),
+    CanonicalField("accounting_date", "회계일", "date", False, ("회계일자",)),
+    CanonicalField("counterparty_code", "거래처 코드", "identifier", False, ("거래처코드",)),
     CanonicalField("raw_reference", "원본 참조", "text"),
 )
 SCHEMAS: dict[SourceType, tuple[CanonicalField, ...]] = {

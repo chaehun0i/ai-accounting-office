@@ -116,6 +116,22 @@ class PreviewRead(BaseModel):
     rows: list[PreviewRow]
 
 
+class PromoteCommand(Command):
+    expected_version: int = Field(ge=1)
+    receipt_id: UUID
+    source_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class PromotionRowRead(BaseModel):
+    sheet_index: int
+    row_number: int
+    source_id: str
+    row_digest: str
+    transaction_id: UUID
+    status: str
+    review_code: str | None
+
+
 class ReceiptRead(BaseModel):
     id: UUID
     company_id: UUID
@@ -126,3 +142,23 @@ class ReceiptRead(BaseModel):
     counterparty_count: int
     status: str
     created_at: datetime
+    confirmed_version: int
+    promoted_at: datetime | None
+    rows: list[PromotionRowRead]
+    review_count: int = 0
+    failed_count: int = 0
+
+    @classmethod
+    def from_receipt(cls, value: object) -> "ReceiptRead":
+        from dataclasses import asdict
+        from typing import cast
+
+        from app.intake.domain.entities import Receipt
+
+        receipt = cast(Receipt, value)
+        return cls.model_validate(
+            {
+                **asdict(receipt),
+                "review_count": sum(r.review_code is not None for r in receipt.rows),
+            }
+        )

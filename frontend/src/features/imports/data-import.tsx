@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
+import { canPromote, promotionCommand } from "./promotion";
 import type { Company } from "@/features/companies/selection-state";
 
-type Import = { id: string; version: number; original_filename: string };
+type Import = { id: string; version: number; original_filename: string; source_type: string };
 type Mapping = { sheet_index: number; column_index: number; canonical_field_code: string | null };
 type Columns = {
   columns: { sheet_index: number; sheet_name: string; column_index: number; source_header: string; mapping: Mapping & { status: string } }[];
@@ -15,7 +17,12 @@ type Preview = {
   errors: { sheet_index: number; row_number: number; column_index: number; message: string }[];
   rows: { sheet_index: number; row_number: number; values: [string, string][] }[];
 };
-type Receipt = { id: string; import_id: string; evidence_count: number; created_at: string };
+type Receipt = {
+  id: string; import_id: string; evidence_count: number; created_at: string;
+  source_digest: string; confirmed_version: number; status: string; transaction_count: number;
+  review_count: number; failed_count: number;
+  rows: { sheet_index: number; row_number: number; transaction_id: string; status: string; review_code: string | null }[];
+};
 const sources = [
   ["BANK_TRANSACTION", "은행 거래"], ["CARD_TRANSACTION", "카드 거래"], ["SALES", "매출"],
   ["PURCHASE", "매입"], ["EXPENSE", "비용"], ["OPENING_BALANCE", "기초잔액"], ["COUNTERPARTY", "거래처"],
@@ -31,6 +38,7 @@ export function DataImport({ company }: { company: Company }) {
   const [preview, setPreview] = useState<Preview>();
   const [consent, setConsent] = useState(false);
   const [key, setKey] = useState("");
+  const [promotionKey, setPromotionKey] = useState("");
   const [receipt, setReceipt] = useState<Receipt>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -40,9 +48,23 @@ export function DataImport({ company }: { company: Company }) {
   const canMap = company.permissions.includes("import.mapping.update");
   const canConfirm = company.permissions.includes("import.confirm");
 
+  useEffect(() => {
+    let active = true;
+    const id = sessionStorage.getItem(`confirmed-import:${company.id}`);
+    if (id) {
+      void Promise.all([
+        authenticatedRequest<Import>(`/imports/${id}`, { headers: { "X-Company-ID": company.id } }),
+        authenticatedRequest<Receipt>(`/imports/${id}/receipt`, { headers: { "X-Company-ID": company.id } }),
+      ]).then(([saved, receipt]) => {
+        if (active) { setValue(saved); setSource(saved.source_type); setReceipt(receipt); setPromotionKey(`promote:${receipt.id}`); }
+      }).catch(() => { if (active) setError("이전 접수 자료를 불러오지 못했습니다. 회사와 접근 권한을 확인해 주세요."); });
+    }
+    return () => { active = false; };
+  }, [company.id]);
+
   function reset() {
     setValue(undefined); setColumns(undefined); setPreview(undefined); setReceipt(undefined);
-    setConsent(false); setDirty(false); setMappings([]); setError(""); setKey("");
+    setConsent(false); setDirty(false); setMappings([]); setError(""); setKey(""); setPromotionKey("");
   }
   async function perform(action: () => Promise<void>) {
     setBusy(true); setError("");
@@ -88,6 +110,17 @@ export function DataImport({ company }: { company: Company }) {
         method: "POST", headers: { ...headers, "Idempotency-Key": key },
         body: JSON.stringify({ expected_version: preview.version, preview_digest: preview.preview_digest, confirmed: true }),
       });
+      setReceipt(result); setPromotionKey(`promote:${result.id}`);
+      sessionStorage.setItem(`confirmed-import:${company.id}`, result.import_id);
+    });
+  }
+  async function promote() {
+    if (!receipt || !value) return;
+    await perform(async () => {
+      const result = await authenticatedRequest<Receipt>(`/imports/${value.id}/promote`, {
+        method: "POST", headers: { ...headers, "Idempotency-Key": promotionKey },
+        body: JSON.stringify(promotionCommand(receipt)),
+      });
       setReceipt(result);
     });
   }
@@ -120,7 +153,18 @@ export function DataImport({ company }: { company: Company }) {
         {!canConfirm && <p>자료 접수 권한이 필요합니다. 회사 관리자에게 문의해 주세요.</p>}
       </div>}
     </>}
-    {receipt && <div role="status"><h3>자료 접수 완료</h3><p>원본 파일과 검증 결과가 보존되었습니다. 장부 반영은 아직 진행되지 않았습니다.</p><p>접수 번호: {receipt.id}</p></div>}
+    {receipt && <div role="status">
+      <h3>{receipt.transaction_count > 0 ? "거래 생성 완료" : "파일 확인 완료"}</h3>
+      <p>{receipt.transaction_count > 0 ? "거래가 준비되었습니다. 전표 작성과 승인·장부 반영은 별도로 진행해 주세요." : "파일과 검증 결과를 보존했습니다. 아직 거래나 장부에 반영되지 않았습니다."}</p>
+      {receipt.status === "CONFIRMED" && source !== "OPENING_BALANCE" && <>
+        <button className="primary" disabled={busy || !canPromote(receipt, company.permissions)} onClick={promote}>확인한 자료로 거래 생성</button>
+        <p>실패하면 파일을 다시 올리지 않고 같은 버튼으로 재시도할 수 있습니다.</p>
+      </>}
+      {source === "OPENING_BALANCE" && <p>기초잔액은 초기 회사 설정의 기초 전표 흐름에서 처리해 주세요.</p>}
+      <p>생성·연결된 거래 {receipt.transaction_count}건 · 보완 필요 {receipt.review_count}건 · 실패 {receipt.failed_count}건</p>
+      {receipt.transaction_count > 0 && <Link href="/transactions">생성된 거래 보기</Link>}
+      {receipt.rows?.map(row => <p key={`${row.sheet_index}-${row.row_number}`}>시트 {row.sheet_index + 1}, {row.row_number}행: {row.status === "REUSED" ? "기존 거래 연결" : "새 거래 생성"}{row.review_code && " · 거래처 정보를 확인해 주세요"}</p>)}
+    </div>}
     {busy && <p role="status">자료를 확인하고 있습니다…</p>}
     {error && <p role="alert" className="error">{error}</p>}
   </section>;

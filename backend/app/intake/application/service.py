@@ -319,8 +319,11 @@ class IntakeService:
                 0,
                 1,
                 0,
-                "COMPLETED",
+                "CONFIRMED"
+                if current.target_context == TargetContext.TRANSACTION_CANONICAL
+                else "COMPLETED",
                 now,
+                current.version + 1,
             )
             uow.imports.confirm(
                 current, result, records, actor.user_id, idempotency_key, fingerprint, now

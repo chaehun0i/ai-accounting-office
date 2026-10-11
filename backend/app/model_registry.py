@@ -52,6 +52,7 @@ from app.finance.reconciliation.infrastructure import (  # noqa: E402
 )
 from app.finance.settlements.infrastructure import models as settlement_models  # noqa: F401, E402
 from app.intake.infrastructure import models as intake_models  # noqa: F401, E402
+from app.intake.promotion.infrastructure import models as promotion_models  # noqa: F401, E402
 from app.master_data.counterparties.infrastructure import (  # noqa: E402
     models as counterparties_models,  # noqa: F401, E402
 )

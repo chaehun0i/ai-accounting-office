@@ -186,7 +186,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `011_accounting_dimensions`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation → 011_accounting_dimensions` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 009를 보존하고 v0.2.6 정책에 따라 다음 forward revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
+현재 head는 `012_import_transaction_promotion`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation → 011_accounting_dimensions → 012_import_transaction_promotion` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 009를 보존하고 v0.2.6 정책에 따라 다음 forward revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -215,7 +215,7 @@ python -m pytest --require-postgres
 
 Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. 이번 Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개까지 지원합니다. Tax 정본, 자율 승인·Posting, 전체 Chat UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
 
-다음 후보는 **은행·카드·경비·자금 기능을 포함한 Finance 확장 또는 자산·재고**입니다. 이번 정산·기한 분석·원장 대사 및 MISMATCH 계약을 이어받되 후속 작업 시작 시 최신 main/Drive의 구현 순서와 migration/FK 범위를 다시 판별합니다.
+확정된 가져오기를 정규 거래로 승격하는 흐름까지 연결했습니다. 다음 후보는 최신 로드맵의 **Business Document — Invoice / Credit Note**입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
 
 ## 거래 기반 회계 제안 실행
 
@@ -235,13 +235,13 @@ Gemini/LangGraph/LangChain/MCP 역할, 실제 Tool 목록, 로컬 MCP 실행과 
 ## 파일과 자료 가져오기
 
 현재 회사의 ACCOUNTANT/TAX_ACCOUNTANT 중 Intake 권한을 가진 사용자는 화면의 자료 가져오기에서 CSV/XLSX를 올릴 수 있습니다. OWNER 역할만으로 업로드 권한을 자동 부여하지 않습니다.
-원본 열을 회계 항목에 연결하고 검증 결과를 확인한 뒤 명시적으로 접수합니다. 미리보기는 15분간 유효합니다. 접수 완료는 원본 보존과 검증 완료이며 장부 반영을 의미하지 않습니다.
+원본 열을 회계 항목에 연결하고 검증 결과를 확인한 뒤 명시적으로 접수합니다. 미리보기는 15분간 유효합니다. **파일 확인 완료 → 확인한 자료로 거래 생성 → 거래 생성 완료**를 구분합니다. 거래 생성 후에도 전표 작성·사람 승인·장부 반영은 별도로 진행합니다. 실패한 거래 생성은 같은 접수에서 재시도할 수 있고, 새로고침하면 현재 회사의 최근 접수를 복구합니다.
 
 UTF-8 CSV/UTF-8 BOM CSV와 XLSX, 최대 2MB·총 1,000행·40열·5시트를 지원합니다. 수식·매크로·외부 연결·삽입 개체는 제거해 주세요.
 예를 들어 SALES CSV의 필수 header는 `source_id,transaction_date,amount,currency`이며 날짜는 `2026-01-02`, 금액은 `100.0001`, 통화는 `KRW` 형태입니다.
 원본 파일은 backend 실행 기준 `STORAGE_ROOT=../.local/storage` 아래 서버 생성 키로 보관합니다. 이 경로는 Git에서 제외되며 파일 bytes를 PostgreSQL에 저장하지 않습니다.
 
-API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 수 있습니다. 모든 Import 요청은 Bearer와 `X-Company-ID`, 변경 요청은 `X-CSRF-Protection: 1`, Confirm은 `Idempotency-Key`가 필요합니다.
+API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 수 있습니다. 모든 Import 요청은 Bearer와 `X-Company-ID`, 변경 요청은 `X-CSRF-Protection: 1`, Confirm과 `POST /imports/{id}/promote`는 `Idempotency-Key`가 필요합니다. 승격에는 접수 영수증의 `confirmed_version`, `id`, `source_digest`를 전달합니다. 업로더에게 `import.confirm`과 `transaction.create` 권한이 모두 있어야 합니다. [승격 계약·검증·제한](docs/import-transaction-promotion.md)을 참고하세요.
 [구조·API·파일 제한·후속 계약](docs/storage-evidence-intake.md), [실제 참고 파일과 충돌 처리](docs/intake-source-patterns.md), [검증 결과](docs/intake-verification.md)를 참고하세요.
 
 ## 거래·전표·원장·시산표
@@ -255,4 +255,4 @@ API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 �
 
 ## 처음 회사 설정과 설정 관리
 
-새 회사는 업무 홈에서 회사정보 → 회계 기준 → 거래처 → 기초잔액 → 최종 확인 순서로 준비합니다. 완료한 회사는 업무 홈에서 바로 일을 시작하고, 변경할 내용은 설정 관리에서 수정합니다. 계정과목은 서버가 130개 기본 목록을 준비하며 사용자가 직접 생성하지 않습니다. [동작·계정 버전·참고 자료·검증](docs/first-company-setup-and-account-catalog.md)을 확인하세요.
+새 회사는 업무 홈에서 회사정보 → 회계 기준 → 거래처 → 기초잔액 → 최종 확인 순서로 준비합니다. 완료한 회사는 업무 홈에서 바로 일을 시작하고, 변경할 내용은 설정 관리에서 수정합니다. 서버 기본 계정과목은 175개이며 권한이 있는 사용자는 회사 전용 계정을 추가할 수 있습니다. [현재 계정과목·체험 안내](docs/company-accounts-demo.md)를 참고하세요.
