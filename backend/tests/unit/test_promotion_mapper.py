@@ -47,6 +47,7 @@ def test_mapper_exact_decimal_and_identity():
         dict(amount="-1"),
         dict(amount="0"),
         dict(amount="NaN"),
+        dict(amount="1e100"),
         dict(amount="1.00001"),
         dict(currency="USD"),
         dict(tax_amount="12000"),

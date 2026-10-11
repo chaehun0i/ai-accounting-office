@@ -66,6 +66,7 @@ class PromotionService:
                 receipt.source_digest != source_digest
                 or receipt.confirmed_version != expected_version
                 or (snapshot.version != current.version and current.status != "COMPLETED")
+                or current.version != receipt.confirmed_version + (1 if current.status == "COMPLETED" else 0)
                 or snapshot.file_sha256 != current.file_sha256
             ):
                 raise PreviewStale()

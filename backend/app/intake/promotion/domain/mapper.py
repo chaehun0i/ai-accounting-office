@@ -9,6 +9,7 @@ from app.contracts.access_errors import InvalidInput, StateConflict
 from app.intake.domain.canonical_fields import SourceType
 from app.intake.domain.digest import digest
 from app.intake.domain.validation import CanonicalRow
+from app.intake.promotion.domain.errors import UnsupportedCurrency
 
 
 @dataclass(frozen=True)
@@ -47,11 +48,13 @@ def map_row(source: SourceType, row: CanonicalRow) -> TransactionFact:
     except (KeyError, ValueError, InvalidOperation):
         raise InvalidInput() from None
     if any(
-        not v.is_finite() or v != v.quantize(Decimal("0.0001")) or abs(v) >= Decimal("1e15")
+        not v.is_finite() or abs(v) >= Decimal("1e15") or v != v.quantize(Decimal("0.0001"))
         for v in (amount, tax)
     ):
         raise InvalidInput()
-    if amount <= 0 or tax < 0 or tax > amount or values.get("currency") != "KRW":
+    if values.get("currency") != "KRW":
+        raise UnsupportedCurrency()
+    if amount <= 0 or tax < 0 or tax > amount:
         raise InvalidInput()
     direction = values.get("direction") or (
         "IN"
