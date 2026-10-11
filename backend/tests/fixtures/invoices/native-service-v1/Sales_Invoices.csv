@@ -1,0 +1,3 @@
+invoice_no,invoice_date,counterparty_code,supply_amount,vat_amount,total_amount,due_date
+SVC-001,2026-01-05,CUST001,5000000,500000,5500000,2026-01-31
+SVC-002,2026-01-20,CUST002,3000000,300000,3300000,2026-02-15

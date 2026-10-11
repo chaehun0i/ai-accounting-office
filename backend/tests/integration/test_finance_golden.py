@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+from tests.integration.test_business_documents import body, create, transition
 from tests.integration.test_finance_allocations import confirm
 from tests.integration.test_finance_flow import (
     allocate,
@@ -12,6 +13,14 @@ from tests.integration.test_finance_flow import (
 
 
 def test_golden_corp_accounting_and_finance(api_client, auth_service):
+    golden_corp_accounting_and_finance(api_client, auth_service, False)
+
+
+def test_business_document_golden_corp_accounting_and_finance(api_client, auth_service):
+    golden_corp_accounting_and_finance(api_client, auth_service, True)
+
+
+def golden_corp_accounting_and_finance(api_client, auth_service, document_path):
     owner, writer, payload, accounts, customer, _ = finance_setup(api_client, auth_service)
     response = api_client.post(
         "/counterparties",
@@ -24,10 +33,13 @@ def test_golden_corp_accounting_and_finance(api_client, auth_service):
     )
     assert response.status_code == 201, response.text
     supplier = response.json()["id"]
+    if document_path:
+        accounts["매출채권"] = accounts["외상매출금"]
+        accounts["매입채무"] = accounts["외상매입금"]
     period = api_client.get("/accounting/periods", headers=writer).json()[9]
     payload = {**payload, "accounting_period_id": period["id"], "entry_date": "2026-10-01"}
 
-    def entry(day, description, debits, credits):
+    def entry(day, description, debits, credits, invoice=None):
         lines = []
         for direction, values in [("debit_amount", debits), ("credit_amount", credits)]:
             for name, amount, cp in values:
@@ -42,10 +54,36 @@ def test_golden_corp_accounting_and_finance(api_client, auth_service):
             api_client,
             owner,
             writer,
-            {**payload, "entry_date": f"2026-10-{day:02d}"},
+            {
+                **payload,
+                "entry_date": f"2026-10-{day:02d}",
+                **(
+                    {
+                        "source_type": "TRANSACTION",
+                        "source_transaction_id": invoice["transaction_id"],
+                    }
+                    if invoice
+                    else {}
+                ),
+            },
             lines,
             description,
         )
+
+    def document(path, number, cp, supply, tax, day):
+        if not document_path:
+            return None
+        values = {
+            **body(cp, number, str(supply), str(tax)),
+            "issue_date": f"2026-10-{day:02d}",
+            "accounting_date": f"2026-10-{day:02d}",
+            "due_date": "2026-10-31",
+        }
+        value = create(api_client, writer, path, values)
+        value = transition(api_client, writer, path, value, "submit").json()
+        response = transition(api_client, owner, path, value, "approve")
+        assert response.status_code == 200, response.text
+        return response.json()
 
     entry(1, "기초 자본", [("현금", 50000000, None)], [("자본금", 50000000, None)])
     sale = entry(
@@ -53,6 +91,7 @@ def test_golden_corp_accounting_and_finance(api_client, auth_service):
         "T001 외상매출",
         [("매출채권", 11000000, customer)],
         [("매출", 10000000, None), ("부가세예수금", 1000000, None)],
+        document("/sales-invoices", "T001", customer, 10000000, 1000000, 2),
     )
     entry(
         3,
@@ -68,6 +107,7 @@ def test_golden_corp_accounting_and_finance(api_client, auth_service):
         "T004 외상매입",
         [("소모품비", 3000000, None), ("부가세대급금", 300000, None)],
         [("매입채무", 3300000, supplier)],
+        document("/purchase-invoices", "T004", supplier, 3000000, 300000, 6),
     )
     payment = entry(
         7, "T005 부분지급", [("매입채무", 1650000, supplier)], [("현금", 1650000, None)]

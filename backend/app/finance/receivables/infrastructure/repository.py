@@ -5,11 +5,12 @@ from decimal import Decimal
 from typing import cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.accounting.journals.infrastructure.models import JournalEvidenceModel, JournalModel
 from app.accounting.transactions.infrastructure.models import TransactionModel
+from app.finance.invoices.infrastructure.models import ObligationAdjustmentModel
 from app.finance.payables.infrastructure.models import PayableModel
 from app.finance.receivables.domain.entities import Obligation
 from app.finance.receivables.infrastructure.models import ReceivableModel
@@ -52,7 +53,6 @@ class ObligationRepository:
                 JournalModel.company_id == row.company_id, JournalModel.id == row.origin_journal_id
             )
         )
-        assert journal is not None
         cp = self.session.scalar(
             select(CounterpartyModel).where(
                 CounterpartyModel.company_id == row.company_id,
@@ -60,6 +60,19 @@ class ObligationRepository:
             )
         )
         assert cp is not None
+        transaction_id = row.source_transaction_id or (
+            journal.source_transaction_id if journal else None
+        )
+        transaction = (
+            self.session.scalar(
+                select(TransactionModel).where(
+                    TransactionModel.company_id == row.company_id,
+                    TransactionModel.id == transaction_id,
+                )
+            )
+            if transaction_id
+            else None
+        )
         imported = (
             self.session.scalar(
                 select(TransactionModel.import_id).where(
@@ -67,18 +80,20 @@ class ObligationRepository:
                     TransactionModel.id == journal.source_transaction_id,
                 )
             )
-            if journal.source_transaction_id
+            if journal and journal.source_transaction_id
             else None
         )
+        imported = imported or (transaction.import_id if transaction else None)
         evidence = tuple(
             self.session.scalars(
                 select(JournalEvidenceModel.evidence_id).where(
                     JournalEvidenceModel.company_id == row.company_id,
-                    JournalEvidenceModel.journal_entry_id == journal.id,
+                    JournalEvidenceModel.journal_entry_id == (journal.id if journal else None),
                 )
             )
         )
         paid = self.allocated(row.company_id, row.id, as_of)
+        adjusted = row.original_amount + self.adjusted(row.company_id, row.id, as_of)
         return Obligation(
             id=row.id,
             company_id=row.company_id,
@@ -88,15 +103,19 @@ class ObligationRepository:
             origin_line_no=row.origin_line_no,
             account_id=row.account_id,
             original_amount=row.original_amount,
-            outstanding_amount=row.original_amount - paid,
+            outstanding_amount=adjusted - paid,
             currency_code=row.currency_code,
             due_date=row.due_date,
-            status=target_status(row.original_amount, paid),
+            status=target_status(adjusted, paid),
             version=row.version,
-            origin_date=journal.entry_date,
-            source_transaction_id=journal.source_transaction_id,
+            origin_date=row.recognized_date or (journal.entry_date if journal else date.min),
+            source_transaction_id=transaction_id,
             import_id=imported,
-            evidence_ids=evidence,
+            evidence_ids=tuple(
+                set(evidence)
+                | ({transaction.evidence_id} if transaction and transaction.evidence_id else set())
+            ),
+            source_invoice_id=row.source_invoice_id,
         )
 
     def get(
@@ -130,7 +149,7 @@ class ObligationRepository:
             )
             .where(self.model.company_id == company_id, JournalModel.entry_date <= as_of)
             .order_by(self.model.due_date, self.model.id)
-        )
+        ).all()
         paid: dict[UUID, Decimal] = {
             key: amount
             for key, amount in self.session.execute(
@@ -155,7 +174,7 @@ class ObligationRepository:
             )
         ):
             evidence.setdefault(journal_id, []).append(evidence_id)
-        return [
+        result = [
             Obligation(
                 id=row.id,
                 company_id=company_id,
@@ -177,6 +196,24 @@ class ObligationRepository:
             )
             for row, journal, cp, import_id in rows
         ]
+        # Invoice 원천은 전표 승인 전에도 보조부에서 조회합니다.
+        result = [
+            self._read(cast(ReceivableModel | PayableModel, row), as_of)
+            if row.source_invoice_id
+            else value
+            for value, (row, _journal, _cp, _import) in zip(result, rows, strict=True)
+        ]
+        result.extend(
+            self._read(cast(ReceivableModel | PayableModel, row), as_of)
+            for row in self.session.scalars(
+                select(self.model).where(
+                    self.model.company_id == company_id,
+                    self.model.origin_journal_id.is_(None),
+                    self.model.recognized_date <= as_of,
+                )
+            )
+        )
+        return result
 
     def origin(self, company: UUID, journal: UUID, line_no: int) -> Obligation | None:
         row = cast(
@@ -234,10 +271,105 @@ class ObligationRepository:
         )
         assert row is not None
         paid = self.allocated(company, resource, date.max)
-        row.outstanding_amount = row.original_amount - paid
-        row.status = target_status(row.original_amount, paid)
+        adjusted = row.original_amount + self.adjusted(company, resource, date.max)
+        row.outstanding_amount = adjusted - paid
+        row.status = target_status(adjusted, paid)
         row.version += 1
         from datetime import UTC, datetime
 
         row.updated_at = datetime.now(UTC)
+        self.session.flush()
+
+    def adjusted(self, company: UUID, target: UUID, as_of: date) -> Decimal:
+        model = ObligationAdjustmentModel
+        return self.session.scalar(
+            select(
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (model.adjustment_type == "DEBIT_NOTE", model.amount),
+                            else_=-model.amount,
+                        )
+                    ),
+                    0,
+                )
+            ).where(
+                model.company_id == company,
+                getattr(model, self.target_column) == target,
+                model.effective_date <= as_of,
+            )
+        ) or Decimal(0)
+
+    def invoice_source(self, company: UUID, transaction: UUID) -> Obligation | None:
+        row = self.session.scalar(
+            select(self.model)
+            .where(
+                self.model.company_id == company, self.model.source_transaction_id == transaction
+            )
+            .with_for_update()
+        )
+        return self._read(cast(ReceivableModel | PayableModel, row), date.max) if row else None
+
+    def add_invoice(
+        self,
+        company: UUID,
+        invoice: UUID,
+        transaction: UUID,
+        counterparty: UUID,
+        account: UUID,
+        amount: Decimal,
+        due: date,
+        recognized: date,
+    ) -> UUID:
+        resource = uuid4()
+        self.session.add(
+            self.model(
+                id=resource,
+                company_id=company,
+                source_invoice_id=invoice,
+                source_transaction_id=transaction,
+                recognized_date=recognized,
+                counterparty_id=counterparty,
+                account_id=account,
+                original_amount=amount,
+                outstanding_amount=amount,
+                due_date=due,
+                currency_code="KRW",
+                status="OPEN",
+                version=1,
+            )
+        )
+        self.session.flush()
+        return resource
+
+    def adjust(
+        self, company: UUID, target: UUID, note: UUID, kind: str, amount: Decimal, effective: date
+    ) -> None:
+        from datetime import UTC, datetime
+
+        self.session.add(
+            ObligationAdjustmentModel(
+                id=uuid4(),
+                company_id=company,
+                document_note_id=note,
+                adjustment_type=kind,
+                amount=amount,
+                effective_date=effective,
+                created_at=datetime.now(UTC),
+                **{self.target_column: target},
+            )
+        )
+        self.session.flush()
+        self.refresh(company, target)
+
+    def attach_journal(self, company: UUID, target: UUID, journal: UUID, line_no: int) -> None:
+        row = self.session.scalar(
+            select(self.model)
+            .where(self.model.company_id == company, self.model.id == target)
+            .with_for_update()
+        )
+        assert row is not None
+        typed_row = cast(ReceivableModel | PayableModel, row)
+        typed_row.origin_journal_id, typed_row.origin_line_no = journal, line_no
+        typed_row.version += 1
         self.session.flush()

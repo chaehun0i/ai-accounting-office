@@ -17,8 +17,11 @@ class ReceivableModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
         ForeignKey("companies.id", ondelete="RESTRICT"), index=True
     )
     counterparty_id: Mapped[UUID] = mapped_column(index=True)
-    origin_journal_id: Mapped[UUID] = mapped_column(index=True)
-    origin_line_no: Mapped[int]
+    origin_journal_id: Mapped[UUID | None] = mapped_column(index=True)
+    origin_line_no: Mapped[int | None]
+    source_transaction_id: Mapped[UUID | None] = mapped_column(index=True)
+    source_invoice_id: Mapped[UUID | None] = mapped_column(index=True)
+    recognized_date: Mapped[date | None]
     account_id: Mapped[UUID] = mapped_column(index=True)
     original_amount: Mapped[Decimal]
     outstanding_amount: Mapped[Decimal]
@@ -28,6 +31,24 @@ class ReceivableModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "origin_journal_id", "origin_line_no"),
+        UniqueConstraint("company_id", "source_invoice_id"),
+        UniqueConstraint("company_id", "source_transaction_id"),
+        ForeignKeyConstraint(
+            ["company_id", "source_invoice_id"],
+            ["sales_invoices.company_id", "sales_invoices.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "source_transaction_id"],
+            ["transactions.company_id", "transactions.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "(origin_journal_id IS NOT NULL AND origin_line_no IS NOT NULL) OR "
+            "(source_invoice_id IS NOT NULL AND source_transaction_id IS NOT NULL "
+            "AND recognized_date IS NOT NULL)",
+            name="source",
+        ),
         ForeignKeyConstraint(
             ["company_id", "counterparty_id"],
             ["counterparties.company_id", "counterparties.id"],
@@ -49,8 +70,7 @@ class ReceivableModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint(
-            "original_amount > 0 AND outstanding_amount >= 0 "
-            "AND outstanding_amount <= original_amount",
+            "original_amount > 0 AND outstanding_amount >= 0",
             name="amount",
         ),
         CheckConstraint("currency_code='KRW'", name="currency"),

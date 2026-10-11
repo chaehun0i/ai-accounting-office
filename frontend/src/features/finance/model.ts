@@ -3,7 +3,7 @@ import { money, units } from "../accounting/journal-model.ts";
 export type Obligation = {
   id: string; counterparty_name: string; origin_date: string; due_date: string;
   original_amount: string; outstanding_amount: string; status: string; version: number;
-  origin_journal_id: string; source_transaction_id: string | null; import_id: string | null;
+  origin_journal_id: string | null; source_transaction_id: string | null; import_id: string | null;
   evidence_ids: string[];
 };
 export type Settlement = {

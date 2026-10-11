@@ -17,6 +17,7 @@ from app.composition import create_services
 from app.core.config import Settings, load_settings
 from app.core.errors import internal_error_response, register_error_handlers
 from app.core.logging import configure_logging
+from app.finance.invoices.api.router import router as document_router
 from app.finance.settlements.api.router import router as finance_router
 from app.health import router as health_router
 from app.identity.auth.api.router import router as auth_router
@@ -105,6 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(journal_router)
     app.include_router(ledger_router)
     app.include_router(finance_router)
+    app.include_router(document_router)
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(companies_router)
