@@ -8,7 +8,10 @@ from app.accounting.journals.domain.errors import AccountingError
 from app.contracts.access_errors import ResourceNotFound
 from app.finance.settlements.application.contracts import FinanceUnitOfWork
 
-CONTROL_NAMES = {"AR": {"매출채권"}, "AP": {"매입채무", "미지급금"}}
+CONTROL_NAMES = {
+    "AR": {"매출채권", "외상매출금", "받을어음", "장기매출채권"},
+    "AP": {"매입채무", "외상매입금", "지급어음", "미지급금", "장기성매입채무"},
+}
 
 
 def permission(kind: str, *, command: bool = False) -> str:

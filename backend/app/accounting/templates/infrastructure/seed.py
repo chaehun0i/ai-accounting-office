@@ -12,6 +12,8 @@ from app.accounting.templates.domain.defaults import (
     DEFAULT_TEMPLATE,
     LEGACY_ACCOUNTS,
     LEGACY_TEMPLATE,
+    PREVIOUS_ACCOUNTS,
+    PREVIOUS_TEMPLATE,
 )
 from app.accounting.templates.domain.entities import Template, TemplateAccount
 from app.accounting.templates.infrastructure.models import COATemplateAccountModel, COATemplateModel
@@ -54,6 +56,7 @@ def _seed_version(
 
 def seed_default_coa(session: Session) -> None:
     _seed_version(session, LEGACY_TEMPLATE, LEGACY_ACCOUNTS)
+    _seed_version(session, PREVIOUS_TEMPLATE, PREVIOUS_ACCOUNTS)
     _seed_version(session, DEFAULT_TEMPLATE, DEFAULT_ACCOUNTS)
 
 

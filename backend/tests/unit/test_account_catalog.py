@@ -11,7 +11,7 @@ from app.accounting.templates.domain.defaults import (
 
 def test_extended_catalog_keeps_legacy_meaning_and_valid_balances():
     assert LEGACY_TEMPLATE.version == 1
-    assert DEFAULT_TEMPLATE.version == 2
+    assert DEFAULT_TEMPLATE.version == 3
     assert len(LEGACY_ACCOUNTS) == 25
     assert len(DEFAULT_ACCOUNTS) >= 120
     accounts = {row.account_code: row for row in DEFAULT_ACCOUNTS}
@@ -33,3 +33,19 @@ def test_extended_catalog_keeps_legacy_meaning_and_valid_balances():
     assert accounts["3040"].normal_balance == "DEBIT"
     assert accounts["1150"].normal_balance == "CREDIT"
     assert {"1210", "1640", "2070", "3060", "4030", "5300", "5400"} <= accounts.keys()
+
+
+def test_previous_catalog_version_is_immutable():
+    from app.accounting.templates.domain.defaults import PREVIOUS_ACCOUNTS, PREVIOUS_TEMPLATE
+
+    assert PREVIOUS_TEMPLATE.version == 2
+    assert len(PREVIOUS_ACCOUNTS) == 130
+    current = {a.account_code: a for a in DEFAULT_ACCOUNTS}
+    assert len(current) == 175
+    for old in PREVIOUS_ACCOUNTS:
+        new = current[old.account_code]
+        assert (new.account_name, new.normal_balance, new.is_contra) == (
+            old.account_name,
+            old.normal_balance,
+            old.is_contra,
+        )

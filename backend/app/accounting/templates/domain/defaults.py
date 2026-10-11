@@ -62,7 +62,7 @@ def _accounts(template: Template, rows: tuple[Row, ...]) -> tuple[TemplateAccoun
 
 
 LEGACY_ACCOUNTS = _accounts(LEGACY_TEMPLATE, _ROWS)
-DEFAULT_TEMPLATE = Template(
+PREVIOUS_TEMPLATE = Template(
     id=uuid5(NAMESPACE_URL, "accounting:KR_STANDARD:2"),
     template_code="KR_STANDARD",
     name="기본 회계 계정과목 확장",
@@ -179,4 +179,65 @@ _ADDITIONAL = (
     ("5550", "잡손실", "EXPENSE", "5000", True, False),
     ("5600", "법인세비용", "EXPENSE", "5000", True, False),
 )
-DEFAULT_ACCOUNTS = _accounts(DEFAULT_TEMPLATE, tuple(sorted((*_ROWS, *_ADDITIONAL))))
+PREVIOUS_ACCOUNTS = _accounts(PREVIOUS_TEMPLATE, tuple(sorted((*_ROWS, *_ADDITIONAL))))
+
+
+# 사용자가 제공한 계정과목 자료를 보강한 새 버전입니다. v1/v2의 코드와 의미는 유지합니다.
+DEFAULT_TEMPLATE = Template(
+    id=uuid5(NAMESPACE_URL, "accounting:KR_STANDARD:3"),
+    template_code="KR_STANDARD",
+    name="기본 회계 계정과목 통합",
+    version=3,
+    status="ACTIVE",
+    valid_from=date(2025, 1, 1),
+)
+_REFERENCE_ROWS: tuple[Row, ...] = (
+    ("1080", "현금", "ASSET", "1000", True, False),
+    ("1090", "현금성자산", "ASSET", "1000", True, False),
+    ("1101", "외상매출금", "ASSET", "1000", True, False),
+    ("1280", "소모품", "ASSET", "1000", True, False),
+    ("1590", "투자부동산", "ASSET", "1000", True, False),
+    ("1760", "광업권", "ASSET", "1000", True, False),
+    ("1750", "어업권", "ASSET", "1000", True, False),
+    ("1580", "보증금", "ASSET", "1000", True, False),
+    ("1595", "장기선급금", "ASSET", "1000", True, False),
+    ("2011", "외상매입금", "LIABILITY", "2000", True, False),
+    ("2230", "미지급배당금", "LIABILITY", "2000", True, False),
+    ("2240", "선수수익", "LIABILITY", "2000", True, False),
+    ("2390", "장기성매입채무", "LIABILITY", "2000", True, False),
+    ("3080", "감자차익", "EQUITY", "3000", True, False),
+    ("3090", "자기주식처분이익", "EQUITY", "3000", True, False),
+    ("3100", "미교부주식배당금", "EQUITY", "3000", True, False),
+    ("3110", "주식매수선택권", "EQUITY", "3000", True, False),
+    ("3120", "출자전환채무", "EQUITY", "3000", True, False),
+    ("3130", "신주청약증거금", "EQUITY", "3000", True, False),
+    ("3140", "주식할인발행차금", "EQUITY", "3000", True, True),
+    ("3150", "배당건설이자", "EQUITY", "3000", True, True),
+    ("3160", "자기주식처분손실", "EQUITY", "3000", True, True),
+    ("3170", "감자차손", "EQUITY", "3000", True, True),
+    ("3180", "매도가능증권평가손익", "EQUITY", "3000", True, False),
+    ("3190", "해외사업환산손익", "EQUITY", "3000", True, False),
+    ("3200", "현금흐름위험회피파생상품평가손익", "EQUITY", "3000", True, False),
+    ("3210", "기타법정적립금", "EQUITY", "3000", True, False),
+    ("3220", "임의적립금", "EQUITY", "3000", True, False),
+    ("4140", "수수료수익", "REVENUE", "4000", True, False),
+    ("4150", "단기투자자산처분이익", "REVENUE", "4000", True, False),
+    ("4160", "단기투자자산평가이익", "REVENUE", "4000", True, False),
+    ("4170", "투자자산처분이익", "REVENUE", "4000", True, False),
+    ("4180", "대손충당금환입", "REVENUE", "4000", True, False),
+    ("4190", "법인세환급액", "REVENUE", "4000", True, False),
+    ("4200", "사채상환이익", "REVENUE", "4000", True, False),
+    ("4210", "보험차익", "REVENUE", "4000", True, False),
+    ("4220", "자산수증이익", "REVENUE", "4000", True, False),
+    ("5560", "기타의대손상각비", "EXPENSE", "5000", True, False),
+    ("5570", "매출채권처분손실", "EXPENSE", "5000", True, False),
+    ("5580", "단기투자자산처분손실", "EXPENSE", "5000", True, False),
+    ("5590", "단기투자자산평가손실", "EXPENSE", "5000", True, False),
+    ("5610", "재고자산감모손실", "EXPENSE", "5000", True, False),
+    ("5620", "투자자산처분손실", "EXPENSE", "5000", True, False),
+    ("5630", "법인세추납액", "EXPENSE", "5000", True, False),
+    ("5640", "재해손실", "EXPENSE", "5000", True, False),
+)
+DEFAULT_ACCOUNTS = _accounts(
+    DEFAULT_TEMPLATE, tuple(sorted((*_ROWS, *_ADDITIONAL, *_REFERENCE_ROWS)))
+)
