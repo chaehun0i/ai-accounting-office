@@ -2,8 +2,6 @@
 
 from decimal import Decimal
 
-import pytest
-
 from tests.integration.test_business_documents import body, create, transition
 from tests.integration.test_finance_allocations import confirm
 from tests.integration.test_finance_flow import (
@@ -14,8 +12,15 @@ from tests.integration.test_finance_flow import (
 )
 
 
-@pytest.mark.parametrize("document_path", [False, True])
-def test_golden_corp_accounting_and_finance(api_client, auth_service, document_path=False):
+def test_golden_corp_accounting_and_finance(api_client, auth_service):
+    golden_corp_accounting_and_finance(api_client, auth_service, False)
+
+
+def test_business_document_golden_corp_accounting_and_finance(api_client, auth_service):
+    golden_corp_accounting_and_finance(api_client, auth_service, True)
+
+
+def golden_corp_accounting_and_finance(api_client, auth_service, document_path):
     owner, writer, payload, accounts, customer, _ = finance_setup(api_client, auth_service)
     response = api_client.post(
         "/counterparties",
