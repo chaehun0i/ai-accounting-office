@@ -35,7 +35,7 @@
 | KRW | Korean Won | 현재 활성 기능통화, 대한민국 원 |
 | FIFO | First In, First Out | 선입선출법, 재고 초안의 typed 선택값 |
 | OCR | Optical Character Recognition | 문서 문자 인식, 이번 범위에 자동 확정 없음 |
-| LLM | Large Language Model | 대규모 언어모델, 현재 Mapping/계산에 사용 안 함 |
+| LLM | Large Language Model | 분류·제안을 보조하는 언어 모델, Mapping·회계 숫자 계산의 정본 아님 |
 | ESG | Environmental, Social and Governance | 참고 프로젝트의 업무 영역, 신규 Domain 이식 없음 |
 | KPI | Key Performance Indicator | 참고 프로젝트의 파생 지표 개념, 현재 코드에 이식 없음 |
 | DMA | Double Materiality Assessment | 참고 ESG 프로젝트의 중요성 평가, DROP 대상 |
@@ -62,3 +62,9 @@
 | Allocation | 배분 | 하나의 수금·지급을 하나 이상의 채권·채무에 연결 |
 | UNAPPLIED | 미배분액 있음 | 정산 총액 중 아직 채권·채무에 배분하지 않은 금액 보존 |
 | Reconciliation | 대사 | 보조부와 총계정원장 금액 비교, 차이를 자동 보정하지 않음 |
+| SSOT | Single Source of Truth | 단일 설계 기준선 |
+| MCP | Model Context Protocol | 외부 호스트와 같은 안전한 도구 계약을 공유하는 프로토콜 |
+| SSE | Server-Sent Events | 서버 이벤트 전송 형식, 현재는 저장된 실행 이력 replay |
+| P0 | 최우선 플랫폼 기능 | 이번 Bookkeeper 실행 기반의 우선순위 |
+| Checkpoint / Interrupt | 실행 상태 저장 / 사람 응답 대기 | 중단한 Graph를 같은 thread에서 복구·재개 |
+| Lease / Heartbeat | 실행 소유권 임대 / 생존 갱신 | 중복 실행을 막고 중단된 작업의 재시도를 관리 |

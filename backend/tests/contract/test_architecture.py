@@ -24,7 +24,17 @@ def forbidden_imports(source: str, package: str) -> list[str]:
             if node.func.id in {"__import__", "eval", "exec"}:
                 violations.append(node.func.id)
         for name in names:
-            if not (name == "app.tools" or name.startswith("app.tools.")) and (
+            allowed = (
+                "app.tools",
+                "app.llm",
+                "app.agents",
+                "app.jobs.application",
+                "app.jobs.domain",
+                "app.contracts",
+                "app.core.digests",
+                "app.identity.users.domain",
+            )
+            if not any(name == p or name.startswith(p + ".") for p in allowed) and (
                 name == "app" or name.startswith("app.")
             ):
                 violations.append(name)
@@ -43,6 +53,9 @@ def forbidden_imports(source: str, package: str) -> list[str]:
 def test_agent_and_llm_boundaries() -> None:
     for root in (APP / "agents", APP / "llm"):
         for path in root.rglob("*.py"):
+            # API는 인증/조립 경계, checkpoint는 framework 전용 연결 경계입니다.
+            if "api" in path.parts or "checkpoints" in path.parts:
+                continue
             package = ".".join(path.relative_to(APP.parent).parts[:-1])
             assert not forbidden_imports(path.read_text(encoding="utf-8"), package), path
 
@@ -142,3 +155,48 @@ def test_repositories_do_not_own_transactions() -> None:
 @pytest.mark.parametrize("method", ["commit", "rollback", "begin", "begin_nested"])
 def test_repository_guard_rejects_transaction_ownership(method: str) -> None:
     assert repository_transaction_calls(f"session.{method}()")
+
+
+def test_runtime_sdk_boundaries() -> None:
+    allowed = {
+        "google": ("llm/providers/",),
+        "langgraph": ("agents/graphs/", "agents/runtime/", "agents/checkpoints/"),
+        "langchain_core": ("tools/adapters/langchain.py", "agents/runtime/"),
+        "mcp": ("tools/adapters/mcp",),
+    }
+    for path in APP.rglob("*.py"):
+        relative = path.relative_to(APP).as_posix()
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
+            for name in names:
+                root = name.split(".")[0]
+                if root in allowed:
+                    assert any(relative.startswith(p) for p in allowed[root]), (relative, name)
+
+
+def test_graph_cannot_execute_privileged_commands() -> None:
+    for path in (APP / "agents" / "graphs").rglob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        for forbidden in ("journal.post", "period.close", "payment.execute", "tax.filing.submit"):
+            assert forbidden not in source
+
+
+def test_tool_adapters_use_application_services_only() -> None:
+    for path in (APP / "tools").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
+            for name in names:
+                assert name.split(".")[0] not in {"sqlalchemy", "psycopg", "asyncpg", "sqlite3"}
+                assert "infrastructure" not in name.split(".")

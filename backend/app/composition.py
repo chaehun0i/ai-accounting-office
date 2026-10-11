@@ -1,16 +1,18 @@
 """API와 persistence 구현체를 조립합니다. 생성 시 DB에 연결하지 않습니다."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 from uuid import UUID
 
 from sqlalchemy import Engine
+from sqlalchemy.engine import make_url
 
 from app.accounting.application.catalog import prepare_accounts
 from app.accounting.application.contracts import MasterUnitOfWork
 from app.accounting.application.service import AccountingMasterService
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
+from app.accounting.journals.application.agent_proposals import AgentProposalService
 from app.accounting.journals.application.commands import JournalCommands
 from app.accounting.journals.application.service import JournalService
 from app.accounting.journals.infrastructure.unit_of_work import JournalSQLAlchemyUnitOfWork
@@ -18,6 +20,8 @@ from app.accounting.ledger.application.service import AccountingReports
 from app.accounting.opening_balances.application.service import OpeningService
 from app.accounting.transactions.application.service import TransactionService
 from app.accounting.transactions.infrastructure.unit_of_work import TransactionSQLAlchemyUnitOfWork
+from app.agents.checkpoints.postgres import PostgresCheckpoints
+from app.agents.runtime.service import AgentRuntime
 from app.approvals.infrastructure.unit_of_work import AccountingSQLAlchemyUnitOfWork
 from app.companies.application.service import CompanyService
 from app.core.config import Settings
@@ -34,12 +38,19 @@ from app.identity.invitations.infrastructure.unit_of_work import InvitationSQLAl
 from app.intake.application.service import IntakeService
 from app.intake.infrastructure.parser import parse_file
 from app.intake.infrastructure.unit_of_work import IntakeSQLAlchemyUnitOfWork
+from app.jobs.application.runtime import RuntimeAudit
+from app.jobs.infrastructure.unit_of_work import RuntimeSQLAlchemyUnitOfWork
+from app.llm.gateway import LLMGateway
+from app.llm.providers.fake import FakeProvider
+from app.llm.providers.gemini import GeminiProvider
 from app.master_data.application.service import MasterDataService
 from app.onboarding.application.merge import OnboardingImportService
 from app.onboarding.application.service import OnboardingService
 from app.onboarding.infrastructure.template import parse_onboarding
 from app.onboarding.infrastructure.unit_of_work import OnboardingSQLAlchemyUnitOfWork
 from app.storage.infrastructure.local import LocalObjectStorage
+from app.tools.accounting import build_registry
+from app.tools.registry import ToolRegistry
 
 
 @dataclass(frozen=True)
@@ -59,6 +70,9 @@ class Services:
     opening_balances: OpeningService | None = None
     finance: FinanceService | None = None
     finance_reports: FinanceReports | None = None
+    tools: ToolRegistry | None = None
+    agent_runtime: AgentRuntime | None = None
+    runtime_audit: RuntimeAudit | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -76,7 +90,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
             ),
         )
     onboarding = OnboardingService(lambda: OnboardingSQLAlchemyUnitOfWork(sessions))
-    return engine, Services(
+    container = Services(
         auth,
         CompanyService(
             lambda: MasterSQLAlchemyUnitOfWork(sessions),
@@ -106,6 +120,44 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
         FinanceService(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
         FinanceReports(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
+    )
+    assert container.accounting and container.transactions and container.accounting_reports
+    assert (
+        container.finance
+        and container.finance_reports
+        and container.journals
+        and container.journal_commands
+    )
+    registry = build_registry(
+        container.accounting,
+        container.transactions,
+        container.accounting_reports,
+        container.finance,
+        container.finance_reports,
+        AgentProposalService(container.journals, container.journal_commands),
+    )
+    audit = RuntimeAudit(lambda: RuntimeSQLAlchemyUnitOfWork(sessions))
+    registry.record = audit.record_tool
+    registry.started = audit.tool_started
+    provider = (
+        GeminiProvider(
+            settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None,
+            settings.gemini_model,
+        )
+        if settings.llm_provider == "gemini"
+        else FakeProvider()
+    )
+    gateway = LLMGateway(provider, settings.llm_timeout_seconds, settings.llm_max_retries)
+    checkpoints = PostgresCheckpoints(
+        make_url(settings.postgres_url.get_secret_value())
+        .set(drivername="postgresql")
+        .render_as_string(hide_password=False)
+    )
+    return engine, replace(
+        container,
+        tools=registry,
+        runtime_audit=audit,
+        agent_runtime=AgentRuntime(registry, gateway, audit, checkpoints.open),
     )
 
 

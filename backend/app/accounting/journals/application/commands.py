@@ -47,7 +47,9 @@ class JournalCommands:
     def __init__(self, factory: Callable[[], AccountingUnitOfWork]) -> None:
         self.factory = factory
 
-    def create(self, actor: Principal, value: Journal, key: str) -> Journal:
+    def create(
+        self, actor: Principal, value: Journal, key: str, *, source_version: int | None = None
+    ) -> Journal:
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
             raise InvalidInput()
         data = asdict(value)
@@ -55,6 +57,8 @@ class JournalCommands:
             data.pop(field)
         for line in data["lines"]:
             line.pop("id")
+        if source_version is not None:
+            data["source_version"] = source_version
         import json
 
         fingerprint = digest(json.loads(json.dumps(data, default=str)))
@@ -74,6 +78,8 @@ class JournalCommands:
                 )
                 if source is None:
                     raise ResourceNotFound()
+                if source_version is not None and source.version != source_version:
+                    raise VersionConflict()
                 if source.evidence_id:
                     value = replace(
                         value,

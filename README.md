@@ -33,10 +33,10 @@ python scripts/bootstrap_local.py
 
 업무 화면은 홈·회사 관리·회계 준비·파일 가져오기·거래·전표·총계정원장·시산표·회계 설정으로 나뉩니다. 로그인 후 왼쪽 업무 메뉴를 이용하세요. [페이지 구성과 참고 코드·검증](docs/page-navigation.md)에 경로와 권한 안내가 있습니다.
 
-단일 기준선: [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf).
+단일 기준선: [AI_Accounting_Office_v0.2.6_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
 
-- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 초기 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. 전체 업무 테이블 62개도 이 원칙을 따릅니다. 예외는 별도 ADR이 필요합니다.
+- **Relational-First**: 업무 데이터는 명시적 table/column/FK/constraint로 표현합니다. 업무 PostgreSQL **JSON/JSONB column은 0개**입니다. ADR-035의 공식 LangGraph 체크포인트만 별도 `agent_checkpoints` 스키마에 격리하며 허용 목록을 검사합니다. 체크포인트는 장부 정본이 아닙니다.
 - **정본 분리**: accounting은 회계 장부, tax는 세무 계산·신고, evidence는 증빙/provenance, jobs/agents/tool executions는 실행 이력을 소유합니다.
 - **Agent 경계**: Agent → Tool Registry → Tool Adapter → Application Service → Domain/Repository. Agent는 ORM/Session/SQL/Repository에 직접 접근하지 않습니다.
 - **Deterministic calculation**: 금액·세금·잔액·집계는 Decimal, Domain Rule, Application Service와 결정적 query/calculation이 소유합니다. LLM이 계산하지 않습니다.
@@ -184,7 +184,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `009_finance_subledger`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 migration 상태를 위한 내부 테이블입니다. 이후 업무 migration 번호는 v0.2.5의 `Complete_DDL_Migration_Map`을 따릅니다.
+현재 head는 `010_agent_runtime_foundation`입니다. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 009를 보존하고 v0.2.6 정책에 따라 다음 forward revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -211,9 +211,15 @@ python -m pytest --require-postgres
 
 ## 제외 범위와 다음 구현
 
-Transaction/Journal/세무 정본, Approval/Audit 전체 Domain, Agent workflow, LLM, 실제 업무 Tool, 전역 Governance Idempotency는 미구현입니다. 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector와 기존 프로젝트 Domain 코드도 포함하지 않습니다.
+Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. 이번 Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개까지 지원합니다. Tax 정본, 자율 승인·Posting, 전체 Chat UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
 
 다음 후보는 **은행·카드·경비·자금 기능을 포함한 Finance 확장 또는 자산·재고**입니다. 이번 정산·기한 분석·원장 대사 및 MISMATCH 계약을 이어받되 후속 작업 시작 시 최신 main/Drive의 구현 순서와 migration/FK 범위를 다시 판별합니다.
+
+## 거래 기반 회계 제안 실행
+
+`LLM_PROVIDER=fake` 기본값으로 API Key 없이 실행할 수 있습니다. `/docs`에서 회계 담당자 권한으로 `POST /agent/runs/bookkeeper`에 `transaction_id`와 `Idempotency-Key`를 전달합니다. 대기 상태를 조회한 뒤 `POST /agent/runs/{id}/resume`에 현재 `expected_version`과 `CONTINUE` 또는 `REJECT`를 전달하세요. CONTINUE도 전표 초안까지만 만들며 회계 승인이 아닙니다.
+
+Gemini/LangGraph/LangChain/MCP 역할, 실제 Tool 목록, 로컬 MCP 실행과 제한은 [Agent Runtime](docs/agent-runtime.md), 실제 검증 결과는 [검증 기록](docs/agent-runtime-verification.md)에 있습니다.
 
 회사 선택 후 회계 관리 권한이 있으면 별도 초기 설정으로 기본 COA·12개월 기간·번호 기준을 만듭니다. 초기화는 같은 조건으로 재실행할 수 있습니다. 거래처와 지급조건 API, 번호·정책 규칙과 제외 범위는 [회계 마스터 문서](docs/accounting-master.md)를 참고하세요.
 
