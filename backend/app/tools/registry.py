@@ -61,10 +61,12 @@ class ToolRegistry:
         input_digest = "0" * 64
         output_digest = ""
         status, error_code = "FAILED", None
+        authorized = False
         try:
             if self.started:
                 self.started(context, code)
             self.authorize(context, definition.required_permission)
+            authorized = True
             try:
                 payload = definition.input_schema.model_validate(arguments)
             except ValidationError:
@@ -81,7 +83,7 @@ class ToolRegistry:
             status = "SUCCEEDED"
             return result
         except ApplicationError as error:
-            error_code = error.code
+            error_code = error.code if authorized else "AUTHORIZATION_DENIED"
             raise
         except Exception:
             error_code = "TOOL_FAILED"

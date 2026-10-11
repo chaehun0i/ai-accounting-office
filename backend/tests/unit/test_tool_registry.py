@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from app.contracts.access_errors import AuthorizationDenied, InvalidInput
+from app.contracts.access_errors import AuthorizationDenied, InvalidInput, ResourceNotFound
 from app.identity.users.domain.entities import Principal
 from app.tools.adapters.langchain import langchain_tools
 from app.tools.contracts import Empty, Result, ToolContext, ToolDefinition
@@ -59,6 +59,16 @@ def test_permission_and_langchain_schema():
     assert adapted.description == definition().description
     with pytest.raises(AuthorizationDenied):
         adapted.invoke({})
+    audit = []
+
+    def hidden(c, p):
+        raise ResourceNotFound()
+
+    registry.authorize = hidden
+    registry.record = lambda *values: audit.append(values)
+    with pytest.raises(ResourceNotFound):
+        registry.execute("test.read", {}, context())
+    assert audit[-1][-1] == "AUTHORIZATION_DENIED"
 
 
 def test_output_validation():
