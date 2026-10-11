@@ -30,6 +30,8 @@ from app.core.config import Settings
 from app.core.database.engine import create_database_engine
 from app.core.database.session import create_session_factory
 from app.core.security import PasswordSecurity, TokenSecurity
+from app.finance.invoices.application.service import DocumentService
+from app.finance.invoices.infrastructure.unit_of_work import DocumentSQLAlchemyUnitOfWork
 from app.finance.reconciliation.application.service import FinanceReports
 from app.finance.settlements.application.service import FinanceService
 from app.finance.settlements.infrastructure.unit_of_work import FinanceSQLAlchemyUnitOfWork
@@ -80,6 +82,7 @@ class Services:
 
     dimensions: DimensionService | None = None
     promotion: PromotionService | None = None
+    documents: DocumentService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -165,6 +168,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
     )
     return engine, replace(
         container,
+        documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(sessions)),
         promotion=PromotionService(
             lambda: PromotionSQLAlchemyUnitOfWork(sessions), cast(IntakeService, container.intake)
         ),
