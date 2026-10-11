@@ -1,7 +1,7 @@
 """확정 가져오기의 거래 승격 결과와 재시도 참조를 추가합니다."""
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "012_import_transaction_promotion"
 down_revision = "011_accounting_dimensions"
@@ -15,7 +15,8 @@ def upgrade() -> None:
         "import_receipts", sa.Column("promoted_at", sa.DateTime(timezone=True), nullable=True)
     )
     op.execute(
-        "UPDATE import_receipts r SET confirmed_version = i.version FROM imports i WHERE i.id = r.import_id"
+        "UPDATE import_receipts r SET confirmed_version = i.version FROM imports i "
+        "WHERE i.id = r.import_id"
     )
     op.alter_column("import_receipts", "confirmed_version", nullable=False)
     op.create_check_constraint(
@@ -34,10 +35,14 @@ def upgrade() -> None:
     )
     # 배포된 기존 정규 거래 대상 접수는 승격 대기 상태로 명시합니다.
     op.execute(
-        "UPDATE imports SET status='CONFIRMED', completed_at=NULL WHERE target_context='TRANSACTION_CANONICAL' AND status='COMPLETED' AND id IN (SELECT import_id FROM import_receipts WHERE transaction_count=0)"
+        "UPDATE imports SET status='CONFIRMED', completed_at=NULL WHERE "
+        "target_context='TRANSACTION_CANONICAL' AND status='COMPLETED' AND id IN "
+        "(SELECT import_id FROM import_receipts WHERE transaction_count=0)"
     )
     op.execute(
-        "UPDATE import_receipts SET status='CONFIRMED' WHERE import_id IN (SELECT id FROM imports WHERE target_context='TRANSACTION_CANONICAL' AND status='CONFIRMED')"
+        "UPDATE import_receipts SET status='CONFIRMED' WHERE import_id IN (SELECT id "
+        "FROM imports WHERE target_context='TRANSACTION_CANONICAL' AND "
+        "status='CONFIRMED')"
     )
     op.create_table(
         "import_promotion_rows",
@@ -135,7 +140,8 @@ def downgrade() -> None:
         "transaction_count = 0 AND counterparty_count = 0 AND evidence_count >= 1",
     )
     op.execute(
-        "UPDATE imports SET status='COMPLETED', completed_at=confirmed_at WHERE status='CONFIRMED' AND target_context='TRANSACTION_CANONICAL'"
+        "UPDATE imports SET status='COMPLETED', completed_at=confirmed_at WHERE "
+        "status='CONFIRMED' AND target_context='TRANSACTION_CANONICAL'"
     )
     op.execute("UPDATE import_receipts SET status='COMPLETED' WHERE status='CONFIRMED'")
     op.drop_column("import_receipts", "promoted_at")

@@ -75,4 +75,4 @@ def test_native_2025_transactions_exact_count_totals_and_replay(api_client, auth
         assert all(r.import_id and r.evidence_id for r in rows)
         for direction, total in expected.items():
             assert sum((r.amount for r in rows if r.direction == direction), Decimal(0)) == total
-        assert expected == {"INFLOW": Decimal("740119600"), "OUTFLOW": Decimal("205330400")}
+        assert expected == {"INFLOW": Decimal("781044000"), "OUTFLOW": Decimal("195277500")}

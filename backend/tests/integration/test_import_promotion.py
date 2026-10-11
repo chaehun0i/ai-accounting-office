@@ -147,3 +147,60 @@ def test_invalid_economic_fact_leaves_no_transactions(api_client, auth_service, 
     assert promote(api_client, headers, value, receipt).status_code == 422
     with factory.begin() as session:
         assert session.scalar(select(func.count()).select_from(TransactionModel)) == 0
+
+
+def test_cross_source_collision_and_mapping_tamper(api_client, auth_service):
+    headers, factory = prepare(api_client, auth_service)
+    value, receipt = confirmed(api_client, headers)
+    assert promote(api_client, headers, value, receipt).status_code == 200
+    # source_type은 달라도 Transaction의 회사/원천시스템/원천ID 고유성은 유지됩니다.
+    imported = api_client.post(
+        "/imports",
+        headers=headers,
+        data={"source_type": "PURCHASE"},
+        files={"file": ("purchase.csv", CSV, "text/csv")},
+    ).json()
+    draft = preview(api_client, headers, imported)
+    other = confirm(api_client, headers, imported, draft, "purchase-confirm").json()
+    result = promote(api_client, headers, imported, other, "purchase-promote")
+    assert result.json()["code"] == "IMPORT_SOURCE_CONFLICT"
+    with factory.begin() as session:
+        assert session.scalar(select(func.count()).select_from(TransactionModel)) == 2
+    from app.intake.infrastructure.models import ImportMappingModel
+
+    with factory.begin() as session:
+        session.execute(
+            update(ImportMappingModel)
+            .where(
+                ImportMappingModel.import_id == UUID(imported["id"]),
+                ImportMappingModel.canonical_field_code == "description",
+            )
+            .values(canonical_field_code=None)
+        )
+    assert (
+        promote(api_client, headers, imported, other, "tampered").json()["code"] == "PREVIEW_STALE"
+    )
+
+
+def test_file_tamper_requester_permission_and_csrf(api_client, auth_service):
+    headers, factory = prepare(api_client, auth_service)
+    value, receipt = confirmed(api_client, headers)
+    payload = {
+        "expected_version": receipt["confirmed_version"],
+        "receipt_id": receipt["id"],
+        "source_digest": receipt["source_digest"],
+    }
+    assert (
+        api_client.post(
+            f"/imports/{value['id']}/promote",
+            headers={**headers, "Idempotency-Key": "csrf", "X-CSRF-Protection": "0"},
+            json=payload,
+        ).status_code
+        == 403
+    )
+    service = api_client.app.state.services.intake
+    storage = service.storage
+    # 기존 저장소 계약의 안전한 키를 사용하되 디스크 파일을 변경한 상황을 재현합니다.
+    monkey = __import__("unittest.mock", fromlist=["patch"])
+    with monkey.patch.object(storage, "read", return_value=b"changed file"):
+        assert promote(api_client, headers, value, receipt).json()["code"] == "PREVIEW_STALE"
