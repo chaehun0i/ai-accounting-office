@@ -40,6 +40,8 @@ from app.identity.invitations.infrastructure.unit_of_work import InvitationSQLAl
 from app.intake.application.service import IntakeService
 from app.intake.infrastructure.parser import parse_file
 from app.intake.infrastructure.unit_of_work import IntakeSQLAlchemyUnitOfWork
+from app.intake.promotion.application.service import PromotionService
+from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemyUnitOfWork
 from app.jobs.application.runtime import RuntimeAudit
 from app.jobs.infrastructure.unit_of_work import RuntimeSQLAlchemyUnitOfWork
 from app.llm.gateway import LLMGateway
@@ -63,6 +65,7 @@ class Services:
     accounting: AccountingMasterService | None = None
     master_data: MasterDataService | None = None
     intake: IntakeService | None = None
+    promotion: PromotionService | None = None
     onboarding: OnboardingService | None = None
     onboarding_imports: OnboardingImportService | None = None
     transactions: TransactionService | None = None
@@ -162,6 +165,9 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
     )
     return engine, replace(
         container,
+        promotion=PromotionService(
+            lambda: PromotionSQLAlchemyUnitOfWork(sessions), cast(IntakeService, container.intake)
+        ),
         tools=registry,
         runtime_audit=audit,
         agent_runtime=AgentRuntime(registry, gateway, audit, checkpoints.open),
