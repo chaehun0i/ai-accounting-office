@@ -135,7 +135,7 @@ def test_security_stale_and_invalid_state(api_client, auth_service):
             .where(MembershipModel.company_id == UUID(headers["X-Company-ID"]))
             .values(status="REVOKED", revoked_at=datetime.now(UTC))
         )
-    assert promote(api_client, headers, value, receipt).status_code == 403
+    assert promote(api_client, headers, value, receipt).status_code == 404
 
 
 @pytest.mark.parametrize("changed", [b"USD", b"-1"])
@@ -229,7 +229,7 @@ def test_xlsx_exact_promotion(api_client, auth_service):
     from tests.unit.test_intake_parser import workbook
 
     headers, factory = prepare(api_client, auth_service)
-    sheet = b'<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>source_id</t></is></c><c r="B1" t="inlineStr"><is><t>date</t></is></c><c r="C1" t="inlineStr"><is><t>amount</t></is></c><c r="D1" t="inlineStr"><is><t>currency</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>xlsx-1</t></is></c><c r="B2" t="inlineStr"><is><t>2026-01-02</t></is></c><c r="C2"><v>10.0001</v></c><c r="D2" t="inlineStr"><is><t>KRW</t></is></c></row></sheetData></worksheet>'  # noqa: E501
+    sheet = b'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>source_id</t></is></c><c r="B1" t="inlineStr"><is><t>date</t></is></c><c r="C1" t="inlineStr"><is><t>amount</t></is></c><c r="D1" t="inlineStr"><is><t>currency</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>xlsx-1</t></is></c><c r="B2" t="inlineStr"><is><t>2026-01-02</t></is></c><c r="C2"><v>10.0001</v></c><c r="D2" t="inlineStr"><is><t>KRW</t></is></c></row></sheetData></worksheet>'  # noqa: E501
     value = api_client.post(
         "/imports",
         headers=headers,

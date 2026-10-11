@@ -56,6 +56,16 @@ async function main() {
     assert.deepEqual(replay,result);
     await page.getByRole("link",{name:"생성된 거래 보기",exact:true}).click();
     await page.getByRole("heading",{name:"회계 거래",exact:true}).waitFor();
+    const other = await post("/companies", {company_name:"승격 격리 검증 회사",business_number:"9876543210",taxpayer_type:"INDIVIDUAL",opening_date:"2026-01-01",address:"합성 주소"},owner.access_token);
+    const secondInvite = await post(`/companies/${other.id}/invitations`,{email,role_code:"ACCOUNTANT"},owner.access_token);
+    await post(`/invitations/${secondInvite.invite_token}/accept`,{},writer.access_token);
+    await page.reload(); await page.locator("button.company-switch").click();
+    await page.getByRole("dialog").getByLabel("회사",{exact:true}).selectOption(other.id);
+    await page.getByRole("dialog").getByRole("button",{name:"선택 완료",exact:true}).click();
+    await page.getByRole("dialog").getByRole("button",{name:"닫기",exact:true}).click();
+    await page.goto(origin+"/imports");
+    await page.getByRole("button",{name:"파일 올리기",exact:true}).waitFor();
+    assert.equal(await page.getByRole("heading",{name:"거래 생성 완료",exact:true}).count(),0);
     console.log("PASS: 로그인 → 파일 → 매핑 → 미리보기 → 확인 → 거래 2건 → 새로고침 → 동일 요청 재시도 → 거래 화면");
   } finally { await browser.close(); }
 }
