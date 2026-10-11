@@ -9,7 +9,10 @@
 | `/onboarding` | 회계 준비와 초안 입력 |
 | `/imports` | 파일 업로드·미리보기·접수 |
 | `/transactions` | 거래 입력·조회 |
+| `/business-documents` | 매출·매입 문서와 감액·증액 정정, 별도 담당자 승인 |
 | `/journals` | 전표 작성·제출·승인·장부 반영 |
+| `/receivables` | 채권·수금·배분·기한 분석·원장 대사 |
+| `/payables` | 채무·지급·배분·기한 분석·원장 대사 |
 | `/ledger` | 계정별 총계정원장 |
 | `/trial-balance` | 기간별 합계잔액시산표 |
 | `/accounting` | 회계 설정·계정과목·회계기간 |

@@ -58,4 +58,13 @@ AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 
 
 `import_promotion_rows`는 원본 행을 복제하지 않고 locator·digest·거래 FK·review를 보존합니다. `import_promotion_commands`는 company/actor/command/key/fingerprint와 Receipt 참조만 저장합니다. 요청·Import·원천 identity 잠금과 기존 Transaction UNIQUE가 동시 재시도를 보호합니다. 회사·Receipt/Transaction composite FK가 다른 회사 참조를 차단합니다. Agent mutation Tool과 framework checkpoint 예외는 변경하지 않았습니다. API·상태·재사용·실측 검증은 [승격 계약](import-transaction-promotion.md)을 따릅니다.
 
-012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011 수치는 이전 revision의 기록이며 현재 head는 012입니다.
+012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011 수치는 이전 revision의 기록이며 당시 head는 012이며 아래 013이 현재 head입니다.
+
+
+## 매출·매입 업무문서
+
+`finance/invoices`는 Invoice와 Credit/Debit Note를 거래·전표·보조부와 분리합니다. `013_business_documents`는 8개 관계형 테이블과 기존 AR/AP의 Invoice 원천 FK를 추가합니다. 문서 승인 명령은 같은 UoW의 명시적 Transaction/Obligation Application 계약을 호출합니다. Router/Repository가 다른 Domain ORM을 직접 써서 업무를 우회하지 않습니다. Infrastructure의 조회와 FK 연결만 기존 model을 참조합니다.
+
+문서는 DRAFT→REVIEW_REQUIRED→APPROVED, 정정문서는 승인과 함께 APPLIED입니다. 작성자 자기승인을 차단하고 승인된 문서/항목은 DB trigger로 불변입니다. 정산과 정정은 append-only fact로 잔액을 계산하며 원금/기존 Collection·Payment를 덮어쓰지 않습니다. 전표가 없는 Invoice 원천은 업무 보조부에 보이고, 원장 대사 불일치는 별도로 반환합니다. 기존 POSTED Journal을 연결하면 동일 채권채무에 참조를 붙입니다. 자동 Posting은 없습니다.
+
+013의 격리 PostgreSQL 실측은 업무 테이블 **80**, FK **215**, orphan **0**, 업무 JSON **0**, JSONB **0**입니다. 012 이하 이력과 LangGraph framework schema는 변경하지 않았습니다. [업무문서 계약](business-documents.md), [검증 결과](business-documents-verification.md)를 참고하세요. 다음 후보는 Bank/Card Reconciliation이며 이번 범위에 포함하지 않습니다.
