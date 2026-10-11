@@ -11,6 +11,7 @@ from app.accounting.transactions.application.service import TransactionService
 from app.accounting.transactions.domain.entities import Transaction
 from app.companies.application.service import require_company
 from app.contracts.access_errors import ResourceNotFound, StateConflict, VersionConflict
+from app.contracts.errors import UniqueConflict
 from app.finance.invoices.application.contracts import DocumentUnitOfWork
 from app.finance.invoices.domain.entities import Document, DocumentStatus, DocumentType
 from app.finance.invoices.domain.rules import (
@@ -53,6 +54,21 @@ class DocumentService:
         return value
 
     def save(
+        self,
+        actor: Principal,
+        value: Document,
+        key: str,
+        expected_version: int | None = None,
+        original_version: int | None = None,
+    ) -> Document:
+        try:
+            return self._save(actor, value, key, expected_version, original_version)
+        except UniqueConflict:
+            raise AccountingError(
+                "DOCUMENT_SOURCE_CONFLICT", "이미 등록된 문서번호 또는 원천 자료입니다.", 409
+            ) from None
+
+    def _save(
         self,
         actor: Principal,
         value: Document,

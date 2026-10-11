@@ -3,6 +3,7 @@
 import builtins
 from dataclasses import asdict
 from datetime import datetime
+from typing import cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
@@ -96,6 +97,7 @@ class DocumentRepository:
             if isinstance(row, DocumentNoteModel)
             else row.id
         )
+        assert invoice_id is not None
         fields["obligation_id"] = (
             loaded_obligations.get(invoice_id)
             if loaded_obligations is not None
@@ -133,11 +135,14 @@ class DocumentRepository:
         # 목록은 문서 수와 무관하게 항목과 연결을 묶어 읽습니다.
         ids = [row.id for row in rows]
         grouped: dict[UUID, builtins.list[DocumentLine]] = {resource: [] for resource in ids}
-        for line in self.session.scalars(
+        for candidate in self.session.scalars(
             select(line_model)
             .where(line_model.company_id == company, line_model.invoice_id.in_(ids))
             .order_by(line_model.invoice_id, line_model.line_no)
         ):
+            line = cast(
+                SalesInvoiceLineModel | PurchaseInvoiceLineModel | DocumentNoteLineModel, candidate
+            )
             grouped[line.invoice_id].append(
                 DocumentLine(
                     **{key: getattr(line, key) for key in DocumentLine.__dataclass_fields__}
@@ -151,15 +156,13 @@ class DocumentRepository:
         ]
         obligations: dict[UUID, UUID] = {}
         for target in (ReceivableModel, PayableModel):
-            obligations.update(
-                dict(
-                    self.session.execute(
-                        select(target.source_invoice_id, target.id).where(
-                            target.company_id == company, target.source_invoice_id.in_(original_ids)
-                        )
-                    ).all()
+            for invoice, resource in self.session.execute(
+                select(target.source_invoice_id, target.id).where(
+                    target.company_id == company, target.source_invoice_id.in_(original_ids)
                 )
-            )
+            ):
+                assert invoice is not None
+                obligations[invoice] = resource
         return [
             self.entity(
                 row, kind, loaded_lines=tuple(grouped[row.id]), loaded_obligations=obligations

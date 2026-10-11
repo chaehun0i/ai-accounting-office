@@ -71,7 +71,8 @@ class DocumentColumns(UUIDPrimaryKey, Timestamped, Versioned):
             CheckConstraint("due_date >= issue_date", name="dates"),
             CheckConstraint(
                 "supply_amount >= 0 AND tax_amount >= 0 AND total_amount > 0 "
-                "AND total_amount = supply_amount + tax_amount",
+                "AND total_amount = supply_amount + tax_amount "
+                "AND total_amount < 1000000000000000",
                 name="amount",
             ),
             CheckConstraint(
@@ -81,7 +82,8 @@ class DocumentColumns(UUIDPrimaryKey, Timestamped, Versioned):
                 "(status IN ('DRAFT','REVIEW_REQUIRED') AND transaction_id IS NULL "
                 "AND approved_by IS NULL AND approved_at IS NULL) OR "
                 "(status IN ('APPROVED','APPLIED') AND transaction_id IS NOT NULL "
-                "AND approved_by IS NOT NULL AND approved_at IS NOT NULL)",
+                "AND approved_by IS NOT NULL AND approved_at IS NOT NULL "
+                "AND approved_by <> created_by)",
                 name="approval",
             ),
         )
@@ -146,7 +148,8 @@ def line_constraints(parent: str) -> tuple[object, ...]:
         ),
         CheckConstraint("line_no >= 1", name="line_no"),
         CheckConstraint(
-            "supply_amount >= 0 AND tax_amount >= 0 AND supply_amount + tax_amount > 0",
+            "supply_amount >= 0 AND tax_amount >= 0 AND supply_amount + tax_amount > 0 "
+            "AND supply_amount + tax_amount < 1000000000000000",
             name="amount",
         ),
         CheckConstraint(

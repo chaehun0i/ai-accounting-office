@@ -57,7 +57,8 @@ DDL = {
         CONSTRAINT ck_sales_invoices_version CHECK (version >= 1),
         CONSTRAINT ck_sales_invoices_dates CHECK (due_date >= issue_date),
         CONSTRAINT ck_sales_invoices_amount CHECK (supply_amount >= 0 AND tax_amount >= 0 AND
-        total_amount > 0 AND total_amount = supply_amount + tax_amount),
+        total_amount > 0 AND total_amount = supply_amount + tax_amount AND total_amount <
+        1000000000000000),
         CONSTRAINT ck_sales_invoices_status CHECK (status IN
         ('DRAFT','REVIEW_REQUIRED','APPROVED','APPLIED')),
         CONSTRAINT ck_sales_invoices_approval CHECK ((status IN ('DRAFT','REVIEW_REQUIRED') AND
@@ -145,7 +146,8 @@ DDL = {
         CONSTRAINT ck_purchase_invoices_version CHECK (version >= 1),
         CONSTRAINT ck_purchase_invoices_dates CHECK (due_date >= issue_date),
         CONSTRAINT ck_purchase_invoices_amount CHECK (supply_amount >= 0 AND tax_amount >= 0 AND
-        total_amount > 0 AND total_amount = supply_amount + tax_amount),
+        total_amount > 0 AND total_amount = supply_amount + tax_amount AND total_amount <
+        1000000000000000),
         CONSTRAINT ck_purchase_invoices_status CHECK (status IN
         ('DRAFT','REVIEW_REQUIRED','APPROVED','APPLIED')),
         CONSTRAINT ck_purchase_invoices_approval CHECK ((status IN ('DRAFT','REVIEW_REQUIRED') AND
@@ -238,7 +240,8 @@ DDL = {
         CONSTRAINT ck_document_notes_version CHECK (version >= 1),
         CONSTRAINT ck_document_notes_dates CHECK (due_date >= issue_date),
         CONSTRAINT ck_document_notes_amount CHECK (supply_amount >= 0 AND tax_amount >= 0 AND
-        total_amount > 0 AND total_amount = supply_amount + tax_amount),
+        total_amount > 0 AND total_amount = supply_amount + tax_amount AND total_amount <
+        1000000000000000),
         CONSTRAINT ck_document_notes_status CHECK (status IN
         ('DRAFT','REVIEW_REQUIRED','APPROVED','APPLIED')),
         CONSTRAINT ck_document_notes_approval CHECK ((status IN ('DRAFT','REVIEW_REQUIRED') AND
@@ -312,7 +315,7 @@ DDL = {
         KEY(company_id, invoice_id) REFERENCES sales_invoices (company_id, id) ON DELETE RESTRICT,
         CONSTRAINT ck_sales_invoice_lines_line_no CHECK (line_no >= 1),
         CONSTRAINT ck_sales_invoice_lines_amount CHECK (supply_amount >= 0 AND tax_amount >= 0 AND
-        supply_amount + tax_amount > 0),
+        supply_amount + tax_amount > 0 AND supply_amount + tax_amount < 1000000000000000),
         CONSTRAINT ck_sales_invoice_lines_quantity CHECK ((quantity IS NULL AND unit_price IS
         NULL) OR (quantity IS NOT NULL AND unit_price IS NOT NULL AND quantity > 0 AND unit_price
         >= 0 AND quantity * unit_price = supply_amount))
@@ -344,7 +347,7 @@ DDL = {
         RESTRICT,
         CONSTRAINT ck_purchase_invoice_lines_line_no CHECK (line_no >= 1),
         CONSTRAINT ck_purchase_invoice_lines_amount CHECK (supply_amount >= 0 AND tax_amount >= 0
-        AND supply_amount + tax_amount > 0),
+        AND supply_amount + tax_amount > 0 AND supply_amount + tax_amount < 1000000000000000),
         CONSTRAINT ck_purchase_invoice_lines_quantity CHECK ((quantity IS NULL AND unit_price IS
         NULL) OR (quantity IS NOT NULL AND unit_price IS NOT NULL AND quantity > 0 AND unit_price
         >= 0 AND quantity * unit_price = supply_amount))
@@ -375,7 +378,7 @@ DDL = {
         KEY(company_id, invoice_id) REFERENCES document_notes (company_id, id) ON DELETE RESTRICT,
         CONSTRAINT ck_document_note_lines_line_no CHECK (line_no >= 1),
         CONSTRAINT ck_document_note_lines_amount CHECK (supply_amount >= 0 AND tax_amount >= 0 AND
-        supply_amount + tax_amount > 0),
+        supply_amount + tax_amount > 0 AND supply_amount + tax_amount < 1000000000000000),
         CONSTRAINT ck_document_note_lines_quantity CHECK ((quantity IS NULL AND unit_price IS
         NULL) OR (quantity IS NOT NULL AND unit_price IS NOT NULL AND quantity > 0 AND unit_price
         >= 0 AND quantity * unit_price = supply_amount))
@@ -544,17 +547,30 @@ def upgrade() -> None:
 
 
 def _protect_documents() -> None:
-    for table in ["sales_invoices", "purchase_invoices", "document_notes"]:
+    for table, lines in [
+        ("sales_invoices", "sales_invoice_lines"),
+        ("purchase_invoices", "purchase_invoice_lines"),
+        ("document_notes", "document_note_lines"),
+    ]:
         op.execute(f"""
             CREATE FUNCTION protect_{table}_approved() RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE item_count integer; supply numeric; tax numeric;
             BEGIN
-                IF OLD.status IN ('APPROVED','APPLIED') THEN
+                IF TG_OP <> 'INSERT' AND OLD.status IN ('APPROVED','APPLIED') THEN
                     RAISE EXCEPTION 'confirmed document is immutable' USING ERRCODE='23514';
                 END IF;
                 IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+                IF NEW.status <> 'DRAFT' THEN
+                    SELECT count(*), sum(supply_amount), sum(tax_amount)
+                    INTO item_count, supply, tax FROM {lines}
+                    WHERE company_id=NEW.company_id AND invoice_id=NEW.id;
+                    IF item_count < 1 OR supply <> NEW.supply_amount OR tax <> NEW.tax_amount THEN
+                        RAISE EXCEPTION 'document total mismatch' USING ERRCODE='23514';
+                    END IF;
+                END IF;
                 RETURN NEW;
             END $$;
-            CREATE TRIGGER protect_{table}_approved BEFORE UPDATE OR DELETE ON {table}
+            CREATE TRIGGER protect_{table}_approved BEFORE INSERT OR UPDATE OR DELETE ON {table}
             FOR EACH ROW EXECUTE FUNCTION protect_{table}_approved();
         """)
     for table, parent in [
