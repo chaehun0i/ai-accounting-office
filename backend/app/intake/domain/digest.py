@@ -1,20 +1,13 @@
 """해시는 API 직렬화와 별개이며 버전과 요청자·회사에 결합됩니다."""
 
-import hashlib
-import json
 from dataclasses import asdict
 from uuid import UUID
 
+from app.core.digests import digest as digest
 from app.intake.domain.canonical_fields import Mapping
 from app.intake.domain.validation import CanonicalRow
 
 PREVIEW_DEFINITION = "accounting-intake-1"
-
-
-def digest(value: object) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
-    ).hexdigest()
 
 
 def preview_digest(
