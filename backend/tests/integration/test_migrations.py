@@ -30,6 +30,11 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     command.upgrade(config, "head")
     command.current(config, check_heads=True)
     command.check(config)
+    command.downgrade(config, "010_agent_runtime_foundation")
+    assert "accounting_dimensions" not in inspect(db_connection).get_table_names(schema="public")
+    db_connection.commit()
+    command.upgrade(config, "head")
+    command.check(config)
     command.downgrade(config, "009_finance_subledger")
     assert "agent_runs" not in inspect(db_connection).get_table_names(schema="public")
     db_connection.commit()
@@ -41,7 +46,7 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     command.upgrade(config, "head")
     command.check(config)
     migration = MigrationContext.configure(db_connection, opts={"compare_type": True})
-    assert migration.get_current_heads() == ("010_agent_runtime_foundation",)
+    assert migration.get_current_heads() == ("011_accounting_dimensions",)
     assert compare_metadata(migration, Base.metadata) == []
     assert_relational_schema(db_connection)
     assert set(inspect(db_connection).get_table_names(schema="public")) == expected
