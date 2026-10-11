@@ -1,7 +1,7 @@
 """실제 업로드부터 거래 생성·재시도·롤백·회사 경계까지 검증합니다."""
 
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select, update
@@ -254,6 +254,7 @@ def test_requester_and_transaction_permission_are_both_enforced(api_client, auth
     with factory.begin() as session:
         session.add(
             MembershipModel(
+                id=uuid4(),
                 company_id=UUID(headers["X-Company-ID"]),
                 user_id=UUID(registration["user"]["id"]),
                 role_code="ACCOUNTANT",

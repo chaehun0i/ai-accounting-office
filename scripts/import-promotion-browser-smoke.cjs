@@ -7,7 +7,7 @@ const { chromium } = loader("playwright");
 async function main() {
   if (!process.argv.includes("--allow-synthetic")) throw new Error("격리 테스트 DB를 먼저 준비해 주세요.");
   const api = process.env.ACCOUNTING_API_ORIGIN || "http://127.0.0.1:8003";
-  const origin = process.env.ACCOUNTING_BROWSER_ORIGIN || "http://127.0.0.1:3000";
+  const origin = process.env.ACCOUNTING_BROWSER_ORIGIN || "http://localhost:3000";
   const browser = await chromium.launch({ channel: "msedge", headless: true });
   const context = await browser.newContext();
   const page = await context.newPage(); page.setDefaultTimeout(120000);
@@ -36,7 +36,7 @@ async function main() {
     await context.clearCookies(); await page.goto(origin);
     await page.getByLabel("이메일",{exact:true}).fill(email); await page.getByLabel("비밀번호",{exact:true}).fill(password);
     await page.getByRole("button",{name:"로그인",exact:true}).click();
-    await page.getByRole("heading",{name:"업무 홈",exact:true}).waitFor();
+    await page.getByRole("navigation",{name:"업무 메뉴",exact:true}).waitFor();
     await page.goto(origin+"/imports");
     await page.getByLabel("자료 종류").selectOption("SALES");
     await page.getByLabel("파일 선택").setInputFiles({name:"promotion.csv",mimeType:"text/csv",buffer:Buffer.from("source_id,date,amount,currency\ns1,2026-01-02,100.0001,KRW\ns2,2026-01-03,200,KRW\n")});
@@ -67,6 +67,9 @@ async function main() {
     await page.getByRole("button",{name:"파일 올리기",exact:true}).waitFor();
     assert.equal(await page.getByRole("heading",{name:"거래 생성 완료",exact:true}).count(),0);
     console.log("PASS: 로그인 → 파일 → 매핑 → 미리보기 → 확인 → 거래 2건 → 새로고침 → 동일 요청 재시도 → 거래 화면");
-  } finally { await browser.close(); }
+  } catch (error) { console.error((await page.locator("body").innerText()).slice(0,3000)); throw error; } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error.message); process.exitCode=1; });
+
+
+
