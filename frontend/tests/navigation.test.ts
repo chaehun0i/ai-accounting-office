@@ -3,7 +3,7 @@ import test from "node:test";
 import { canVisit, officeRoutes } from "../src/features/navigation/routes.ts";
 
 test("업무마다 독립 경로를 제공하고 회사 선택은 권한 없이 열 수 있습니다", () => {
-  assert.equal(new Set(officeRoutes.map(route => route.href)).size, 9);
+  assert.equal(new Set(officeRoutes.map(route => route.href)).size, 11);
   assert.ok(canVisit("/companies", []));
   assert.ok(canVisit("/", []));
   assert.equal(canVisit("/unknown", []), false);
