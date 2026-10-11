@@ -54,6 +54,22 @@ class TransactionService:
             value.company_id,
             "transaction.create" if expected_version is None else "transaction.update",
         )
+        return TransactionService._save_in(uow, value, expected_version)
+
+    @staticmethod
+    def from_approved_document_in(
+        uow: TransactionUnitOfWork, actor: Principal, value: Transaction
+    ) -> Transaction:
+        """문서 승인 권한은 문서에서 생성한 고정 원천 거래에만 위임합니다."""
+        require_company(uow, actor, value.company_id, "invoice.approve")
+        if value.source_type != "BUSINESS_DOCUMENT" or value.source_system != "BUSINESS_DOCUMENT":
+            raise InvalidInput()
+        return TransactionService._save_in(uow, value, None)
+
+    @staticmethod
+    def _save_in(
+        uow: TransactionUnitOfWork, value: Transaction, expected_version: int | None
+    ) -> Transaction:
         settings = uow.settings.get(value.company_id)
         if (
             settings is None
