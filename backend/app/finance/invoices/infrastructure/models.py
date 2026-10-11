@@ -151,7 +151,8 @@ def line_constraints(parent: str) -> tuple[object, ...]:
         ),
         CheckConstraint(
             "(quantity IS NULL AND unit_price IS NULL) OR "
-            "(quantity > 0 AND unit_price >= 0 AND quantity * unit_price = supply_amount)",
+            "(quantity IS NOT NULL AND unit_price IS NOT NULL AND "
+            "quantity > 0 AND unit_price >= 0 AND quantity * unit_price = supply_amount)",
             name="quantity",
         ),
     )

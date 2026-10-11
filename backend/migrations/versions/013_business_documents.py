@@ -314,7 +314,8 @@ DDL = {
         CONSTRAINT ck_sales_invoice_lines_amount CHECK (supply_amount >= 0 AND tax_amount >= 0 AND
         supply_amount + tax_amount > 0),
         CONSTRAINT ck_sales_invoice_lines_quantity CHECK ((quantity IS NULL AND unit_price IS
-        NULL) OR (quantity > 0 AND unit_price >= 0 AND quantity * unit_price = supply_amount))
+        NULL) OR (quantity IS NOT NULL AND unit_price IS NOT NULL AND quantity > 0 AND unit_price
+        >= 0 AND quantity * unit_price = supply_amount))
         )
         """,
         """
@@ -345,7 +346,8 @@ DDL = {
         CONSTRAINT ck_purchase_invoice_lines_amount CHECK (supply_amount >= 0 AND tax_amount >= 0
         AND supply_amount + tax_amount > 0),
         CONSTRAINT ck_purchase_invoice_lines_quantity CHECK ((quantity IS NULL AND unit_price IS
-        NULL) OR (quantity > 0 AND unit_price >= 0 AND quantity * unit_price = supply_amount))
+        NULL) OR (quantity IS NOT NULL AND unit_price IS NOT NULL AND quantity > 0 AND unit_price
+        >= 0 AND quantity * unit_price = supply_amount))
         )
         """,
         """
@@ -375,7 +377,8 @@ DDL = {
         CONSTRAINT ck_document_note_lines_amount CHECK (supply_amount >= 0 AND tax_amount >= 0 AND
         supply_amount + tax_amount > 0),
         CONSTRAINT ck_document_note_lines_quantity CHECK ((quantity IS NULL AND unit_price IS
-        NULL) OR (quantity > 0 AND unit_price >= 0 AND quantity * unit_price = supply_amount))
+        NULL) OR (quantity IS NOT NULL AND unit_price IS NOT NULL AND quantity > 0 AND unit_price
+        >= 0 AND quantity * unit_price = supply_amount))
         )
         """,
         """

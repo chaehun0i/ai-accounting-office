@@ -35,10 +35,7 @@ def validate_document(value: Document) -> None:
         if (
             not 1 <= len(line.description.strip()) <= 500
             or any(
-                not amount.is_finite()
-                or amount < 0
-                or amount > 999999999999999
-                or amount != amount.quantize(Decimal("0.0001"))
+                not amount.is_finite() or amount < 0 or amount != amount.quantize(Decimal("0.0001"))
                 for amount in amounts
             )
             or line.total_amount <= 0

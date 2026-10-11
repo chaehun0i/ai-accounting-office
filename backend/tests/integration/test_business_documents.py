@@ -1,7 +1,7 @@
 """문서 승인부터 거래·보조부 연결 및 재시도를 실제 PostgreSQL에서 검증합니다."""
 
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -116,13 +116,14 @@ def note_payload(cp, original, number="CN-001", supply="2000000", tax="200000"):
 
 
 def test_partial_settlement_credit_debit_and_gl_link(api_client, auth_service):
+    api_client.raise_server_exceptions = True
     owner, writer, payload, accounts, cp, _ = finance_setup(api_client, auth_service)
     value = approved_invoice(api_client, owner, writer, cp)
     journal = post_journal(
         api_client,
         owner,
         writer,
-        {**payload, "source_transaction_id": value["transaction_id"]},
+        {**payload, "source_type": "TRANSACTION", "source_transaction_id": value["transaction_id"]},
         [
             {
                 "account_id": accounts["외상매출금"],
@@ -190,8 +191,8 @@ def test_rollback_retry_and_immutable_document(api_client, auth_service, monkeyp
         with pytest.raises(IntegrityError):
             session.execute(
                 update(SalesInvoiceModel)
-                .where(SalesInvoiceModel.id == result.json()["id"])
-                .values(total_amount=1)
+                .where(SalesInvoiceModel.id == UUID(result.json()["id"]))
+                .values(total_amount=Decimal("1"))
             )
         session.rollback()
         assert session.scalar(select(SalesInvoiceModel.total_amount)) == Decimal("11000000")

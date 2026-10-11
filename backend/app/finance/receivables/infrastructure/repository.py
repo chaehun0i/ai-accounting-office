@@ -108,7 +108,7 @@ class ObligationRepository:
             due_date=row.due_date,
             status=target_status(adjusted, paid),
             version=row.version,
-            origin_date=journal.entry_date if journal else row.recognized_date or date.min,
+            origin_date=row.recognized_date or (journal.entry_date if journal else date.min),
             source_transaction_id=transaction_id,
             import_id=imported,
             evidence_ids=tuple(
@@ -149,7 +149,7 @@ class ObligationRepository:
             )
             .where(self.model.company_id == company_id, JournalModel.entry_date <= as_of)
             .order_by(self.model.due_date, self.model.id)
-        )
+        ).all()
         paid: dict[UUID, Decimal] = {
             key: amount
             for key, amount in self.session.execute(

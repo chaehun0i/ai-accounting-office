@@ -50,14 +50,27 @@ class DocumentRepository:
             return PurchaseInvoiceModel, PurchaseInvoiceLineModel
         return DocumentNoteModel, DocumentNoteLineModel
 
-    def entity(self, row: DocumentColumns, kind: DocumentType) -> Document:
+    def entity(
+        self,
+        row: DocumentColumns,
+        kind: DocumentType,
+        *,
+        loaded_lines: tuple[DocumentLine, ...] | None = None,
+        loaded_obligations: dict[UUID, UUID] | None = None,
+    ) -> Document:
         _, line_model = self.models(kind)
-        lines = tuple(
-            DocumentLine(**{key: getattr(line, key) for key in DocumentLine.__dataclass_fields__})
-            for line in self.session.scalars(
-                select(line_model)
-                .where(line_model.company_id == row.company_id, line_model.invoice_id == row.id)
-                .order_by(line_model.line_no)
+        lines = (
+            loaded_lines
+            if loaded_lines is not None
+            else tuple(
+                DocumentLine(
+                    **{key: getattr(line, key) for key in DocumentLine.__dataclass_fields__}
+                )
+                for line in self.session.scalars(
+                    select(line_model)
+                    .where(line_model.company_id == row.company_id, line_model.invoice_id == row.id)
+                    .order_by(line_model.line_no)
+                )
             )
         )
         fields = {
@@ -83,10 +96,14 @@ class DocumentRepository:
             if isinstance(row, DocumentNoteModel)
             else row.id
         )
-        fields["obligation_id"] = self.session.scalar(
-            select(obligation_model.id).where(
-                obligation_model.company_id == row.company_id,
-                obligation_model.source_invoice_id == invoice_id,
+        fields["obligation_id"] = (
+            loaded_obligations.get(invoice_id)
+            if loaded_obligations is not None
+            else self.session.scalar(
+                select(obligation_model.id).where(
+                    obligation_model.company_id == row.company_id,
+                    obligation_model.source_invoice_id == invoice_id,
+                )
             )
         )
         return Document(
@@ -104,15 +121,50 @@ class DocumentRepository:
         return self.entity(row, kind) if row else None
 
     def list(self, company: UUID, kind: DocumentType) -> builtins.list[Document]:
-        model, _ = self.models(kind)
+        model, line_model = self.models(kind)
         query = select(model).where(model.company_id == company)
         if model is DocumentNoteModel:
             query = query.where(DocumentNoteModel.note_type == kind.value)
-        return [
-            self.entity(row, kind)
-            for row in self.session.scalars(
-                query.order_by(model.issue_date.desc(), model.id).limit(500)
+        rows = list(
+            self.session.scalars(query.order_by(model.issue_date.desc(), model.id).limit(500))
+        )
+        if not rows:
+            return []
+        # 목록은 문서 수와 무관하게 항목과 연결을 묶어 읽습니다.
+        ids = [row.id for row in rows]
+        grouped: dict[UUID, builtins.list[DocumentLine]] = {resource: [] for resource in ids}
+        for line in self.session.scalars(
+            select(line_model)
+            .where(line_model.company_id == company, line_model.invoice_id.in_(ids))
+            .order_by(line_model.invoice_id, line_model.line_no)
+        ):
+            grouped[line.invoice_id].append(
+                DocumentLine(
+                    **{key: getattr(line, key) for key in DocumentLine.__dataclass_fields__}
+                )
             )
+        original_ids = [
+            (row.sales_invoice_id or row.purchase_invoice_id)
+            if isinstance(row, DocumentNoteModel)
+            else row.id
+            for row in rows
+        ]
+        obligations: dict[UUID, UUID] = {}
+        for target in (ReceivableModel, PayableModel):
+            obligations.update(
+                dict(
+                    self.session.execute(
+                        select(target.source_invoice_id, target.id).where(
+                            target.company_id == company, target.source_invoice_id.in_(original_ids)
+                        )
+                    ).all()
+                )
+            )
+        return [
+            self.entity(
+                row, kind, loaded_lines=tuple(grouped[row.id]), loaded_obligations=obligations
+            )
+            for row in rows
         ]
 
     def source(
