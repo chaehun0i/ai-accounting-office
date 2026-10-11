@@ -10,8 +10,7 @@ from sqlalchemy.orm import Session
 from app.evidence.infrastructure.models import EvidenceModel
 from app.intake.domain.canonical_fields import Mapping, SourceType, TargetContext, normalize
 from app.intake.domain.digest import row_digest
-from app.intake.domain.entities import Column, Confirmation, Import, Receipt, PromotionRow
-from app.intake.promotion.infrastructure.models import ImportPromotionRowModel
+from app.intake.domain.entities import Column, Confirmation, Import, PromotionRow, Receipt
 from app.intake.domain.validation import CanonicalRow, ValidationError
 from app.intake.domain.workbook import Workbook
 from app.intake.infrastructure.models import (
@@ -25,6 +24,7 @@ from app.intake.infrastructure.models import (
     ImportSourceRecordModel,
     ImportValidationErrorModel,
 )
+from app.intake.promotion.infrastructure.models import ImportPromotionRowModel
 from app.storage.infrastructure.models import StorageObjectModel
 
 

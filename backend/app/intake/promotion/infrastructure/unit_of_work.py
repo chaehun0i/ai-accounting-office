@@ -1,4 +1,5 @@
 from typing import Self
+
 from app.accounting.transactions.infrastructure.unit_of_work import TransactionSQLAlchemyUnitOfWork
 from app.intake.infrastructure.repository import ImportRepository
 from app.intake.promotion.infrastructure.repository import PromotionRepository

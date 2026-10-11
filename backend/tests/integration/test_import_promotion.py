@@ -12,7 +12,11 @@ from app.intake.infrastructure.models import ImportReceiptModel
 from app.intake.promotion.infrastructure.models import ImportPromotionRowModel
 from tests.integration.test_intake_api import COMPANY, confirm, preview, setup, upload
 
-CSV = b"source_id,date,amount,currency,tax_amount,description\ns1,2026-01-02,11000.0001,KRW,1000.0001,sale\ns2,2026-01-03,22000,KRW,2000,second\n"
+CSV = (
+    b"source_id,date,amount,currency,tax_amount,description\n"
+    b"s1,2026-01-02,11000.0001,KRW,1000.0001,sale\n"
+    b"s2,2026-01-03,22000,KRW,2000,second\n"
+)
 
 
 def prepare(client, auth_service):
@@ -26,13 +30,6 @@ def prepare(client, auth_service):
                 journal_number_prefix="JE",
                 numbering_reset_policy="FISCAL_YEAR",
                 allow_manual_journal=True,
-                accounting_framework_code="KR_GENERAL",
-                framework_version="1",
-                framework_effective_from=__import__("datetime").date(2026, 1, 1),
-                inventory_cost_method="WEIGHTED_AVERAGE",
-                depreciation_policy_code="STRAIGHT_LINE",
-                reporting_taxonomy_code="KR_GENERAL",
-                version=1,
             )
         )
     return headers, factory

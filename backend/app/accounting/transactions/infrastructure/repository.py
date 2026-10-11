@@ -3,7 +3,7 @@ from datetime import date
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select, update, text
+from sqlalchemy import select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 

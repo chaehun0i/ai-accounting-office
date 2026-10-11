@@ -152,6 +152,7 @@ class ReceiptRead(BaseModel):
     def from_receipt(cls, value: object) -> "ReceiptRead":
         from dataclasses import asdict
         from typing import cast
+
         from app.intake.domain.entities import Receipt
 
         receipt = cast(Receipt, value)

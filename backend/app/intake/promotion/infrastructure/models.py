@@ -2,8 +2,10 @@
 
 from datetime import datetime
 from uuid import UUID, uuid4
+
 from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.core.database.base import Base
 
 

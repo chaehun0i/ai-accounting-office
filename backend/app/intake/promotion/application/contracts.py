@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
+
 from app.accounting.transactions.application.contracts import TransactionUnitOfWork
 from app.intake.application.contracts import IntakeUnitOfWork
-from app.intake.domain.entities import Import, Receipt, PromotionRow
+from app.intake.domain.entities import Import, PromotionRow, Receipt
 
 
 class Promotions(Protocol):

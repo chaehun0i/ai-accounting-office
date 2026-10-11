@@ -83,7 +83,7 @@ def main() -> None:
                 print("framework_" + kind + "_columns=" + str(count))
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "011_accounting_dimensions"
+                == "012_import_transaction_promotion"
             )
             print(
                 "migration_head="
