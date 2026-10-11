@@ -46,3 +46,38 @@ def test_excess_and_stale() -> None:
     assert error.value.code == "SETTLEMENT_TARGET_STALE"
     with pytest.raises((TypeError, ValueError)):
         positive(1.5)  # type: ignore[arg-type]
+
+
+def test_due_windows_and_settled_exclusion() -> None:
+    from uuid import uuid4
+
+    from app.finance.receivables.domain.entities import Obligation
+    from app.finance.reconciliation.domain.reports import aging
+
+    today = date(2026, 10, 11)
+    cp = uuid4()
+    values = [
+        Obligation(
+            id=uuid4(),
+            company_id=uuid4(),
+            counterparty_id=cp,
+            counterparty_name="거래처",
+            origin_journal_id=uuid4(),
+            origin_line_no=1,
+            account_id=uuid4(),
+            original_amount=Decimal("10"),
+            outstanding_amount=Decimal("0" if days == 90 else "10"),
+            currency_code="KRW",
+            due_date=today + timedelta(days=days),
+            status="OPEN",
+            version=1,
+            origin_date=today - timedelta(days=100),
+        )
+        for days in (-1, 0, 7, 8, 30, 31, 90)
+    ]
+    result = aging(values, today)
+    assert result.total_outstanding == 60
+    assert result.overdue == 10
+    assert result.due_7d == 20
+    assert result.due_30d == 40
+    assert result.counterparties[cp] == 60

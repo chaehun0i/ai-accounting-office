@@ -110,7 +110,6 @@ class FinanceService(ObligationService):
         digest = fingerprint(resource, expected_version, parts)
         with self.factory() as uow:
             require_company(uow, actor, company, permission(kind, command=True))
-            require_currency(uow, company)
             uow.lock_command(company, actor.user_id, command, key)
             repo = uow.settlements(kind)
             replay = repo.replay(company, actor.user_id, command, key, digest)
@@ -121,6 +120,7 @@ class FinanceService(ObligationService):
             value = repo.get(company, resource, lock=True)
             if value is None:
                 raise ResourceNotFound()
+            require_currency(uow, company)
             check_version(value.version, expected_version)
             if value.status != "DRAFT":
                 raise AccountingError(
