@@ -188,12 +188,14 @@ class ImportReceiptModel(Base):
     __tablename__ = "import_receipts"
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
+        UniqueConstraint("company_id", "import_id", "id"),
+        CheckConstraint("confirmed_version >= 1", name="confirmed_version"),
         UniqueConstraint("import_id"),
         ForeignKeyConstraint(
             ["company_id", "import_id"], ["imports.company_id", "imports.id"], ondelete="RESTRICT"
         ),
         CheckConstraint(
-            "transaction_count = 0 AND counterparty_count = 0 AND evidence_count >= 1",
+            "transaction_count >= 0 AND counterparty_count = 0 AND evidence_count >= 1",
             name="counts",
         ),
     )
@@ -204,6 +206,8 @@ class ImportReceiptModel(Base):
     import_id: Mapped[UUID] = mapped_column(index=True)
     source_digest: Mapped[str] = mapped_column(String(64))
     transaction_count: Mapped[int]
+    confirmed_version: Mapped[int] = mapped_column(default=1)
+    promoted_at: Mapped[datetime | None]
     evidence_count: Mapped[int]
     counterparty_count: Mapped[int]
     status: Mapped[str] = mapped_column(String(30))
