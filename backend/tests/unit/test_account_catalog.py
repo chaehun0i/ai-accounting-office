@@ -11,7 +11,7 @@ from app.accounting.templates.domain.defaults import (
 
 def test_extended_catalog_keeps_legacy_meaning_and_valid_balances():
     assert LEGACY_TEMPLATE.version == 1
-    assert DEFAULT_TEMPLATE.version == 2
+    assert DEFAULT_TEMPLATE.version == 3
     assert len(LEGACY_ACCOUNTS) == 25
     assert len(DEFAULT_ACCOUNTS) >= 120
     accounts = {row.account_code: row for row in DEFAULT_ACCOUNTS}

@@ -52,8 +52,13 @@ def promote_accounting(
         # 서버에서 준비한 회사 계정목록은 온보딩으로 확장하거나 덮어쓰지 않습니다.
         if known and value.account_code not in known:
             raise StateConflict()
-        validate_account(value.account_type, value.normal_balance, value.is_contra)
         existing = known.get(value.account_code)
+        # 서버 제공 차감 계정의 성격은 온보딩 입력으로 재정의하지 않습니다.
+        validate_account(
+            value.account_type,
+            value.normal_balance,
+            existing.is_contra if existing else value.is_contra,
+        )
         if existing:
             if any(
                 getattr(existing, key) != getattr(value, key)
