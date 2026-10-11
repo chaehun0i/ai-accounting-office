@@ -173,11 +173,14 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     )
     from dataclasses import replace
 
+    from app.finance.invoices.application.service import DocumentService
+    from app.finance.invoices.infrastructure.unit_of_work import DocumentSQLAlchemyUnitOfWork
     from app.intake.promotion.application.service import PromotionService
     from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemyUnitOfWork
 
     app.state.services = replace(
         app.state.services,
+        documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(factory)),
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
         promotion=PromotionService(
             lambda: PromotionSQLAlchemyUnitOfWork(factory), app.state.services.intake

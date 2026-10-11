@@ -16,8 +16,10 @@ from app.finance.invoices.domain.entities import (
     DocumentType,
 )
 from app.finance.invoices.domain.rules import (
+    correction_outstanding,
     document_fingerprint,
     require_transition,
+    validate_correction,
     validate_document,
 )
 
@@ -118,3 +120,32 @@ def test_only_explicit_transition_commands() -> None:
     )
     with pytest.raises(StateConflict):
         require_transition(replace(value, status=DocumentStatus.APPROVED), "submit")
+
+
+def test_partial_settlement_correction_facts() -> None:
+    assert correction_outstanding(
+        Decimal("11000000"), Decimal("5500000"), Decimal("2200000"), Decimal(0)
+    ) == Decimal("3300000")
+    assert correction_outstanding(
+        Decimal("11000000"), Decimal("5500000"), Decimal("2200000"), Decimal("1100000")
+    ) == Decimal("4400000")
+    with pytest.raises(AccountingError, match="초과"):
+        correction_outstanding(
+            Decimal("11000000"), Decimal("5500000"), Decimal("6600000"), Decimal(0)
+        )
+
+
+def test_correction_does_not_guess_refund() -> None:
+    original = replace(invoice(), status=DocumentStatus.APPROVED)
+    note = replace(
+        original,
+        id=uuid4(),
+        document_type=DocumentType.CREDIT_NOTE,
+        original_document_type=original.document_type,
+        original_document_id=original.id,
+        reason_code="RETURN",
+        status=DocumentStatus.DRAFT,
+    )
+    with pytest.raises(AccountingError) as error:
+        validate_correction(original, note, Decimal(0))
+    assert error.value.code == "INVOICE_ALREADY_SETTLED"
