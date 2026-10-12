@@ -117,3 +117,18 @@ class StatementSummary:
     review_count: int
     reconciliation_item_count: int
     blocker: bool
+
+
+@dataclass(frozen=True, kw_only=True)
+class CardSummary:
+    card_account_id: UUID
+    account_id: UUID
+    as_of: date
+    source_balance: Decimal
+    reconciled_source_balance: Decimal
+    gl_balance: Decimal
+    difference_amount: Decimal
+    unmatched_count: int
+    partial_count: int
+    review_count: int
+    blocker: bool
