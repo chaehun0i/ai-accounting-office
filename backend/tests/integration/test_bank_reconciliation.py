@@ -4,13 +4,13 @@ from uuid import uuid4
 
 import pytest
 
-from tests.integration.test_finance_flow import finance_setup
+from tests.integration.test_finance_flow import finance_setup, post_journal
 from tests.integration.test_intake_api import confirm, preview
 
 CSV = b"source_id,date,amount,currency,direction,description\nb1,2026-01-02,100,KRW,IN,receipt\n"
 
 
-def prepare_bank(client, auth_service, content=CSV):
+def prepare_bank(client, auth_service, content=CSV, closing_balance="100"):
     owner, writer, _, accounts, _, _ = finance_setup(client, auth_service)
     account = client.post(
         "/bank-accounts",
@@ -44,7 +44,7 @@ def prepare_bank(client, auth_service, content=CSV):
         "statement_start": "2026-01-01",
         "statement_end": "2026-01-31",
         "opening_balance": "0",
-        "closing_balance": "100",
+        "closing_balance": closing_balance,
     }
     return owner, writer, payload
 
@@ -70,6 +70,128 @@ def command(client, writer, url, payload, key=None):
     return client.post(
         url, headers={**writer, "Idempotency-Key": key or str(uuid4())}, json=payload
     )
+
+
+def test_financial_commands_enforce_auth_csrf_company_and_permission(api_client, auth_service):
+    owner, writer, payload = prepare_bank(api_client, auth_service)
+    assert api_client.get("/bank-accounts").status_code == 401
+    no_csrf = {**writer, "X-CSRF-Protection": ""}
+    assert command(api_client, no_csrf, "/bank-statements/imports", payload).status_code == 403
+    assert (
+        api_client.post(
+            "/bank-accounts",
+            headers=writer,
+            json={
+                "institution_code": "TEST",
+                "alias": "권한 없음",
+                "control_account_id": str(uuid4()),
+            },
+        ).status_code
+        == 403
+    )
+    assert command(
+        api_client,
+        {**writer, "X-Company-ID": str(uuid4())},
+        "/bank-statements/imports",
+        payload,
+    ).status_code in {403, 404}
+    assert command(
+        api_client,
+        writer,
+        "/bank-statements/imports",
+        {**payload, "receipt_id": str(uuid4())},
+    ).status_code in {404, 409}
+    assert (
+        command(
+            api_client,
+            writer,
+            "/bank-statements/imports",
+            {**payload, "confirmed_version": payload["confirmed_version"] + 3},
+        ).status_code
+        == 409
+    )
+    # 보안 실패가 파일 접수나 명세 생성의 일부 성공을 남기지 않습니다.
+    assert api_client.get("/bank-statements", headers=owner).json() == []
+
+
+def test_balanced_gl_statement_close_preserves_accounting_boundary(api_client, auth_service):
+    owner, writer, payload = prepare_bank(api_client, auth_service)
+    transaction = target(api_client, writer)
+    accounts = {
+        a["account_name"]: a["id"] for a in api_client.get("/accounts", headers=writer).json()
+    }
+    period = api_client.get("/accounting/periods", headers=writer).json()[0]
+    post_journal(
+        api_client,
+        owner,
+        writer,
+        {
+            "accounting_period_id": period["id"],
+            "entry_date": "2026-01-02",
+            "source_transaction_id": transaction["id"],
+            "source_type": "TRANSACTION",
+        },
+        [
+            {"account_id": accounts["보통예금"], "debit_amount": "100"},
+            {"account_id": accounts["자본금"], "credit_amount": "100"},
+        ],
+    )
+    imported = command(api_client, writer, "/bank-statements/imports", payload)
+    assert imported.status_code == 200, imported.text
+    statement = imported.json()
+    candidate = api_client.post(
+        f"/bank-statements/{statement['id']}/match-candidates",
+        headers=writer,
+    ).json()[0]
+    draft = command(
+        api_client,
+        writer,
+        "/reconciliations",
+        {
+            "lines": [
+                {
+                    "source_type": "BANK",
+                    "source_id": candidate["source_id"],
+                    "target_type": candidate["target_type"],
+                    "target_id": candidate["target_id"],
+                    "amount": "100",
+                    "source_version": candidate["source_version"],
+                    "target_version": candidate["target_version"],
+                }
+            ]
+        },
+    ).json()
+    confirmed = command(
+        api_client,
+        writer,
+        f"/reconciliations/{draft['id']}/confirm",
+        {"expected_version": draft["version"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    current = api_client.get(f"/bank-statements/{statement['id']}", headers=writer).json()
+    closed = command(
+        api_client,
+        owner,
+        f"/bank-statements/{statement['id']}/close",
+        {"expected_version": current["version"]},
+    )
+    assert closed.status_code == 200, closed.text
+    assert not closed.json()["blocker"] and closed.json()["difference_amount"] == "0.0000"
+    assert (
+        api_client.get(f"/bank-statements/{statement['id']}", headers=writer).json()["status"]
+        == "CLOSED"
+    )
+    blocked = command(
+        api_client,
+        writer,
+        f"/reconciliations/{draft['id']}/unmatch",
+        {
+            "expected_version": confirmed.json()["version"],
+            "reason": "마감 명세 변경 시도",
+        },
+    )
+    assert blocked.status_code == 409
+    assert api_client.get("/accounting/periods", headers=writer).json()[0]["status"] == "OPEN"
 
 
 def test_confirmed_intake_match_retry_unmatch_and_summary(api_client, auth_service):
@@ -127,6 +249,33 @@ def test_confirmed_intake_match_retry_unmatch_and_summary(api_client, auth_servi
     removed = command(api_client, writer, unmatch_url, body)
     assert removed.status_code == 200, removed.text
     assert removed.json()["status"] == "UNMATCHED"
+    item = command(
+        api_client,
+        writer,
+        f"/bank-statements/{statement['id']}/items",
+        {
+            "reason_code": "MISSING_TRANSACTION",
+            "amount": "100",
+            "description": "장부 기록 확인 중",
+        },
+    )
+    assert item.status_code == 201, item.text
+    item = item.json()
+    resolved = command(
+        api_client,
+        writer,
+        f"/bank-statements/{statement['id']}/items/{item['id']}/resolve",
+        {
+            "expected_version": item["version"],
+            "resolution_note": "원천 확인 완료, 장부 검토는 별도 진행",
+        },
+    )
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["status"] == "RESOLVED"
+    # 검토 완료는 장부 차이를 없애는 회계 조정이 아닙니다.
+    assert api_client.get(f"/bank-statements/{statement['id']}/summary", headers=writer).json()[
+        "blocker"
+    ]
     foreign = {**writer, "X-Company-ID": str(uuid4())}
     assert api_client.get(f"/bank-statements/{statement['id']}", headers=foreign).status_code == 404
 
