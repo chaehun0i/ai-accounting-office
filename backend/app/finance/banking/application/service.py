@@ -247,6 +247,12 @@ class BankingService:
                     assert result is not None
                     return result
                 return uow.banking.sources(company, kind, account_id)
+            # 같은 접수 행을 다른 카드/계좌의 새 경제사건으로 복제하지 않습니다.
+            if any(
+                old.source_import_id == import_id and old.account_id != account_id
+                for old in uow.banking.sources(company, kind)
+            ):
+                raise SourceConflict()
             if kind == "BANK":
                 assert (
                     start is not None

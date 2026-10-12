@@ -86,6 +86,7 @@ def test_native_financial_source_import(api_client, auth_service, industry, kind
     )
     assert result.status_code == 200, result.text
     assert command(api_client, writer, path, payload, key).json() == result.json()
+    assert command(api_client, writer, path, payload).json() == result.json()
     sources = api_client.get(
         f"/bank-statements/{result.json()['id']}/transactions"
         if bank
@@ -101,6 +102,35 @@ def test_native_financial_source_import(api_client, auth_service, industry, kind
         for source in sources
     )
     assert {source["source_id"] for source in sources} == {row["source_id"] for row in original}
+
+    if not bank:
+        other = api_client.post(
+            "/card-accounts",
+            headers=owner,
+            json={
+                "institution_code": "FIXTURE",
+                "alias": "다른 카드",
+                "usage_type": "MERCHANT" if industry == "retail" else "CORPORATE",
+                "control_account_id": accounts[
+                    "부가세대급금" if industry == "retail" else "미지급금"
+                ],
+            },
+        )
+        assert other.status_code == 201, other.text
+        duplicated = command(
+            api_client,
+            writer,
+            path,
+            {**payload, "account_id": other.json()["id"]},
+        )
+        assert duplicated.status_code == 409
+        assert (
+            api_client.get(
+                f"/card-transactions?account_id={other.json()['id']}",
+                headers=writer,
+            ).json()
+            == []
+        )
 
     if industry != "mfg":
         # 산업별 원천의 입출금·환불 방향을 실제 거래와 연결하며 자동 분개하지 않습니다.
