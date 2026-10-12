@@ -58,7 +58,7 @@ AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 
 
 `import_promotion_rows`는 원본 행을 복제하지 않고 locator·digest·거래 FK·review를 보존합니다. `import_promotion_commands`는 company/actor/command/key/fingerprint와 Receipt 참조만 저장합니다. 요청·Import·원천 identity 잠금과 기존 Transaction UNIQUE가 동시 재시도를 보호합니다. 회사·Receipt/Transaction composite FK가 다른 회사 참조를 차단합니다. Agent mutation Tool과 framework checkpoint 예외는 변경하지 않았습니다. API·상태·재사용·실측 검증은 [승격 계약](import-transaction-promotion.md)을 따릅니다.
 
-012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011 수치는 이전 revision의 기록이며 당시 head는 012이며 아래 013이 현재 head입니다.
+012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011 수치는 이전 revision의 기록이며 당시 head는 012이며 아래 014가 현재 head입니다.
 
 
 ## 매출·매입 업무문서
@@ -67,4 +67,15 @@ AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 
 
 문서는 DRAFT→REVIEW_REQUIRED→APPROVED, 정정문서는 승인과 함께 APPLIED입니다. 작성자 자기승인을 차단하고 승인된 문서/항목은 DB trigger로 불변입니다. 정산과 정정은 append-only fact로 잔액을 계산하며 원금/기존 Collection·Payment를 덮어쓰지 않습니다. 전표가 없는 Invoice 원천은 업무 보조부에 보이고, 원장 대사 불일치는 별도로 반환합니다. 기존 POSTED Journal을 연결하면 동일 채권채무에 참조를 붙입니다. 자동 Posting은 없습니다.
 
-013의 격리 PostgreSQL 실측은 업무 테이블 **80**, FK **215**, orphan **0**, 업무 JSON **0**, JSONB **0**입니다. 012 이하 이력과 LangGraph framework schema는 변경하지 않았습니다. [업무문서 계약](business-documents.md), [검증 결과](business-documents-verification.md)를 참고하세요. 다음 후보는 Bank/Card Reconciliation이며 이번 범위에 포함하지 않습니다.
+013의 격리 PostgreSQL 실측은 업무 테이블 **80**, FK **215**, orphan **0**, 업무 JSON **0**, JSONB **0**입니다. 012 이하 이력과 LangGraph framework schema는 변경하지 않았습니다. [업무문서 계약](business-documents.md), [검증 결과](business-documents-verification.md)를 참고하세요. 이 수치는 013 시점의 기록이며 은행·카드는 아래 014에서 확장합니다.
+
+
+## 은행·카드 원천 대사
+
+`014_bank_card_reconciliation`은 기존 009의 match/line 구조를 재사용하고 은행·카드 계좌/원천/명세와 policy/item/event 8개 테이블을 추가합니다. 기존 013 이하 migration을 변경하지 않았습니다. 현재 head는 014이며 전용 PostgreSQL 실측은 업무 테이블 **88**, FK **250**, 인덱스 **495**, CHECK **232**, orphan **0**, 업무 JSON **0**, JSONB **0**입니다. Framework checkpoint schema는 변경하지 않았습니다.
+
+`finance/banking`은 확정 Intake의 원본 digest/Receipt/version을 다시 검증해 source를 정규화합니다. `finance/reconciliation`의 기존 AR/AP 원장 조회는 유지하고 별도 명시적 BankReconciliationService를 확장합니다. 회사 transaction lock 안에서 source/target 잔여액과 후보 version을 재검증합니다. 동시 초과 대사와 stale 후보를 차단하고 typed event/line 이력을 보존합니다. Router는 Application만 호출하고 Repository는 commit하지 않습니다.
+
+은행 명세와 GL, 확정 source 잔액을 구분합니다. 카드매출 정산채권과 법인카드 미지급금은 명시적 통제계정 role/usage로 분리합니다. 대사는 Journal 생성·승인·Posting 권한을 갖지 않으며 차이를 자동 조정하지 않습니다. Agent Tool/Framework는 확장하지 않았습니다. `blocker` summary는 향후 Closing V1 입력이며 Closing은 현재 구현하지 않았습니다.
+
+설계 roadmap/Coverage의 오래된 PR #12 Current 기준은 실제 main PR #13/91918e9로 직접 동기화하고 readback 검증했습니다. 진행 중인 014를 merged 상태라고 기록하지 않았습니다. [은행·카드 계약](bank-card-reconciliation.md)을 참고하세요. 다음 후보는 Closing V1이며 후속 시작 시 최신 main/Drive를 다시 확인합니다.

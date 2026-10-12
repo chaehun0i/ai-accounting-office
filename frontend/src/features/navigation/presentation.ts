@@ -4,6 +4,7 @@ export const routeIcons: Record<string, LucideIcon> = {
   "/transactions": ReceiptText, "/journals": ClipboardList, "/ledger": BookOpen,
   "/receivables": ReceiptText, "/payables": ReceiptText,
   "/business-documents": ReceiptText,
+  "/bank-reconciliation": ReceiptText, "/card-reconciliation": ReceiptText,
   "/trial-balance": Table2, "/accounting": Settings2,
 };
 export const routeDescriptions: Record<string, string> = {
@@ -12,6 +13,8 @@ export const routeDescriptions: Record<string, string> = {
   "/onboarding": "기본 정보를 입력하고 회계 시작에 필요한 내용을 준비합니다.",
   "/imports": "파일을 미리 확인한 뒤 선택한 자료만 안전하게 접수합니다.",
   "/transactions": "경제적 사건과 원본 증빙을 기록하고 확인합니다.",
+  "/bank-reconciliation": "은행 명세와 기존 거래·수금·지급 자료를 연결하고 장부 잔액과 비교합니다.",
+  "/card-reconciliation": "카드 원천의 승인·취소·환불을 확인하고 기존 회계 자료와 대사합니다.",
   "/business-documents": "매출·매입 문서를 검토하고 확정하여 거래와 채권·채무에 연결합니다.",
   "/journals": "분개를 작성하고 별도 검토자의 승인 후 장부에 반영합니다.",
   "/receivables": "거래처별 받을 금액과 수금 배분을 확인하고 원장과 대사합니다.",

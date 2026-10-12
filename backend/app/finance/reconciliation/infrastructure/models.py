@@ -23,10 +23,17 @@ class ReconciliationMatchModel(UUIDPrimaryKey, Base):
         ForeignKey("users.id", ondelete="RESTRICT"), index=True
     )
     created_at: Mapped[datetime]
+    version: Mapped[int] = mapped_column(server_default="1")
+    confirmed_by: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    confirmed_at: Mapped[datetime | None]
+    unmatched_by: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    unmatched_at: Mapped[datetime | None]
+    unmatch_reason: Mapped[str | None] = mapped_column(String(500))
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
-        CheckConstraint("matched_amount > 0", name="amount"),
-        CheckConstraint("status IN ('DRAFT','CONFIRMED')", name="status"),
+        CheckConstraint("matched_amount > 0 AND matched_amount < 1000000000000000", name="amount"),
+        CheckConstraint("version >= 1", name="version"),
+        CheckConstraint("status IN ('DRAFT','CONFIRMED','UNMATCHED')", name="status"),
     )
 
 
@@ -41,7 +48,58 @@ class ReconciliationMatchLineModel(UUIDPrimaryKey, Base):
     target_type: Mapped[str] = mapped_column(String(30))
     target_id: Mapped[UUID]
     amount: Mapped[Decimal]
+    source_version: Mapped[int] = mapped_column(server_default="1")
+    target_version: Mapped[int] = mapped_column(server_default="1")
+    bank_transaction_id: Mapped[UUID | None] = mapped_column(index=True)
+    card_transaction_id: Mapped[UUID | None] = mapped_column(index=True)
+    collection_id: Mapped[UUID | None] = mapped_column(index=True)
+    payment_id: Mapped[UUID | None] = mapped_column(index=True)
+    transaction_id: Mapped[UUID | None] = mapped_column(index=True)
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["company_id", "bank_transaction_id"],
+            ["bank_transactions.company_id", "bank_transactions.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "card_transaction_id"],
+            ["card_transactions.company_id", "card_transactions.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "collection_id"],
+            ["collections.company_id", "collections.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "payment_id"],
+            ["payments.company_id", "payments.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "transaction_id"],
+            ["transactions.company_id", "transactions.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("source_version >= 1 AND target_version >= 1", name="versions"),
+        CheckConstraint(
+            "num_nonnulls(bank_transaction_id,card_transaction_id) = 1 AND "
+            "num_nonnulls(collection_id,payment_id,transaction_id) = 1",
+            name="typed_references",
+        ),
+        CheckConstraint(
+            "(source_type = 'BANK' AND source_id = bank_transaction_id AND "
+            "bank_transaction_id IS NOT NULL) OR (source_type = 'CARD' AND source_id = "
+            "card_transaction_id AND card_transaction_id IS NOT NULL)",
+            name="source_identity",
+        ),
+        CheckConstraint(
+            "(target_type = 'COLLECTION' AND target_id = collection_id AND "
+            "collection_id IS NOT NULL) OR (target_type = 'PAYMENT' AND target_id = "
+            "payment_id AND payment_id IS NOT NULL) OR (target_type = 'TRANSACTION' AND "
+            "target_id = transaction_id AND transaction_id IS NOT NULL)",
+            name="target_identity",
+        ),
         ForeignKeyConstraint(
             ["company_id", "reconciliation_match_id"],
             ["reconciliation_matches.company_id", "reconciliation_matches.id"],

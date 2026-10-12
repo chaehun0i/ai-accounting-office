@@ -15,6 +15,7 @@ class Account:
     is_contra: bool = False
     template_account_id: UUID | None = None
     parent_account_id: UUID | None = None
+    control_account_type: str | None = None
     status: str = "ACTIVE"
     version: int = 1
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

@@ -24,6 +24,7 @@ class AccountModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
         ForeignKey("coa_template_accounts.id", ondelete="RESTRICT"), index=True
     )
     account_code: Mapped[str] = mapped_column(String(20))
+    control_account_type: Mapped[str | None] = mapped_column(String(24))
     account_name: Mapped[str] = mapped_column(String(200))
     account_type: Mapped[str] = mapped_column(String(16))
     normal_balance: Mapped[str] = mapped_column(String(6))
@@ -32,6 +33,12 @@ class AccountModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     is_contra: Mapped[bool] = mapped_column(server_default=text("false"))
     status: Mapped[str] = mapped_column(String(16), server_default=text("'ACTIVE'"))
     __table_args__ = (
+        CheckConstraint(
+            "control_account_type IS NULL OR "
+            "(control_account_type IN ('BANK_CASH','CARD_CLEARING') AND account_type = 'ASSET') OR "
+            "(control_account_type = 'CARD_PAYABLE' AND account_type = 'LIABILITY')",
+            name="control_role",
+        ),
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "account_code"),
         ForeignKeyConstraint(

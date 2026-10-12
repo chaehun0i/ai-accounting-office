@@ -37,3 +37,19 @@ class AccountRepository:
     def add(self, value: Account) -> None:
         self.session.add(AccountModel(**asdict(value)))
         self.session.flush()
+
+    def map_control(self, company: UUID, identifier: UUID, role: str) -> Account | None:
+        row = self.session.scalar(
+            select(AccountModel)
+            .where(AccountModel.company_id == company, AccountModel.id == identifier)
+            .with_for_update()
+        )
+        if row is None:
+            return None
+        if row.control_account_type not in {None, role}:
+            from app.contracts.access_errors import StateConflict
+
+            raise StateConflict()
+        row.control_account_type = role
+        self.session.flush()
+        return self.entity(row)

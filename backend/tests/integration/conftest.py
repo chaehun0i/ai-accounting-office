@@ -173,13 +173,20 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     )
     from dataclasses import replace
 
+    from app.finance.banking.application.service import BankingService
+    from app.finance.banking.infrastructure.unit_of_work import BankingSQLAlchemyUnitOfWork
     from app.finance.invoices.application.service import DocumentService
     from app.finance.invoices.infrastructure.unit_of_work import DocumentSQLAlchemyUnitOfWork
+    from app.finance.reconciliation.application.bank_service import BankReconciliationService
     from app.intake.promotion.application.service import PromotionService
     from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemyUnitOfWork
 
     app.state.services = replace(
         app.state.services,
+        banking=BankingService(
+            lambda: BankingSQLAlchemyUnitOfWork(factory), app.state.services.intake
+        ),
+        bank_reconciliation=BankReconciliationService(lambda: BankingSQLAlchemyUnitOfWork(factory)),
         documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(factory)),
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
         promotion=PromotionService(

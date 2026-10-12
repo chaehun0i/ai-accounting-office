@@ -1,0 +1,3 @@
+"source_id","occurred_at","direction","amount","description"
+"RBANK-001","2026-01-07","IN","1067000","카드매출 정산(수수료 차감)"
+"RBANK-002","2026-01-20","IN","2200000","CUST001 수금"

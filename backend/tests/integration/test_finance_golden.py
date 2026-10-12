@@ -20,7 +20,9 @@ def test_business_document_golden_corp_accounting_and_finance(api_client, auth_s
     golden_corp_accounting_and_finance(api_client, auth_service, True)
 
 
-def golden_corp_accounting_and_finance(api_client, auth_service, document_path):
+def golden_corp_accounting_and_finance(
+    api_client, auth_service, document_path, reconciliation_path=False
+):
     owner, writer, payload, accounts, customer, _ = finance_setup(api_client, auth_service)
     response = api_client.post(
         "/counterparties",
@@ -39,7 +41,29 @@ def golden_corp_accounting_and_finance(api_client, auth_service, document_path):
     period = api_client.get("/accounting/periods", headers=writer).json()[9]
     payload = {**payload, "accounting_period_id": period["id"], "entry_date": "2026-10-01"}
 
+    source_transactions = {}
+
     def entry(day, description, debits, credits, invoice=None):
+        if reconciliation_path and description.startswith(("T002", "T007")):
+            from uuid import uuid4
+
+            response = api_client.post(
+                "/transactions",
+                headers={**writer, "Idempotency-Key": str(uuid4())},
+                json={
+                    "transaction_date": f"2026-10-{day:02d}",
+                    "accounting_date": f"2026-10-{day:02d}",
+                    "description": description,
+                    "amount": "1100000",
+                    "direction": "OUTFLOW",
+                    "source_id": description[:4],
+                    "payment_method": "CARD" if day == 3 else "BANK",
+                },
+            )
+            assert response.status_code == 201, response.text
+            invoice = {"transaction_id": response.json()["id"]}
+            source_transactions[description[:4]] = response.json()
+
         lines = []
         for direction, values in [("debit_amount", debits), ("credit_amount", credits)]:
             for name, amount, cp in values:
@@ -146,3 +170,12 @@ def golden_corp_accounting_and_finance(api_client, auth_service, document_path):
     by_name = {row["account_name"]: row for row in rows}
     assert Decimal(by_name["현금및현금성자산"]["ending_balance"]) == Decimal("50550000")
     assert Decimal(by_name["카드미지급금"]["ending_balance"]) == 0
+
+    if reconciliation_path:
+        return {
+            "owner": owner,
+            "writer": writer,
+            "accounts": accounts,
+            "transactions": source_transactions,
+            "period_id": period["id"],
+        }

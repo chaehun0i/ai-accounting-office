@@ -45,6 +45,13 @@ class Preview:
     rows: list[CanonicalRow]
 
 
+@dataclass(frozen=True)
+class ConfirmedRows:
+    source: Import
+    receipt: Receipt
+    rows: tuple[CanonicalRow, ...]
+
+
 class IntakeService:
     def __init__(
         self,
@@ -320,7 +327,12 @@ class IntakeService:
                 1,
                 0,
                 "CONFIRMED"
-                if current.target_context == TargetContext.TRANSACTION_CANONICAL
+                if current.target_context
+                in {
+                    TargetContext.TRANSACTION_CANONICAL,
+                    TargetContext.BANK_SOURCE,
+                    TargetContext.CARD_SOURCE,
+                }
                 else "COMPLETED",
                 now,
                 current.version + 1,
@@ -341,3 +353,40 @@ class IntakeService:
             if result is None:
                 raise ResourceNotFound()
             return result
+
+    def confirmed_rows(
+        self,
+        actor: Principal,
+        company: UUID,
+        identifier: UUID,
+        *,
+        receipt_id: UUID,
+        source_digest: str,
+        confirmed_version: int,
+    ) -> ConfirmedRows:
+        """승격 어댑터가 parser를 복제하지 않고 확정 원천을 재검증합니다."""
+        with self.factory() as uow:
+            source = self._get(uow, actor, company, identifier, "import.confirm")
+        workbook = self._workbook(source)
+        with self.factory() as uow:
+            current = self._get(uow, actor, company, identifier, "import.confirm")
+            receipt = uow.imports.receipt(company_id=company, import_id=identifier)
+            if receipt is None or receipt.id != receipt_id:
+                raise ResourceNotFound()
+            mappings = [column.mapping for column in uow.imports.columns(current)]
+            records, errors = validate(workbook, current.source_type, mappings)
+            if (
+                errors
+                or not records
+                or current.status not in {"CONFIRMED", "COMPLETED"}
+                or source.version != current.version
+                or source.file_sha256 != current.file_sha256
+                or self._digest(current, mappings) != current.preview_digest
+                or receipt.source_digest != source_digest
+                or receipt.confirmed_version != confirmed_version
+                or current.version != confirmed_version + (current.status == "COMPLETED")
+                or digest([row_digest(r) for r in sorted(records, key=lambda r: r.source_id)])
+                != source_digest
+            ):
+                raise PreviewStale()
+            return ConfirmedRows(current, receipt, tuple(records))
