@@ -5,6 +5,7 @@ import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { DataImport, type Receipt } from "@/features/imports/data-import";
 import { displayAmount } from "@/shared/amount";
+import { localDate } from "@/shared/calendar";
 import { OfficeDialog } from "@/shared/ui/dialog";
 
 type Account = { id: string; alias: string; control_account_id: string };
@@ -39,7 +40,7 @@ export function BankWorkspace({ company, kind }: { company: Company; kind:"BANK"
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const [revision,setRevision]=useState(0);
-  const [asOf,setAsOf]=useState("2026-12-31");
+  const [asOf,setAsOf]=useState(localDate);
   const requestKey=useRef<{signature:string;key:string}|null>(null);
   const canManage=company.permissions.includes("reconciliation.manage");
   const canMap=company.permissions.includes("control_account.manage");
@@ -110,10 +111,10 @@ export function BankWorkspace({ company, kind }: { company: Company; kind:"BANK"
   return <section className="panel">
     <h2>{kind==="BANK"?"은행 명세 대사":"카드 원천 대사"}</h2>
     <p>원천 거래와 기존 회계 자료를 연결합니다. 대사 확정은 전표의 승인·장부 반영과 별개입니다.</p>
-    <label>{kind==="BANK"?"계좌":"카드"}<select value={account} onChange={event=>changeAccount(event.target.value)} disabled={busy}><option value="">선택하세요</option>{accounts.map(value=><option key={value.id} value={value.id}>{value.alias}</option>)}</select></label>
+    <label>{kind==="BANK"?"계좌":"카드"}<select aria-label={kind==="BANK"?"계좌":"카드"} value={account} onChange={event=>changeAccount(event.target.value)} disabled={busy}><option value="">선택하세요</option>{accounts.map(value=><option key={value.id} value={value.id}>{value.alias}</option>)}</select></label>
     {canMap&&<button onClick={()=>setDialog(true)} disabled={busy}>별칭과 장부 계정 연결</button>}
     {!accounts.length&&<p>등록된 별칭이 없습니다. 회사 관리자에게 장부 계정 연결을 요청하세요. 원계좌·카드번호는 입력하지 않습니다.</p>}
-    {kind==="BANK"&&account&&<label>명세 기간<select value={statement} onChange={event=>changeStatement(event.target.value)} disabled={busy}><option value="">선택하세요</option>{statements.filter(value=>value.bank_account_id===account).map(value=><option key={value.id} value={value.id}>{value.statement_start} ~ {value.statement_end} · {statuses[value.status]??"검토 필요"}</option>)}</select></label>}
+    {kind==="BANK"&&account&&<label>명세 기간<select aria-label="명세 기간" value={statement} onChange={event=>changeStatement(event.target.value)} disabled={busy}><option value="">선택하세요</option>{statements.filter(value=>value.bank_account_id===account).map(value=><option key={value.id} value={value.id}>{value.statement_start} ~ {value.statement_end} · {statuses[value.status]??"검토 필요"}</option>)}</select></label>}
     {account&&canManage&&company.permissions.includes("import.create")&&<details><summary>새 원천 파일 가져오기</summary><DataImport key={`${company.id}:${kind}`} company={company} financialKind={kind} onConfirmed={setReceipt}/></details>}
     {receipt&&<form onSubmit={importSources}><h3>확인 자료 연결</h3>{kind==="BANK"&&<><label>시작일<input name="start" type="date" required/></label><label>종료일<input name="end" type="date" required/></label><label>기초잔액<input name="opening" inputMode="decimal" required defaultValue="0"/></label><label>기말잔액<input name="closing" inputMode="decimal" required/></label></>}<button disabled={busy||!account}>원천 자료 생성</button></form>}
     {(statement||(kind==="CARD"&&account))&&<>
@@ -128,6 +129,6 @@ export function BankWorkspace({ company, kind }: { company: Company; kind:"BANK"
     {kind==="BANK"&&statement&&<section><h3>차이 원인과 검토 이력</h3><p>원인을 기록하거나 해결 처리해도 장부 금액은 바뀌지 않습니다.</p>{items.map(item=><div key={item.id}><p>{itemReasons[item.reason_code]??"확인 필요"} · {displayAmount(item.amount)} · {item.description} · {item.status==="OPEN"?"미해결":"해결 확인"}</p>{item.resolution_note&&<p>해결 근거: {item.resolution_note}</p>}{item.status==="OPEN"&&canManage&&<form onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);void run(async()=>{await command(`/bank-statements/${statement}/items/${item.id}/resolve`,{expected_version:item.version,resolution_note:form.get("note")});await refreshSummary();});}}><label>해결 근거<input name="note" required maxLength={500}/></label><button disabled={busy}>해결 확인 기록</button></form>}</div>)}{canManage&&<form onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);void run(async()=>{await command(`/bank-statements/${statement}/items`,{reason_code:form.get("reason"),amount:form.get("amount"),description:form.get("description")});await refreshSummary();});}}><label>원인<select name="reason">{Object.entries(itemReasons).map(([code,label])=><option key={code} value={code}>{label}</option>)}</select></label><label>차이 금액<input name="amount" inputMode="decimal" required/></label><label>검토 내용<input name="description" required maxLength={500}/></label><button disabled={busy}>미해결 원인 기록</button></form>}</section>}
     {!canManage&&<p>조회 모드입니다. 대사 변경 권한은 회사 관리자에게 문의하세요.</p>}
     {busy&&<p role="status">처리 중입니다…</p>}{notice&&<p role="status">{notice}</p>}{error&&<div role="alert" className="error"><p>{error}</p><p>자료가 변경되었거나 충돌하면 최신 후보를 다시 조회하세요. 같은 작업은 안전하게 재시도할 수 있습니다.</p><button disabled={busy} onClick={()=>{setCandidates([]);setSelected({});setRevision(value=>value+1);}}>최신 자료 새로고침</button></div>}
-    <OfficeDialog open={dialog} title="별칭과 장부 계정 연결" description="원계좌·카드번호 대신 별칭을 입력합니다." onClose={()=>setDialog(false)}><form onSubmit={createAccount}>{kind==="CARD"&&<label>카드 용도<select value={cardUsage} onChange={event=>setCardUsage(event.target.value as "CORPORATE"|"MERCHANT")}><option value="CORPORATE">법인카드 사용 · 미지급금</option><option value="MERCHANT">카드매출 수납 · 정산채권</option></select></label>}<label>기관 코드<input name="institution" required maxLength={30}/></label><label>별칭<input name="alias" required maxLength={80}/></label><label>장부 통제계정<select name="control" required><option value="">선택하세요</option>{coa.filter(value=>value.posting_allowed&&value.status==="ACTIVE"&&value.account_type===(kind==="BANK"||cardUsage==="MERCHANT"?"ASSET":"LIABILITY")).map(value=><option key={value.id} value={value.id}>{value.account_name}</option>)}</select></label><button disabled={busy}>연결 저장</button></form></OfficeDialog>
+    <OfficeDialog open={dialog} title="별칭과 장부 계정 연결" description="원계좌·카드번호 대신 별칭을 입력합니다." onClose={()=>setDialog(false)}><form onSubmit={createAccount}>{kind==="CARD"&&<label>카드 용도<select value={cardUsage} onChange={event=>setCardUsage(event.target.value as "CORPORATE"|"MERCHANT")}><option value="CORPORATE">법인카드 사용 · 미지급금</option><option value="MERCHANT">카드매출 수납 · 정산채권</option></select></label>}<label>기관 코드<input name="institution" required maxLength={30}/></label><label>별칭<input name="alias" required maxLength={80}/></label><label>장부 통제계정<select name="control" aria-label="장부 통제계정" required><option value="">선택하세요</option>{coa.filter(value=>value.posting_allowed&&value.status==="ACTIVE"&&value.account_type===(kind==="BANK"||cardUsage==="MERCHANT"?"ASSET":"LIABILITY")).map(value=><option key={value.id} value={value.id}>{value.account_name}</option>)}</select></label><button disabled={busy}>연결 저장</button></form></OfficeDialog>
   </section>;
 }
