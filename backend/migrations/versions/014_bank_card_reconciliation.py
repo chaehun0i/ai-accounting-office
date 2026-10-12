@@ -747,7 +747,8 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f("ck_chart_of_accounts_control_role"),
         "chart_of_accounts",
-        "control_account_type IS NULL OR (control_account_type = 'BANK_CASH' AND "
+        "control_account_type IS NULL OR (control_account_type IN ('BANK_CASH','CARD_CLEARING') "
+        "AND "
         "account_type = 'ASSET') OR (control_account_type = 'CARD_PAYABLE' AND "
         "account_type = 'LIABILITY')",
     )
@@ -785,6 +786,42 @@ def upgrade() -> None:
         "source_version >= 1 AND target_version >= 1",
     )
 
+    op.add_column(
+        "reconciliation_items",
+        sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
+    )
+    op.add_column(
+        "reconciliation_items", sa.Column("resolution_note", sa.String(500), nullable=True)
+    )
+    op.add_column("reconciliation_items", sa.Column("resolved_by", sa.Uuid(), nullable=True))
+    op.add_column(
+        "reconciliation_items", sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True)
+    )
+    op.create_foreign_key(
+        op.f("fk_reconciliation_items_resolved_by_users"),
+        "reconciliation_items",
+        "users",
+        ["resolved_by"],
+        ["id"],
+        ondelete="RESTRICT",
+    )
+    op.create_check_constraint(
+        op.f("ck_reconciliation_items_version"), "reconciliation_items", "version >= 1"
+    )
+    op.create_check_constraint(
+        op.f("ck_reconciliation_items_resolution"),
+        "reconciliation_items",
+        "(status = 'OPEN' AND resolution_note IS NULL AND resolved_by IS NULL "
+        "AND resolved_at IS NULL) OR (status = 'RESOLVED' AND resolution_note IS NOT NULL "
+        "AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL)",
+    )
+    op.add_column(
+        "card_accounts",
+        sa.Column("usage_type", sa.String(16), nullable=False, server_default="CORPORATE"),
+    )
+    op.create_check_constraint(
+        op.f("ck_card_accounts_usage"), "card_accounts", "usage_type IN ('CORPORATE','MERCHANT')"
+    )
     # 원천 사실과 대사 이력은 새 이벤트를 통해서만 정정합니다.
     for table in ("bank_transactions", "card_transactions", "bank_statements"):
         op.execute(f"""

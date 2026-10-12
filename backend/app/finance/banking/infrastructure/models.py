@@ -47,10 +47,12 @@ class CardAccountModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     control_account_id: Mapped[UUID] = mapped_column(index=True)
     currency_code: Mapped[str] = mapped_column(String(3))
     status: Mapped[str] = mapped_column(String(16))
+    usage_type: Mapped[str] = mapped_column(String(16), server_default="CORPORATE")
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "alias"),
         scoped_fk("control_account_id", "chart_of_accounts"),
+        CheckConstraint("usage_type IN ('CORPORATE','MERCHANT')", name="usage"),
         CheckConstraint("currency_code = 'KRW'", name="currency"),
         CheckConstraint("status IN ('ACTIVE','INACTIVE')", name="status"),
         CheckConstraint("version >= 1", name="version"),
@@ -222,6 +224,10 @@ class ReconciliationItemModel(UUIDPrimaryKey, Base):
     amount: Mapped[Decimal]
     status: Mapped[str] = mapped_column(String(16))
     description: Mapped[str] = mapped_column(String(500))
+    version: Mapped[int] = mapped_column(server_default="1")
+    resolution_note: Mapped[str | None] = mapped_column(String(500))
+    resolved_by: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    resolved_at: Mapped[datetime | None]
     created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     created_at: Mapped[datetime]
     __table_args__ = (
@@ -232,6 +238,13 @@ class ReconciliationItemModel(UUIDPrimaryKey, Base):
             name="reason",
         ),
         CheckConstraint("status IN ('OPEN','RESOLVED')", name="status"),
+        CheckConstraint("version >= 1", name="version"),
+        CheckConstraint(
+            "(status = 'OPEN' AND resolution_note IS NULL AND resolved_by IS NULL "
+            "AND resolved_at IS NULL) OR (status = 'RESOLVED' AND resolution_note IS NOT NULL "
+            "AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL)",
+            name="resolution",
+        ),
         CheckConstraint("abs(amount) < 1000000000000000", name="amount"),
     )
 

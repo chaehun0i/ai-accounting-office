@@ -60,10 +60,21 @@ class BankingRepository:
         return [
             FinancialAccount(
                 kind=kind,
-                **{k: getattr(r, k) for k in FinancialAccount.__dataclass_fields__ if k != "kind"},
+                id=r.id,
+                company_id=r.company_id,
+                institution_code=r.institution_code,
+                alias=r.alias,
+                control_account_id=r.control_account_id,
+                currency_code=r.currency_code,
+                status=r.status,
+                version=r.version,
+                usage_type=getattr(r, "usage_type", "CORPORATE"),
             )
-            for r in self.session.scalars(
-                select(model).where(model.company_id == company).order_by(model.alias)
+            for r in (
+                cast(BankAccountModel | CardAccountModel, row)
+                for row in self.session.scalars(
+                    select(model).where(model.company_id == company).order_by(model.alias)
+                )
             )
         ]
 
@@ -74,6 +85,8 @@ class BankingRepository:
         model = BankAccountModel if value.kind == "BANK" else CardAccountModel
         data = asdict(value)
         data.pop("kind")
+        if value.kind == "BANK":
+            data.pop("usage_type")
         self.session.add(model(**data))
         self.session.flush()
 
@@ -487,6 +500,35 @@ class BankingRepository:
     def add_item(self, value: ReconciliationItem, actor: UUID, now: datetime) -> None:
         self.session.add(ReconciliationItemModel(**asdict(value), created_by=actor, created_at=now))
         self.session.flush()
+
+    def resolve_item(
+        self, company: UUID, identifier: UUID, expected: int, note: str, actor: UUID, now: datetime
+    ) -> ReconciliationItem:
+        from app.contracts.access_errors import ResourceNotFound, StateConflict
+
+        row = self.session.scalar(
+            select(ReconciliationItemModel)
+            .where(
+                ReconciliationItemModel.company_id == company,
+                ReconciliationItemModel.id == identifier,
+            )
+            .with_for_update()
+        )
+        if row is None:
+            raise ResourceNotFound()
+        if row.version != expected:
+            raise VersionConflict()
+        if row.status != "OPEN":
+            raise StateConflict()
+        row.status = "RESOLVED"
+        row.version += 1
+        row.resolution_note = note
+        row.resolved_by = actor
+        row.resolved_at = now
+        self.session.flush()
+        return ReconciliationItem(
+            **{key: getattr(row, key) for key in ReconciliationItem.__dataclass_fields__}
+        )
 
     def replay(
         self, company: UUID, actor: UUID, command: str, key: str, fingerprint: str

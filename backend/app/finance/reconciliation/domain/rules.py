@@ -82,6 +82,8 @@ class Candidate:
     classification: str
     reasons: tuple[str, ...]
     policy_version: int
+    target_reference: str = ""
+    target_date: date | None = None
 
 
 def money(value: Decimal, *, positive: bool = True) -> Decimal:
@@ -159,6 +161,8 @@ def score_candidate(
         classification,
         tuple(reasons),
         policy.version,
+        target.reference,
+        target.occurred_on,
     )
 
 

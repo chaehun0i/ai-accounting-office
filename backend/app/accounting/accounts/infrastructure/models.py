@@ -34,7 +34,9 @@ class AccountModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     status: Mapped[str] = mapped_column(String(16), server_default=text("'ACTIVE'"))
     __table_args__ = (
         CheckConstraint(
-            "control_account_type IS NULL OR (control_account_type = 'BANK_CASH' AND account_type = 'ASSET') OR (control_account_type = 'CARD_PAYABLE' AND account_type = 'LIABILITY')",
+            "control_account_type IS NULL OR "
+            "(control_account_type IN ('BANK_CASH','CARD_CLEARING') AND account_type = 'ASSET') OR "
+            "(control_account_type = 'CARD_PAYABLE' AND account_type = 'LIABILITY')",
             name="control_role",
         ),
         UniqueConstraint("company_id", "id"),

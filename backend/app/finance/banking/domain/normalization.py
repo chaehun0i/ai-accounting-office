@@ -29,7 +29,10 @@ def normalize_row(
     account_id: UUID,
     kind: str,
     statement_id: UUID | None,
+    card_usage: str = "CORPORATE",
 ) -> FinancialSource:
+    if kind not in {"BANK", "CARD"} or card_usage not in {"CORPORATE", "MERCHANT"}:
+        raise InvalidInput()
     values = dict(row.values)
     if values.get("currency") != "KRW":
         raise InvalidInput()
@@ -38,6 +41,8 @@ def normalize_row(
         normalize_status(values.get("source_status", "CAPTURED")) if kind == "CARD" else "CAPTURED"
     )
     direction = direction_for(status) if kind == "CARD" else values.get("direction", "")
+    if kind == "CARD" and card_usage == "MERCHANT":
+        direction = "OUT" if direction == "IN" else "IN"
     if direction not in {"IN", "OUT"}:
         raise InvalidInput()
     if kind == "CARD" and values.get("direction", direction) != direction:

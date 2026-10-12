@@ -13,6 +13,7 @@ from app.finance.banking.api.schemas import (
     Confirm,
     ItemCreate,
     MatchCreate,
+    ResolveItem,
     SourceImport,
     StatementImport,
     Unmatch,
@@ -70,6 +71,7 @@ def create_bank(
         payload.institution_code,
         payload.alias,
         payload.control_account_id,
+        payload.usage_type,
     )
 
 
@@ -91,6 +93,7 @@ def create_card(
         payload.institution_code,
         payload.alias,
         payload.control_account_id,
+        payload.usage_type,
     )
 
 
@@ -273,6 +276,27 @@ def close(
     service: Reconciliation,
 ) -> StatementSummary:
     return service.close(actor, company_id, identifier, payload.expected_version, key)
+
+
+@router.post("/bank-statements/{identifier}/items/{item_id}/resolve", dependencies=[Depends(csrf)])
+def resolve_item(
+    identifier: UUID,
+    item_id: UUID,
+    payload: ResolveItem,
+    key: Key,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Reconciliation,
+) -> ReconciliationItem:
+    return service.resolve_item(
+        actor,
+        company_id,
+        identifier,
+        item_id,
+        payload.expected_version,
+        payload.resolution_note,
+        key,
+    )
 
 
 @router.get("/card-accounts/{identifier}/summary")

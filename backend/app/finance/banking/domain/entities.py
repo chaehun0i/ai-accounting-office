@@ -17,6 +17,7 @@ class FinancialAccount:
     currency_code: str = "KRW"
     status: str = "ACTIVE"
     version: int = 1
+    usage_type: str = "CORPORATE"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -96,6 +97,10 @@ class ReconciliationItem:
     amount: Decimal
     status: str
     description: str
+    version: int = 1
+    resolution_note: str | None = None
+    resolved_by: UUID | None = None
+    resolved_at: datetime | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -132,3 +137,4 @@ class CardSummary:
     partial_count: int
     review_count: int
     blocker: bool
+    reconciled_payment_amount: Decimal = Decimal("0")

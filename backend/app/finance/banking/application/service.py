@@ -45,16 +45,29 @@ class BankingService:
         institution: str,
         alias: str,
         control: UUID,
+        usage_type: str = "CORPORATE",
     ) -> FinancialAccount:
         safe_reference(institution, maximum=30)
         alias = financial_text(alias, 80)
         if not alias:
             raise InvalidInput()
+        if usage_type not in {"CORPORATE", "MERCHANT"} or (
+            kind == "BANK" and usage_type != "CORPORATE"
+        ):
+            raise InvalidInput()
         with self.factory() as uow:
             require_company(uow, actor, company, "reconciliation.manage")
             uow.banking.lock(company)
             AccountingMasterService.map_control_in(
-                uow, actor, company, control, "BANK_CASH" if kind == "BANK" else "CARD_PAYABLE"
+                uow,
+                actor,
+                company,
+                control,
+                "BANK_CASH"
+                if kind == "BANK"
+                else "CARD_CLEARING"
+                if usage_type == "MERCHANT"
+                else "CARD_PAYABLE",
             )
             if any(a.alias == alias for a in uow.banking.accounts(company, kind)):
                 raise StateConflict()
@@ -68,6 +81,7 @@ class BankingService:
                 institution_code=institution,
                 alias=alias,
                 control_account_id=control,
+                usage_type=usage_type,
             )
             uow.banking.add_account(result)
             return result
@@ -172,8 +186,16 @@ class BankingService:
         ):
             raise StateConflict()
         statement_id = uuid4() if kind == "BANK" else None
+        with self.factory() as uow:
+            require_company(uow, actor, company, "reconciliation.manage")
+            account = uow.banking.account(company, kind, account_id)
+            if account is None:
+                raise ResourceNotFound()
+            usage_type = account.usage_type
         sources = [
-            normalize_row(data.source, data.receipt, row, account_id, kind, statement_id)
+            normalize_row(
+                data.source, data.receipt, row, account_id, kind, statement_id, usage_type
+            )
             for row in data.rows
         ]
         if kind == "BANK":

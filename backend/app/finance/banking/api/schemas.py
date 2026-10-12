@@ -23,6 +23,7 @@ class AccountCreate(Input):
     institution_code: str = Field(min_length=1, max_length=30)
     alias: str = Field(min_length=1, max_length=80)
     control_account_id: UUID
+    usage_type: Literal["CORPORATE", "MERCHANT"] = "CORPORATE"
 
 
 class SourceImport(Input):
@@ -60,6 +61,10 @@ class Confirm(Input):
 
 class Unmatch(Confirm):
     reason: str = Field(max_length=500)
+
+
+class ResolveItem(Confirm):
+    resolution_note: str = Field(min_length=1, max_length=500)
 
 
 class ItemCreate(Input):

@@ -445,6 +445,57 @@ class BankReconciliationService:
             )
             return value
 
+    def resolve_item(
+        self,
+        actor: Principal,
+        company: UUID,
+        statement_id: UUID,
+        item_id: UUID,
+        expected: int,
+        note: str,
+        key: str,
+    ) -> ReconciliationItem:
+        note = financial_text(note, 500)
+        if not note:
+            raise InvalidInput()
+        safe_reference(key)
+        signature = digest(["ITEM_RESOLVE", str(statement_id), str(item_id), expected, note])
+        with self.factory() as uow:
+            require_company(uow, actor, company, "reconciliation.manage")
+            uow.banking.lock(company)
+            statement = uow.banking.statement(company, statement_id)
+            if statement is None:
+                raise ResourceNotFound()
+            item = next(
+                (
+                    value
+                    for value in uow.banking.items(company, statement_id)
+                    if value.id == item_id
+                ),
+                None,
+            )
+            if item is None:
+                raise ResourceNotFound()
+            if uow.banking.replay(company, actor.user_id, "ITEM_RESOLVE", key, signature):
+                return item
+            if statement.status == "CLOSED":
+                raise StateConflict()
+            result = uow.banking.resolve_item(
+                company, item_id, expected, note, actor.user_id, uow.now()
+            )
+            uow.banking.event(
+                company,
+                actor.user_id,
+                "ITEM_RESOLVE",
+                key,
+                signature,
+                "STATEMENT",
+                statement_id,
+                statement.version,
+                uow.now(),
+            )
+            return result
+
     def close(
         self, actor: Principal, company: UUID, identifier: UUID, expected: int, key: str
     ) -> StatementSummary:
@@ -489,6 +540,7 @@ class BankReconciliationService:
             account = uow.banking.account(company, "CARD", identifier)
             if account is None:
                 raise ResourceNotFound()
+            merchant = account.usage_type == "MERCHANT"
             rows = [
                 source
                 for source in uow.banking.sources(company, "CARD", identifier)
@@ -514,6 +566,53 @@ class BankReconciliationService:
             )
             facts = uow.ledger.facts(company, as_of, account.control_account_id)
             gl = sum((fact.credit_amount - fact.debit_amount for fact in facts), ZERO)
+            if merchant:
+                total = -total
+                reconciled = -reconciled
+                gl = -gl
+            paid = ZERO
+            # 은행 대사가 확정된 지급만 차감합니다. 혼합 분개를 임의 비례 배분하지 않습니다.
+            for match in uow.banking.matches(company):
+                if match.status != "CONFIRMED":
+                    continue
+                for line in match.lines:
+                    if line.source_type != "BANK":
+                        continue
+                    source = uow.banking.source(company, "BANK", line.source_id)
+                    target = uow.banking.target(company, line.target_type, line.target_id)
+                    if (
+                        source is None
+                        or target is None
+                        or source.direction != ("IN" if merchant else "OUT")
+                        or source.occurred_at.date() > as_of
+                    ):
+                        continue
+                    linked = []
+                    if line.target_type == ("COLLECTION" if merchant else "PAYMENT"):
+                        payment = uow.settlements("AR" if merchant else "AP").get(
+                            company, line.target_id
+                        )
+                        if payment is not None:
+                            linked = [
+                                fact
+                                for fact in facts
+                                if fact.journal_id == payment.journal_entry_id
+                            ]
+                    elif line.target_type == "TRANSACTION":
+                        linked = [
+                            fact for fact in facts if fact.source_transaction_id == line.target_id
+                        ]
+                    debit = sum(
+                        (fact.credit_amount if merchant else fact.debit_amount for fact in linked),
+                        ZERO,
+                    )
+                    if debit == target.amount and all(
+                        (fact.debit_amount if merchant else fact.credit_amount) == ZERO
+                        for fact in linked
+                    ):
+                        paid += line.amount
+            total -= paid
+            reconciled -= paid
             unmatched = sum(source.reconciliation_status == "UNMATCHED" for source in rows)
             partial = sum(source.reconciliation_status == "PARTIAL" for source in rows)
             review = sum(source.reconciliation_status == "REVIEW" for source in rows)
@@ -529,4 +628,5 @@ class BankReconciliationService:
                 partial_count=partial,
                 review_count=review,
                 blocker=bool(total - gl or unmatched or partial or review),
+                reconciled_payment_amount=paid,
             )

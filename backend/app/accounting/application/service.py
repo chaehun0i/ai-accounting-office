@@ -43,7 +43,11 @@ class AccountingMasterService:
         value = uow.accounts.get(company_id=company, resource_id=account_id)
         if value is None:
             raise ResourceNotFound()
-        expected_type = {"BANK_CASH": "ASSET", "CARD_PAYABLE": "LIABILITY"}.get(role)
+        expected_type = {
+            "BANK_CASH": "ASSET",
+            "CARD_PAYABLE": "LIABILITY",
+            "CARD_CLEARING": "ASSET",
+        }.get(role)
         if (
             value.account_type != expected_type
             or value.status != "ACTIVE"
