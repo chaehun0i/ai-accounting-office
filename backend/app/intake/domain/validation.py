@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from app.core.values import require_money
+from app.core.digests import digest
 from app.intake.domain.canonical_fields import SCHEMAS, Mapping, SourceType
 from app.intake.domain.workbook import Workbook
 
@@ -103,6 +104,13 @@ def validate(
                     continue
                 field = fields[code]
                 raw = row[mapping.column_index]
+                if (
+                    code == "source_id"
+                    and not raw.strip()
+                    and source in {SourceType.BANK_TRANSACTION, SourceType.CARD_TRANSACTION}
+                ):
+                    # 외부 ID가 없으면 원본 사실의 해시를 사용합니다. 동일 사실 중복은 오류입니다.
+                    raw = "fp:" + digest([source.value, *row])
                 if not raw.strip() and not field.required:
                     continue
                 try:

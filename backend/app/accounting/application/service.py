@@ -35,6 +35,25 @@ from app.master_data.domain.rules import validate_currency
 
 
 class AccountingMasterService:
+    @staticmethod
+    def map_control_in(
+        uow: MasterUnitOfWork, actor: Principal, company: UUID, account_id: UUID, role: str
+    ) -> Account:
+        require_company(uow, actor, company, "control_account.manage")
+        value = uow.accounts.get(company_id=company, resource_id=account_id)
+        if value is None:
+            raise ResourceNotFound()
+        expected_type = {"BANK_CASH": "ASSET", "CARD_PAYABLE": "LIABILITY"}.get(role)
+        if (
+            value.account_type != expected_type
+            or value.status != "ACTIVE"
+            or not value.posting_allowed
+        ):
+            raise InvalidInput()
+        result = uow.accounts.map_control(company, account_id, role)
+        assert result is not None
+        return result
+
     def __init__(self, factory: Callable[[], MasterUnitOfWork]) -> None:
         self.factory = factory
 
