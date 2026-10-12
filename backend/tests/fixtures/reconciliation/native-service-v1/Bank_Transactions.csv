@@ -1,0 +1,4 @@
+"source_id","occurred_at","direction","amount","description","expected_match"
+"BANK-001","2026-01-25","IN","3300000","CUST002 입금","SVC-002"
+"BANK-002","2026-01-31","OUT","1100000","SUPP001 지급","PUR-001"
+"BANK-003","2026-01-31","OUT","2000000","1월 임차료","EXP-RENT-JAN"
