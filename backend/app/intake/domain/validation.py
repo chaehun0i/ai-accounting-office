@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from app.core.values import require_money
 from app.core.digests import digest
+from app.core.values import require_money
 from app.intake.domain.canonical_fields import SCHEMAS, Mapping, SourceType
 from app.intake.domain.workbook import Workbook
 
@@ -70,7 +70,14 @@ def validate(
         selected = [m for m in mappings if m.sheet_index == sheet.index]
         codes = {m.canonical_field_code for m in selected}
         for field in fields.values():
-            if field.required and field.code not in codes:
+            if (
+                field.required
+                and field.code not in codes
+                and not (
+                    field.code == "source_id"
+                    and source in {SourceType.BANK_TRANSACTION, SourceType.CARD_TRANSACTION}
+                )
+            ):
                 errors.append(
                     ValidationError(
                         sheet.index,
@@ -129,6 +136,11 @@ def validate(
                             code,
                         )
                     )
+            if "source_id" not in codes and source in {
+                SourceType.BANK_TRANSACTION,
+                SourceType.CARD_TRANSACTION,
+            }:
+                values["source_id"] = "fp:" + digest([source.value, *row])
             identity = values.get("source_id", "")
             if identity and identity in seen:
                 errors.append(
