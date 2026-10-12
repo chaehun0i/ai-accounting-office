@@ -21,6 +21,8 @@ class TargetContext(StrEnum):
     TRANSACTION_CANONICAL = "TRANSACTION_CANONICAL"
     ONBOARDING_DRAFT = "ONBOARDING_DRAFT"
     DOMAIN_MASTER = "DOMAIN_MASTER"
+    BANK_SOURCE = "BANK_SOURCE"
+    CARD_SOURCE = "CARD_SOURCE"
 
 
 @dataclass(frozen=True)
@@ -98,3 +100,11 @@ def suggest(source: SourceType, sheet_index: int, headers: tuple[str, ...]) -> l
 
 # 온보딩 필드는 별도 단일 카탈로그가 소유하며 일반 거래 매핑에 혼합하지 않습니다.
 SCHEMAS[SourceType.ONBOARDING_TEMPLATE] = ()
+
+# 은행/카드도 동일 parser·mapping·validation을 사용하며 정규화 필드만 확장합니다.
+SCHEMAS[SourceType.BANK_TRANSACTION] = COMMON + (
+    CanonicalField("balance_after", "거래 후 잔액", "decimal", False, ("잔액",)),
+)
+SCHEMAS[SourceType.CARD_TRANSACTION] = COMMON + (
+    CanonicalField("source_status", "카드 원천 상태", "text", True, ("status", "승인상태")),
+)
