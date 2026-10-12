@@ -83,15 +83,21 @@ class ReconciliationMatchLineModel(UUIDPrimaryKey, Base):
         ),
         CheckConstraint("source_version >= 1 AND target_version >= 1", name="versions"),
         CheckConstraint(
-            "num_nonnulls(bank_transaction_id,card_transaction_id) = 1 AND num_nonnulls(collection_id,payment_id,transaction_id) = 1",
+            "num_nonnulls(bank_transaction_id,card_transaction_id) = 1 AND "
+            "num_nonnulls(collection_id,payment_id,transaction_id) = 1",
             name="typed_references",
         ),
         CheckConstraint(
-            "(source_type = 'BANK' AND source_id = bank_transaction_id AND bank_transaction_id IS NOT NULL) OR (source_type = 'CARD' AND source_id = card_transaction_id AND card_transaction_id IS NOT NULL)",
+            "(source_type = 'BANK' AND source_id = bank_transaction_id AND "
+            "bank_transaction_id IS NOT NULL) OR (source_type = 'CARD' AND source_id = "
+            "card_transaction_id AND card_transaction_id IS NOT NULL)",
             name="source_identity",
         ),
         CheckConstraint(
-            "(target_type = 'COLLECTION' AND target_id = collection_id AND collection_id IS NOT NULL) OR (target_type = 'PAYMENT' AND target_id = payment_id AND payment_id IS NOT NULL) OR (target_type = 'TRANSACTION' AND target_id = transaction_id AND transaction_id IS NOT NULL)",
+            "(target_type = 'COLLECTION' AND target_id = collection_id AND "
+            "collection_id IS NOT NULL) OR (target_type = 'PAYMENT' AND target_id = "
+            "payment_id AND payment_id IS NOT NULL) OR (target_type = 'TRANSACTION' AND "
+            "target_id = transaction_id AND transaction_id IS NOT NULL)",
             name="target_identity",
         ),
         ForeignKeyConstraint(

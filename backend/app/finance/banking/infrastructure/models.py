@@ -6,8 +6,9 @@ from uuid import UUID
 
 from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.core.database.base import Base
-from app.core.database.mixins import UUIDPrimaryKey, Timestamped, Versioned
+from app.core.database.mixins import Timestamped, UUIDPrimaryKey, Versioned
 
 
 def scoped_fk(column: str, target: str) -> ForeignKeyConstraint:
@@ -199,11 +200,13 @@ class ReconciliationPolicyModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     __table_args__ = (
         CheckConstraint("allowed_days BETWEEN 0 AND 90 AND version >= 1", name="days_version"),
         CheckConstraint(
-            "review_threshold BETWEEN 0 AND 100 AND auto_threshold BETWEEN review_threshold AND 100",
+            "review_threshold BETWEEN 0 AND 100 AND auto_threshold BETWEEN "
+            "review_threshold AND 100",
             name="thresholds",
         ),
         CheckConstraint(
-            "amount_tolerance >= 0 AND amount_tolerance < 1000000000000000 AND materiality >= 0 AND materiality < 1000000000000000",
+            "amount_tolerance >= 0 AND amount_tolerance < 1000000000000000 AND "
+            "materiality >= 0 AND materiality < 1000000000000000",
             name="amounts",
         ),
     )
@@ -224,7 +227,8 @@ class ReconciliationItemModel(UUIDPrimaryKey, Base):
     __table_args__ = (
         scoped_fk("statement_id", "bank_statements"),
         CheckConstraint(
-            "reason_code IN ('TIMING_ITEM','MISSING_TRANSACTION','DUPLICATE_SOURCE','WRONG_ACCOUNT','MANUAL_ADJUSTMENT_CANDIDATE','UNKNOWN')",
+            "reason_code IN "
+            "('TIMING_ITEM','MISSING_TRANSACTION','DUPLICATE_SOURCE','WRONG_ACCOUNT','MANUAL_ADJUSTMENT_CANDIDATE','UNKNOWN')",
             name="reason",
         ),
         CheckConstraint("status IN ('OPEN','RESOLVED')", name="status"),

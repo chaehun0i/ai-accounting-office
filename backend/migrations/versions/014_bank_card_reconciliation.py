@@ -1,8 +1,9 @@
 """은행 카드 원천과 대사 관계를 순방향으로 보강합니다."""
 
 from collections.abc import Sequence
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "014_bank_card_reconciliation"
 down_revision: str | Sequence[str] | None = "013_business_documents"
@@ -12,7 +13,8 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute(
-        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM reconciliation_match_lines) THEN RAISE EXCEPTION '기존 대사 행의 원천 FK 전환이 필요합니다'; END IF; END $$"
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM reconciliation_match_lines) THEN "
+        "RAISE EXCEPTION '기존 대사 행의 원천 FK 전환이 필요합니다'; END IF; END $$"
     )
     # 새 은행·카드 테이블과 기존 대사 FK를 순방향으로 보강합니다.
     op.create_table(
@@ -43,11 +45,13 @@ def upgrade() -> None:
             name=op.f("ck_reconciliation_policies_days_version"),
         ),
         sa.CheckConstraint(
-            "amount_tolerance >= 0 AND amount_tolerance < 1000000000000000 AND materiality >= 0 AND materiality < 1000000000000000",
+            "amount_tolerance >= 0 AND amount_tolerance < 1000000000000000 AND "
+            "materiality >= 0 AND materiality < 1000000000000000",
             name=op.f("ck_reconciliation_policies_amounts"),
         ),
         sa.CheckConstraint(
-            "review_threshold BETWEEN 0 AND 100 AND auto_threshold BETWEEN review_threshold AND 100",
+            "review_threshold BETWEEN 0 AND 100 AND auto_threshold BETWEEN "
+            "review_threshold AND 100",
             name=op.f("ck_reconciliation_policies_thresholds"),
         ),
         sa.ForeignKeyConstraint(
@@ -551,7 +555,8 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.CheckConstraint(
-            "reason_code IN ('TIMING_ITEM','MISSING_TRANSACTION','DUPLICATE_SOURCE','WRONG_ACCOUNT','MANUAL_ADJUSTMENT_CANDIDATE','UNKNOWN')",
+            "reason_code IN "
+            "('TIMING_ITEM','MISSING_TRANSACTION','DUPLICATE_SOURCE','WRONG_ACCOUNT','MANUAL_ADJUSTMENT_CANDIDATE','UNKNOWN')",
             name=op.f("ck_reconciliation_items_reason"),
         ),
         sa.CheckConstraint(
@@ -720,90 +725,149 @@ def upgrade() -> None:
         ondelete="RESTRICT",
     )
 
-    op.drop_constraint("ck_reconciliation_matches_status", "reconciliation_matches", type_="check")
+    op.drop_constraint(
+        op.f("ck_reconciliation_matches_status"), "reconciliation_matches", type_="check"
+    )
     op.create_check_constraint(
-        "ck_reconciliation_matches_status",
+        op.f("ck_reconciliation_matches_status"),
         "reconciliation_matches",
         "status IN ('DRAFT','CONFIRMED','UNMATCHED')",
     )
-    op.drop_constraint("ck_reconciliation_matches_amount", "reconciliation_matches", type_="check")
+    op.drop_constraint(
+        op.f("ck_reconciliation_matches_amount"), "reconciliation_matches", type_="check"
+    )
     op.create_check_constraint(
-        "ck_reconciliation_matches_amount",
+        op.f("ck_reconciliation_matches_amount"),
         "reconciliation_matches",
         "matched_amount > 0 AND matched_amount < 1000000000000000",
     )
     op.create_check_constraint(
-        "ck_reconciliation_matches_version", "reconciliation_matches", "version >= 1"
+        op.f("ck_reconciliation_matches_version"), "reconciliation_matches", "version >= 1"
     )
     op.create_check_constraint(
-        "ck_chart_of_accounts_control_role",
+        op.f("ck_chart_of_accounts_control_role"),
         "chart_of_accounts",
-        "control_account_type IS NULL OR (control_account_type = 'BANK_CASH' AND account_type = 'ASSET') OR (control_account_type = 'CARD_PAYABLE' AND account_type = 'LIABILITY')",
+        "control_account_type IS NULL OR (control_account_type = 'BANK_CASH' AND "
+        "account_type = 'ASSET') OR (control_account_type = 'CARD_PAYABLE' AND "
+        "account_type = 'LIABILITY')",
     )
-    op.drop_constraint("ck_imports_target", "imports", type_="check")
+    op.drop_constraint(op.f("ck_imports_target"), "imports", type_="check")
     op.create_check_constraint(
-        "ck_imports_target",
+        op.f("ck_imports_target"),
         "imports",
-        "target_context IN ('TRANSACTION_CANONICAL','ONBOARDING_DRAFT','DOMAIN_MASTER','BANK_SOURCE','CARD_SOURCE')",
+        "target_context IN "
+        "('TRANSACTION_CANONICAL','ONBOARDING_DRAFT','DOMAIN_MASTER','BANK_SOURCE','CARD_SOURCE')",
     )
     op.create_check_constraint(
-        "ck_reconciliation_match_lines_typed_references",
+        op.f("ck_reconciliation_match_lines_typed_references"),
         "reconciliation_match_lines",
-        "num_nonnulls(bank_transaction_id,card_transaction_id) = 1 AND num_nonnulls(collection_id,payment_id,transaction_id) = 1",
+        "num_nonnulls(bank_transaction_id,card_transaction_id) = 1 AND "
+        "num_nonnulls(collection_id,payment_id,transaction_id) = 1",
     )
     op.create_check_constraint(
-        "ck_reconciliation_match_lines_source_identity",
+        op.f("ck_reconciliation_match_lines_source_identity"),
         "reconciliation_match_lines",
-        "(source_type = 'BANK' AND source_id = bank_transaction_id AND bank_transaction_id IS NOT NULL) OR (source_type = 'CARD' AND source_id = card_transaction_id AND card_transaction_id IS NOT NULL)",
+        "(source_type = 'BANK' AND source_id = bank_transaction_id AND "
+        "bank_transaction_id IS NOT NULL) OR (source_type = 'CARD' AND source_id = "
+        "card_transaction_id AND card_transaction_id IS NOT NULL)",
     )
     op.create_check_constraint(
-        "ck_reconciliation_match_lines_target_identity",
+        op.f("ck_reconciliation_match_lines_target_identity"),
         "reconciliation_match_lines",
-        "(target_type = 'COLLECTION' AND target_id = collection_id AND collection_id IS NOT NULL) OR (target_type = 'PAYMENT' AND target_id = payment_id AND payment_id IS NOT NULL) OR (target_type = 'TRANSACTION' AND target_id = transaction_id AND transaction_id IS NOT NULL)",
+        "(target_type = 'COLLECTION' AND target_id = collection_id AND "
+        "collection_id IS NOT NULL) OR (target_type = 'PAYMENT' AND target_id = "
+        "payment_id AND payment_id IS NOT NULL) OR (target_type = 'TRANSACTION' AND "
+        "target_id = transaction_id AND transaction_id IS NOT NULL)",
     )
     op.create_check_constraint(
-        "ck_reconciliation_match_lines_versions",
+        op.f("ck_reconciliation_match_lines_versions"),
         "reconciliation_match_lines",
         "source_version >= 1 AND target_version >= 1",
     )
+
+    # 원천 사실과 대사 이력은 새 이벤트를 통해서만 정정합니다.
+    for table in ("bank_transactions", "card_transactions", "bank_statements"):
+        op.execute(f"""
+            CREATE FUNCTION protect_{table}_facts() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    RAISE EXCEPTION 'financial source history is immutable';
+                END IF;
+                IF (to_jsonb(NEW) - 'version' - 'status') IS DISTINCT FROM
+                   (to_jsonb(OLD) - 'version' - 'status') OR NEW.version <> OLD.version + 1 THEN
+                    RAISE EXCEPTION 'financial source facts are immutable';
+                END IF;
+                RETURN NEW;
+            END $$;
+            CREATE TRIGGER protect_{table}_facts BEFORE UPDATE OR DELETE ON {table}
+            FOR EACH ROW EXECUTE FUNCTION protect_{table}_facts();
+        """)
+    for table in ("reconciliation_events", "reconciliation_match_lines"):
+        op.execute(f"""
+            CREATE FUNCTION protect_{table}_history() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'reconciliation history is append-only'; END $$;
+            CREATE TRIGGER protect_{table}_history BEFORE UPDATE OR DELETE ON {table}
+            FOR EACH ROW EXECUTE FUNCTION protect_{table}_history();
+        """)
 
 
 def downgrade() -> None:
     # 문서·금융 원천을 버리는 downgrade는 금지합니다.
     op.execute(
-        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM bank_transactions) OR EXISTS (SELECT 1 FROM card_transactions) OR EXISTS (SELECT 1 FROM bank_statements) OR EXISTS (SELECT 1 FROM reconciliation_events) THEN RAISE EXCEPTION '금융 원천이 있어 downgrade할 수 없습니다'; END IF; END $$"
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM bank_transactions) OR EXISTS (SELECT "
+        "1 FROM card_transactions) OR EXISTS (SELECT 1 FROM bank_statements) OR "
+        "EXISTS (SELECT 1 FROM reconciliation_events) THEN RAISE EXCEPTION '금융 원천이 "
+        "있어 downgrade할 수 없습니다'; END IF; END $$"
     )
-    op.drop_constraint("ck_chart_of_accounts_control_role", "chart_of_accounts", type_="check")
-    op.drop_constraint("ck_reconciliation_matches_version", "reconciliation_matches", type_="check")
-    op.drop_constraint("ck_reconciliation_matches_status", "reconciliation_matches", type_="check")
+    for table in ("bank_transactions", "card_transactions", "bank_statements"):
+        op.execute(f"DROP TRIGGER protect_{table}_facts ON {table}")
+        op.execute(f"DROP FUNCTION protect_{table}_facts()")
+    for table in ("reconciliation_events", "reconciliation_match_lines"):
+        op.execute(f"DROP TRIGGER protect_{table}_history ON {table}")
+        op.execute(f"DROP FUNCTION protect_{table}_history()")
+    op.drop_constraint(
+        op.f("ck_chart_of_accounts_control_role"), "chart_of_accounts", type_="check"
+    )
+    op.drop_constraint(
+        op.f("ck_reconciliation_matches_version"), "reconciliation_matches", type_="check"
+    )
+    op.drop_constraint(
+        op.f("ck_reconciliation_matches_status"), "reconciliation_matches", type_="check"
+    )
     op.create_check_constraint(
-        "ck_reconciliation_matches_status",
+        op.f("ck_reconciliation_matches_status"),
         "reconciliation_matches",
         "status IN ('DRAFT','CONFIRMED')",
     )
-    op.drop_constraint("ck_reconciliation_matches_amount", "reconciliation_matches", type_="check")
-    op.create_check_constraint(
-        "ck_reconciliation_matches_amount", "reconciliation_matches", "matched_amount > 0"
+    op.drop_constraint(
+        op.f("ck_reconciliation_matches_amount"), "reconciliation_matches", type_="check"
     )
-    op.drop_constraint("ck_imports_target", "imports", type_="check")
     op.create_check_constraint(
-        "ck_imports_target",
+        op.f("ck_reconciliation_matches_amount"), "reconciliation_matches", "matched_amount > 0"
+    )
+    op.drop_constraint(op.f("ck_imports_target"), "imports", type_="check")
+    op.create_check_constraint(
+        op.f("ck_imports_target"),
         "imports",
         "target_context IN ('TRANSACTION_CANONICAL','ONBOARDING_DRAFT','DOMAIN_MASTER')",
     )
     op.drop_constraint(
-        "ck_reconciliation_match_lines_typed_references",
+        op.f("ck_reconciliation_match_lines_typed_references"),
         "reconciliation_match_lines",
         type_="check",
     )
     op.drop_constraint(
-        "ck_reconciliation_match_lines_source_identity", "reconciliation_match_lines", type_="check"
+        op.f("ck_reconciliation_match_lines_source_identity"),
+        "reconciliation_match_lines",
+        type_="check",
     )
     op.drop_constraint(
-        "ck_reconciliation_match_lines_target_identity", "reconciliation_match_lines", type_="check"
+        op.f("ck_reconciliation_match_lines_target_identity"),
+        "reconciliation_match_lines",
+        type_="check",
     )
     op.drop_constraint(
-        "ck_reconciliation_match_lines_versions", "reconciliation_match_lines", type_="check"
+        op.f("ck_reconciliation_match_lines_versions"), "reconciliation_match_lines", type_="check"
     )
 
     # 새 은행·카드 테이블과 기존 대사 FK를 순방향으로 보강합니다.
