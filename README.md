@@ -2,12 +2,14 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
 
 **채권·채무** 메뉴에서 확정 전표 연결 → 수금·지급 등록 → 배분 → 확정 → 기준일 잔액·기한 분석·원장 대사를 사용할 수 있습니다. 수금·지급은 먼저 사람 승인과 장부 반영을 마친 회계 전표를 참조합니다. 실제 은행 이체 기능은 아닙니다. [재무 보조부 사용법과 경계](docs/finance-subledger.md), [검증 결과](docs/finance-verification.md)를 참고하세요.
 
 
 **매출 · 매입 문서** 메뉴에서 청구서 작성 → 승인 요청 → 별도 담당자 확정 → 거래·채권채무 연결을 사용할 수 있습니다. 확정 문서는 직접 수정하지 않고 감액/증액 정정문서를 남깁니다. 문서 확정은 장부 Posting과 다르며 전표 승인 절차가 별도로 필요합니다. [업무문서 계약과 제한](docs/business-documents.md), [검증 기록](docs/business-documents-verification.md)을 참고하세요.
+
+**은행 대사 · 카드 대사**에서 기존 CSV/XLSX 확인 자료를 금융 원천으로 연결하고 후보 검토 → 다중·부분 배분 → 사람 확정 → 사유 있는 해제 → 원천/장부 잔액 비교를 사용할 수 있습니다. 원번호 대신 별칭을 사용하며 카드매출 수납과 법인카드 비용을 구분합니다. 대사 차이를 자동 분개로 상쇄하지 않습니다. [은행·카드 계약과 제한](docs/bank-card-reconciliation.md)을 참고하세요.
 
 ## 바로 실행하고 테스트하기
 
@@ -189,7 +191,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `013_business_documents`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation → 011_accounting_dimensions → 012_import_transaction_promotion → 013_business_documents` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 009를 보존하고 v0.2.6 정책에 따라 다음 forward revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
+현재 head는 `014_bank_card_reconciliation`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation → 011_accounting_dimensions → 012_import_transaction_promotion → 013_business_documents → 014_bank_card_reconciliation` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 009를 보존하고 v0.2.6 정책에 따라 다음 forward revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -218,7 +220,7 @@ python -m pytest --require-postgres
 
 Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. 이번 Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개까지 지원합니다. Tax 정본, 자율 승인·Posting, 전체 Chat UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
 
-확정 가져오기 승격과 매출·매입 업무문서 → 거래·채권채무 연결까지 제공합니다. 다음 후보는 최신 로드맵의 **Bank / Card Reconciliation**입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
+확정 가져오기 승격과 매출·매입 업무문서 → 거래·채권채무 연결까지 제공합니다. 다음 후보는 최신 로드맵의 **Closing V1 → BS / IS**입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
 
 ## 거래 기반 회계 제안 실행
 
