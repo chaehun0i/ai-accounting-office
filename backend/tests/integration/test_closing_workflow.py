@@ -12,6 +12,8 @@ from app.closing.infrastructure.models import ClosingCheckModel
 from app.companies.infrastructure.models import MembershipModel
 from tests.fixtures.reconciliation.adapter import canonical_csv
 from tests.integration.test_bank_reconciliation import prepare_bank
+from tests.integration.test_finance_flow import finance_setup
+from tests.integration.test_intake_api import confirm, preview
 from tests.integration.test_journal_flow import command, prepare
 
 
@@ -337,6 +339,56 @@ def test_service_bank_source_blocks_month_close_until_reconciled(api_client, aut
     assert imported.status_code == 200, imported.text
     period = api_client.get("/accounting/periods", headers=owner).json()[0]
     run = request(api_client, writer, "/closing-runs", {"accounting_period_id": period["id"]})
+    assert run.status_code == 201, run.text
+    checks = api_client.get(f"/closing-runs/{run.json()['id']}", headers=owner).json()["checks"]
+    assert any(
+        check["check_code"] == "BANK_CARD_UNRECONCILED" and check["severity"] == "BLOCKER"
+        for check in checks
+    )
+
+
+def test_retail_card_source_blocks_month_close_until_reconciled(api_client, auth_service):
+    owner, writer, payload, accounts, _, _ = finance_setup(api_client, auth_service)
+    account = api_client.post(
+        "/card-accounts",
+        headers=owner,
+        json={
+            "institution_code": "RETAIL_FIXTURE",
+            "alias": "소매 카드",
+            "usage_type": "MERCHANT",
+            "control_account_id": accounts["미수금"],
+        },
+    )
+    assert account.status_code == 201, account.text
+    upload = api_client.post(
+        "/imports",
+        headers=writer,
+        data={"source_type": "CARD_TRANSACTION", "target_context": "CARD_SOURCE"},
+        files={"file": ("retail.csv", canonical_csv("retail", "Card"), "text/csv")},
+    )
+    assert upload.status_code == 201, upload.text
+    draft = preview(api_client, writer, upload.json())
+    assert draft["valid"], draft
+    receipt = confirm(api_client, writer, upload.json(), draft).json()
+    imported = request(
+        api_client,
+        writer,
+        "/card-transactions/imports",
+        {
+            "account_id": account.json()["id"],
+            "import_id": upload.json()["id"],
+            "receipt_id": receipt["id"],
+            "source_digest": receipt["source_digest"],
+            "confirmed_version": receipt["confirmed_version"],
+        },
+    )
+    assert imported.status_code == 200, imported.text
+    run = request(
+        api_client,
+        writer,
+        "/closing-runs",
+        {"accounting_period_id": payload["accounting_period_id"]},
+    )
     assert run.status_code == 201, run.text
     checks = api_client.get(f"/closing-runs/{run.json()['id']}", headers=owner).json()["checks"]
     assert any(
