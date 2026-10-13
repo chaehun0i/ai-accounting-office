@@ -18,6 +18,18 @@ class TransactionSQLAlchemyUnitOfWork(MasterSQLAlchemyUnitOfWork):
         return self
 
     def reference_exists(self, company_id: UUID, kind: str, resource_id: UUID) -> bool:
+        if kind == "closing_journal":
+            from app.closing.infrastructure.models import ClosingAdjustmentModel
+
+            return (
+                self.session.scalar(
+                    select(ClosingAdjustmentModel.id).where(
+                        ClosingAdjustmentModel.company_id == company_id,
+                        ClosingAdjustmentModel.proposed_journal_id == resource_id,
+                    )
+                )
+                is not None
+            )
         model = EvidenceModel if kind == "evidence" else ImportModel
         return (
             self.session.scalar(
