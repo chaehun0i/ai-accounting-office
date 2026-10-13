@@ -2,6 +2,7 @@
 
 from calendar import monthrange
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -10,9 +11,9 @@ from sqlalchemy.orm import Session
 from app.accounting.periods.infrastructure.models import PeriodModel
 from app.closing.infrastructure.models import ClosingCheckModel
 from app.companies.infrastructure.models import MembershipModel
-from tests.fixtures.reconciliation.adapter import canonical_csv
+from tests.fixtures.reconciliation.adapter import canonical_csv, rows
 from tests.integration.test_bank_reconciliation import prepare_bank
-from tests.integration.test_finance_flow import finance_setup
+from tests.integration.test_finance_flow import finance_setup, post_journal
 from tests.integration.test_intake_api import confirm, preview
 from tests.integration.test_journal_flow import command, prepare
 
@@ -345,6 +346,127 @@ def test_service_bank_source_blocks_month_close_until_reconciled(api_client, aut
         check["check_code"] == "BANK_CARD_UNRECONCILED" and check["severity"] == "BLOCKER"
         for check in checks
     )
+
+
+def test_service_native_bank_reconciliation_then_month_close(api_client, auth_service):
+    owner, writer, payload = prepare_bank(
+        api_client, auth_service, canonical_csv("service", "Bank"), "200000"
+    )
+    accounts = {
+        account["account_name"]: account["id"]
+        for account in api_client.get("/accounts", headers=writer).json()
+    }
+    period = api_client.get("/accounting/periods", headers=writer).json()[0]
+    review = reviewer(api_client, owner, auth_service[1])
+    for source in rows("service", "Bank"):
+        amount = Decimal(source["amount"])
+        direction = "INFLOW" if source["direction"] == "IN" else "OUTFLOW"
+        transaction = request(
+            api_client,
+            writer,
+            "/transactions",
+            {
+                "transaction_date": source["occurred_at"],
+                "accounting_date": source["occurred_at"],
+                "description": source["description"],
+                "amount": str(amount),
+                "direction": direction,
+                "source_id": "closing-service-" + source["source_id"],
+            },
+        )
+        assert transaction.status_code == 201, transaction.text
+        cash = {"account_id": accounts["보통예금"], "debit_amount": str(amount)}
+        other = {"account_id": accounts["자본금"], "credit_amount": str(amount)}
+        if direction == "OUTFLOW":
+            cash = {"account_id": accounts["보통예금"], "credit_amount": str(amount)}
+            other = {"account_id": accounts["소모품비"], "debit_amount": str(amount)}
+        post_journal(
+            api_client,
+            owner,
+            writer,
+            {
+                "accounting_period_id": period["id"],
+                "entry_date": source["occurred_at"],
+                "source_transaction_id": transaction.json()["id"],
+                "source_type": "TRANSACTION",
+            },
+            [cash, other],
+        )
+    imported = request(api_client, writer, "/bank-statements/imports", payload)
+    assert imported.status_code == 200, imported.text
+    statement = imported.json()
+    for source in api_client.get(
+        f"/bank-statements/{statement['id']}/transactions", headers=writer
+    ).json():
+        candidates = api_client.post(
+            f"/bank-statements/{statement['id']}/match-candidates", headers=writer
+        ).json()
+        candidate = next(item for item in candidates if item["source_id"] == source["id"])
+        draft = request(
+            api_client,
+            writer,
+            "/reconciliations",
+            {
+                "lines": [
+                    {
+                        "source_type": "BANK",
+                        "source_id": source["id"],
+                        "target_type": candidate["target_type"],
+                        "target_id": candidate["target_id"],
+                        "amount": source["amount"],
+                        "source_version": candidate["source_version"],
+                        "target_version": candidate["target_version"],
+                    }
+                ]
+            },
+        )
+        assert draft.status_code == 201, draft.text
+        confirmed = request(
+            api_client,
+            writer,
+            f"/reconciliations/{draft.json()['id']}/confirm",
+            {"expected_version": draft.json()["version"]},
+        )
+        assert confirmed.status_code == 200, confirmed.text
+    current = api_client.get(f"/bank-statements/{statement['id']}", headers=writer).json()
+    closed_statement = request(
+        api_client,
+        owner,
+        f"/bank-statements/{statement['id']}/close",
+        {"expected_version": current["version"]},
+    )
+    assert closed_statement.status_code == 200, closed_statement.text
+    run = request(api_client, writer, "/closing-runs", {"accounting_period_id": period["id"]})
+    assert run.status_code == 201, run.text
+    assert all(
+        check["severity"] != "BLOCKER"
+        for check in api_client.get(f"/closing-runs/{run.json()['id']}", headers=owner).json()[
+            "checks"
+        ]
+    )
+    approval = request(
+        api_client,
+        review,
+        f"/closing-runs/{run.json()['id']}/submit",
+        {"reason": "서비스업 월마감"},
+    )
+    assert approval.status_code == 200, approval.text
+    assert (
+        request(
+            api_client,
+            owner,
+            f"/closing-approvals/{approval.json()['id']}/approve",
+            {"reason": "독립 확인"},
+        ).status_code
+        == 200
+    )
+    closed = request(
+        api_client,
+        owner,
+        f"/closing-runs/{run.json()['id']}/close",
+        {"approval_id": approval.json()["id"]},
+    )
+    assert closed.status_code == 200, closed.text
 
 
 def test_retail_card_source_blocks_month_close_until_reconciled(api_client, auth_service):
