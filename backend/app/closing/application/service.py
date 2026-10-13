@@ -342,6 +342,9 @@ class ClosingService:
                 raise PeriodNotClosing()
             if run.status == "COMPLETED":
                 raise StateConflict()
+            for approval in uow.closing.approvals(company, run.id):
+                if approval.action_code == "CLOSE" and approval.status in {"PENDING", "APPROVED"}:
+                    uow.closing.update_approval(replace(approval, status="REJECTED"))
             self._sync_adjustments(uow, company, run.id)
             snapshot = self._snapshot(uow, company, run.accounting_period_id, run.id)
             result = replace(

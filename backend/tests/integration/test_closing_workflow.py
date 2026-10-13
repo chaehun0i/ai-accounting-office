@@ -108,6 +108,35 @@ def test_close_requires_fresh_checks_and_separate_reviewer(api_client, auth_serv
     period = api_client.get("/closing/periods", headers=owner).json()[0]
     assert period["status"] == "CLOSED" and period["close_version"] == 1
     assert len(api_client.get(f"/closing/periods/{period_id}/runs", headers=owner).json()) == 1
+
+
+def test_rerun_revokes_previous_close_approval(api_client, auth_service):
+    owner, writer, payload, connection = prepare(api_client, auth_service)
+    review = reviewer(api_client, owner, connection)
+    run = request(
+        api_client,
+        writer,
+        "/closing-runs",
+        {"accounting_period_id": payload["accounting_period_id"]},
+    ).json()
+    approval = request(
+        api_client, review, f"/closing-runs/{run['id']}/submit", {"reason": "첫 검토"}
+    ).json()
+    assert (
+        request(
+            api_client, owner, f"/closing-approvals/{approval['id']}/approve", {"reason": "승인"}
+        ).status_code
+        == 200
+    )
+    assert request(api_client, writer, f"/closing-runs/{run['id']}/checks").status_code == 200
+    approvals = api_client.get(f"/closing-runs/{run['id']}/approvals", headers=owner).json()
+    assert approvals[0]["status"] == "REJECTED"
+    assert (
+        request(
+            api_client, owner, f"/closing-runs/{run['id']}/close", {"approval_id": approval["id"]}
+        ).status_code
+        == 403
+    )
     assert api_client.get(
         f"/closing-runs/{run['id']}", headers={**owner, "X-Company-ID": str(uuid4())}
     ).status_code in {403, 404}
