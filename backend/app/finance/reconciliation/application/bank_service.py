@@ -537,96 +537,98 @@ class BankReconciliationService:
             require_company(uow, actor, company, "reconciliation.read")
             require_company(uow, actor, company, "ledger.read")
             uow.banking.lock(company)
-            account = uow.banking.account(company, "CARD", identifier)
-            if account is None:
-                raise ResourceNotFound()
-            merchant = account.usage_type == "MERCHANT"
-            rows = [
-                source
-                for source in uow.banking.sources(company, "CARD", identifier)
-                if source.occurred_at.date() <= as_of
-            ]
-            # 승인만 받은 건과 취소된 승인은 부채 원금으로 인식하지 않습니다.
-            effective = [
-                source for source in rows if source.source_status in {"CAPTURED", "REFUNDED"}
-            ]
-            total = sum(
-                (
-                    source.amount if source.direction == "OUT" else -source.amount
-                    for source in effective
-                ),
-                ZERO,
-            )
-            reconciled = sum(
-                (
-                    source.matched_amount if source.direction == "OUT" else -source.matched_amount
-                    for source in effective
-                ),
-                ZERO,
-            )
-            facts = uow.ledger.facts(company, as_of, account.control_account_id)
-            gl = sum((fact.credit_amount - fact.debit_amount for fact in facts), ZERO)
-            if merchant:
-                total = -total
-                reconciled = -reconciled
-                gl = -gl
-            paid = ZERO
-            # 은행 대사가 확정된 지급만 차감합니다. 혼합 분개를 임의 비례 배분하지 않습니다.
-            for match in uow.banking.matches(company):
-                if match.status != "CONFIRMED":
+            return self.card_summary_in(uow, company, identifier, as_of)
+
+    @staticmethod
+    def card_summary_in(
+        uow: BankingUnitOfWork, company: UUID, identifier: UUID, as_of: date
+    ) -> CardSummary:
+        account = uow.banking.account(company, "CARD", identifier)
+        if account is None:
+            raise ResourceNotFound()
+        merchant = account.usage_type == "MERCHANT"
+        rows = [
+            source
+            for source in uow.banking.sources(company, "CARD", identifier)
+            if source.occurred_at.date() <= as_of
+        ]
+        # 승인만 받은 건과 취소된 승인은 부채 원금으로 인식하지 않습니다.
+        effective = [source for source in rows if source.source_status in {"CAPTURED", "REFUNDED"}]
+        total = sum(
+            (
+                source.amount if source.direction == "OUT" else -source.amount
+                for source in effective
+            ),
+            ZERO,
+        )
+        reconciled = sum(
+            (
+                source.matched_amount if source.direction == "OUT" else -source.matched_amount
+                for source in effective
+            ),
+            ZERO,
+        )
+        facts = uow.ledger.facts(company, as_of, account.control_account_id)
+        gl = sum((fact.credit_amount - fact.debit_amount for fact in facts), ZERO)
+        if merchant:
+            total = -total
+            reconciled = -reconciled
+            gl = -gl
+        paid = ZERO
+        # 은행 대사가 확정된 지급만 차감합니다. 혼합 분개를 임의 비례 배분하지 않습니다.
+        for match in uow.banking.matches(company):
+            if match.status != "CONFIRMED":
+                continue
+            for line in match.lines:
+                if line.source_type != "BANK":
                     continue
-                for line in match.lines:
-                    if line.source_type != "BANK":
-                        continue
-                    source = uow.banking.source(company, "BANK", line.source_id)
-                    target = uow.banking.target(company, line.target_type, line.target_id)
-                    if (
-                        source is None
-                        or target is None
-                        or source.direction != ("IN" if merchant else "OUT")
-                        or source.occurred_at.date() > as_of
-                    ):
-                        continue
-                    linked = []
-                    if line.target_type == ("COLLECTION" if merchant else "PAYMENT"):
-                        payment = uow.settlements("AR" if merchant else "AP").get(
-                            company, line.target_id
-                        )
-                        if payment is not None:
-                            linked = [
-                                fact
-                                for fact in facts
-                                if fact.journal_id == payment.journal_entry_id
-                            ]
-                    elif line.target_type == "TRANSACTION":
-                        linked = [
-                            fact for fact in facts if fact.source_transaction_id == line.target_id
-                        ]
-                    debit = sum(
-                        (fact.credit_amount if merchant else fact.debit_amount for fact in linked),
-                        ZERO,
+                source = uow.banking.source(company, "BANK", line.source_id)
+                target = uow.banking.target(company, line.target_type, line.target_id)
+                if (
+                    source is None
+                    or target is None
+                    or source.direction != ("IN" if merchant else "OUT")
+                    or source.occurred_at.date() > as_of
+                ):
+                    continue
+                linked = []
+                if line.target_type == ("COLLECTION" if merchant else "PAYMENT"):
+                    payment = uow.settlements("AR" if merchant else "AP").get(
+                        company, line.target_id
                     )
-                    if debit == target.amount and all(
-                        (fact.debit_amount if merchant else fact.credit_amount) == ZERO
-                        for fact in linked
-                    ):
-                        paid += line.amount
-            total -= paid
-            reconciled -= paid
-            unmatched = sum(source.reconciliation_status == "UNMATCHED" for source in rows)
-            partial = sum(source.reconciliation_status == "PARTIAL" for source in rows)
-            review = sum(source.reconciliation_status == "REVIEW" for source in rows)
-            return CardSummary(
-                card_account_id=identifier,
-                account_id=account.control_account_id,
-                as_of=as_of,
-                source_balance=total,
-                reconciled_source_balance=reconciled,
-                gl_balance=gl,
-                difference_amount=total - gl,
-                unmatched_count=unmatched,
-                partial_count=partial,
-                review_count=review,
-                blocker=bool(total - gl or unmatched or partial or review),
-                reconciled_payment_amount=paid,
-            )
+                    if payment is not None:
+                        linked = [
+                            fact for fact in facts if fact.journal_id == payment.journal_entry_id
+                        ]
+                elif line.target_type == "TRANSACTION":
+                    linked = [
+                        fact for fact in facts if fact.source_transaction_id == line.target_id
+                    ]
+                debit = sum(
+                    (fact.credit_amount if merchant else fact.debit_amount for fact in linked),
+                    ZERO,
+                )
+                if debit == target.amount and all(
+                    (fact.debit_amount if merchant else fact.credit_amount) == ZERO
+                    for fact in linked
+                ):
+                    paid += line.amount
+        total -= paid
+        reconciled -= paid
+        unmatched = sum(source.reconciliation_status == "UNMATCHED" for source in rows)
+        partial = sum(source.reconciliation_status == "PARTIAL" for source in rows)
+        review = sum(source.reconciliation_status == "REVIEW" for source in rows)
+        return CardSummary(
+            card_account_id=identifier,
+            account_id=account.control_account_id,
+            as_of=as_of,
+            source_balance=total,
+            reconciled_source_balance=reconciled,
+            gl_balance=gl,
+            difference_amount=total - gl,
+            unmatched_count=unmatched,
+            partial_count=partial,
+            review_count=review,
+            blocker=bool(total - gl or unmatched or partial or review),
+            reconciled_payment_amount=paid,
+        )
