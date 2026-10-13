@@ -25,6 +25,8 @@ from app.accounting.transactions.infrastructure.unit_of_work import TransactionS
 from app.agents.checkpoints.postgres import PostgresCheckpoints
 from app.agents.runtime.service import AgentRuntime
 from app.approvals.infrastructure.unit_of_work import AccountingSQLAlchemyUnitOfWork
+from app.closing.application.service import ClosingService
+from app.closing.infrastructure.unit_of_work import ClosingSQLAlchemyUnitOfWork
 from app.companies.application.service import CompanyService
 from app.core.config import Settings
 from app.core.database.engine import create_database_engine
@@ -88,6 +90,7 @@ class Services:
     documents: DocumentService | None = None
     banking: BankingService | None = None
     bank_reconciliation: BankReconciliationService | None = None
+    closing: ClosingService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -138,6 +141,12 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
     )
     container = replace(
         container, dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(sessions))
+    )
+    container = replace(
+        container,
+        closing=ClosingService(
+            lambda: ClosingSQLAlchemyUnitOfWork(sessions), container.journal_commands
+        ),
     )
     assert container.accounting and container.transactions and container.accounting_reports
     assert (
