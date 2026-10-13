@@ -4,8 +4,8 @@ services:
     build: ../backend
     environment:
       APP_ENVIRONMENT: local
-      POSTGRES_URL: ${POSTGRES_URL:?Set POSTGRES_URL in .env}
-      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
+      POSTGRES_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      REDIS_URL: redis://redis:6379/0
       AUTH_SIGNING_KEY: ${AUTH_SIGNING_KEY:?Run python scripts/dev.py auth-key}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       STORAGE_ROOT: /app/storage
