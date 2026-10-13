@@ -85,7 +85,7 @@ class JournalModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
             name="status",
         ),
         CheckConstraint(
-            "source_type IN ('MANUAL','TRANSACTION','OPENING','REVERSAL')", name="source"
+            "source_type IN ('MANUAL','TRANSACTION','OPENING','REVERSAL','CLOSING')", name="source"
         ),
         CheckConstraint("version >= 1", name="version"),
         CheckConstraint(

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, String, UniqueConstraint, func, text
@@ -19,6 +19,9 @@ class PeriodModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     start_date: Mapped[date]
     end_date: Mapped[date]
     status: Mapped[str] = mapped_column(String(16), server_default=text("'OPEN'"))
+    close_version: Mapped[int] = mapped_column(server_default=text("0"))
+    closed_at: Mapped[datetime | None]
+    closed_by: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "fiscal_year", "period_no"),
@@ -27,7 +30,8 @@ class PeriodModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
             "fiscal_year BETWEEN 1900 AND 9998 AND period_no BETWEEN 1 AND 12", name="period_number"
         ),
         CheckConstraint("start_date <= end_date", name="date_range"),
-        CheckConstraint("status IN ('OPEN','CLOSED')", name="status"),
+        CheckConstraint("status IN ('OPEN','CLOSING','CLOSED')", name="status"),
+        CheckConstraint("close_version >= 0", name="close_version"),
         CheckConstraint("version >= 1", name="version"),
         ExcludeConstraint(
             ("company_id", "="),

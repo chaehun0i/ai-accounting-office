@@ -46,6 +46,7 @@ from app.accounting.transactions.infrastructure import (  # noqa: E402
 from app.approvals.infrastructure import models as governance_models  # noqa: F401, E402
 from app.evidence.infrastructure import models as evidence_models  # noqa: F401, E402
 from app.finance.banking.infrastructure import models as banking_models  # noqa: F401, E402
+from app.closing.infrastructure import models as closing_models  # noqa: F401, E402
 from app.finance.invoices.infrastructure import models as invoice_models  # noqa: F401, E402
 from app.finance.payables.infrastructure import models as payable_models  # noqa: F401, E402
 from app.finance.receivables.infrastructure import models as receivable_models  # noqa: F401, E402
