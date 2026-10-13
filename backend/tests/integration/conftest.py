@@ -173,6 +173,8 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     )
     from dataclasses import replace
 
+    from app.closing.application.service import ClosingService
+    from app.closing.infrastructure.unit_of_work import ClosingSQLAlchemyUnitOfWork
     from app.finance.banking.application.service import BankingService
     from app.finance.banking.infrastructure.unit_of_work import BankingSQLAlchemyUnitOfWork
     from app.finance.invoices.application.service import DocumentService
@@ -187,6 +189,9 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
             lambda: BankingSQLAlchemyUnitOfWork(factory), app.state.services.intake
         ),
         bank_reconciliation=BankReconciliationService(lambda: BankingSQLAlchemyUnitOfWork(factory)),
+        closing=ClosingService(
+            lambda: ClosingSQLAlchemyUnitOfWork(factory), app.state.services.journal_commands
+        ),
         documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(factory)),
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
         promotion=PromotionService(
