@@ -61,6 +61,7 @@ class ClosingCheckModel(UUIDPrimaryKey, Base):
     __tablename__ = "closing_checks"
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
     closing_run_id: Mapped[UUID]
+    check_version: Mapped[int]
     check_code: Mapped[str] = mapped_column(String(48))
     severity: Mapped[str] = mapped_column(String(12))
     result_code: Mapped[str] = mapped_column(String(48))
@@ -70,7 +71,7 @@ class ClosingCheckModel(UUIDPrimaryKey, Base):
     evidence_ref: Mapped[UUID | None]
     created_at: Mapped[datetime]
     __table_args__ = (
-        UniqueConstraint("company_id", "closing_run_id", "check_code"),
+        UniqueConstraint("company_id", "closing_run_id", "check_version", "check_code"),
         Index("ix_closing_checks_company_run", "company_id", "closing_run_id"),
         ForeignKeyConstraint(
             ["company_id", "closing_run_id"],
@@ -83,6 +84,7 @@ class ClosingCheckModel(UUIDPrimaryKey, Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint("severity IN ('PASS','WARNING','BLOCKER')", name="severity"),
+        CheckConstraint("check_version >= 1", name="version"),
         CheckConstraint("amount_impact >= 0", name="amount"),
     )
 
