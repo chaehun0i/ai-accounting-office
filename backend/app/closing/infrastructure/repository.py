@@ -268,6 +268,21 @@ class ClosingRepository:
         )
         return transactions, journals
 
+    def cutoff_count(self, company: UUID, start: date, end: date) -> int:
+        return (
+            self.session.scalar(
+                select(func.count())
+                .select_from(TransactionModel)
+                .where(
+                    TransactionModel.company_id == company,
+                    TransactionModel.accounting_date.between(start, end),
+                    ~TransactionModel.transaction_date.between(start, end),
+                    TransactionModel.status != "EXCLUDED",
+                )
+            )
+            or 0
+        )
+
     def replay(
         self, company: UUID, actor: UUID, code: str, key: str, fingerprint: str
     ) -> tuple[UUID, UUID | None, UUID | None] | None:

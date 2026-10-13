@@ -44,6 +44,7 @@ export const checkLabels: Record<string, string> = {
   BANK_CARD_UNRECONCILED: "은행·카드 대사", AR_GL_MISMATCH: "채권·원장 차이",
   AP_GL_MISMATCH: "채무·원장 차이", TRIAL_BALANCE_UNBALANCED: "시산표 차대변",
   ADJUSTMENT_INCOMPLETE: "필수 결산조정",
+  CUTOFF_REVIEW: "거래일·귀속기간 차이 검토",
 };
 
 export const adjustmentLabels: Record<string, string> = {

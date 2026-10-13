@@ -10,8 +10,10 @@ from uuid import UUID, uuid4
 from app.accounting.journals.application.commands import JournalCommands
 from app.accounting.journals.application.service import validate_journal
 from app.accounting.journals.domain.entities import Journal, JournalLine
+from app.accounting.journals.domain.errors import AccountingError
 from app.accounting.ledger.domain.entities import LedgerFact, TrialRow, trial_balance
 from app.accounting.periods.domain.entities import Period
+from app.closing.application.contracts import ClosingUnitOfWork
 from app.closing.domain.entities import (
     ClosingAdjustment,
     ClosingApproval,
@@ -27,7 +29,6 @@ from app.closing.domain.errors import (
     PeriodNotClosing,
 )
 from app.closing.domain.rules import ADJUSTMENT_TYPES, stable_digest, transition_period
-from app.closing.infrastructure.unit_of_work import ClosingSQLAlchemyUnitOfWork
 from app.companies.application.service import require_company
 from app.contracts.access_errors import (
     AuthorizationDenied,
@@ -64,8 +65,12 @@ def _facts_digest(facts: list[LedgerFact]) -> str:
     return stable_digest(
         [
             (
-                str(f.journal_id), str(f.line_id), str(f.account_id),
-                str(f.debit_amount), str(f.credit_amount), f.entry_date.isoformat(),
+                str(f.journal_id),
+                str(f.line_id),
+                str(f.account_id),
+                str(f.debit_amount),
+                str(f.credit_amount),
+                f.entry_date.isoformat(),
             )
             for f in facts
         ]
@@ -75,14 +80,14 @@ def _facts_digest(facts: list[LedgerFact]) -> str:
 class ClosingService:
     def __init__(
         self,
-        factory: Callable[[], ClosingSQLAlchemyUnitOfWork],
+        factory: Callable[[], ClosingUnitOfWork],
         journal_commands: JournalCommands | None = None,
     ) -> None:
         self.factory = factory
         self.journal_commands = journal_commands
 
     @staticmethod
-    def _period(uow: ClosingSQLAlchemyUnitOfWork, company: UUID, period_id: UUID) -> Period:
+    def _period(uow: ClosingUnitOfWork, company: UUID, period_id: UUID) -> Period:
         period = uow.periods.get(company_id=company, resource_id=period_id)
         if period is None:
             raise ResourceNotFound()
@@ -90,7 +95,7 @@ class ClosingService:
 
     @staticmethod
     def _snapshot(
-        uow: ClosingSQLAlchemyUnitOfWork, company: UUID, period_id: UUID, run_id: UUID | None
+        uow: ClosingUnitOfWork, company: UUID, period_id: UUID, run_id: UUID | None
     ) -> ClosingSnapshot:
         period = ClosingService._period(uow, company, period_id)
         facts = uow.ledger.facts(company, period.end_date)
@@ -98,15 +103,12 @@ class ClosingService:
         tb_error = False
         try:
             trial_balance(facts, period.start_date)
-        except Exception as error:
-            from app.accounting.journals.domain.errors import AccountingError
-
-            if not isinstance(error, AccountingError):
-                raise
+        except AccountingError:
             tb_error = True
         transaction_count, journal_count = uow.closing.pending(
             company, period.start_date, period.end_date
         )
+        cutoff_count = uow.closing.cutoff_count(company, period.start_date, period.end_date)
         bank_summaries = [
             BankReconciliationService._summary(uow, company, statement.id)
             for statement in uow.banking.statements(company)
@@ -153,6 +155,15 @@ class ClosingService:
             _check(
                 "ADJUSTMENT_INCOMPLETE", incomplete, Decimal(sum(a.required for a in adjustments))
             ),
+            ClosingCheckResult(
+                check_code="CUTOFF_REVIEW",
+                severity="WARNING" if cutoff_count else "PASS",
+                result_code="DATE_DIFFERS" if cutoff_count else "OK",
+                amount_impact=Decimal(cutoff_count),
+                source_type=None,
+                source_id=None,
+                evidence_ref=None,
+            ),
         )
         source_digest = stable_digest(
             (
@@ -177,14 +188,14 @@ class ClosingService:
         )
 
     @staticmethod
-    def _fresh(uow: ClosingSQLAlchemyUnitOfWork, run: ClosingRun) -> ClosingSnapshot:
+    def _fresh(uow: ClosingUnitOfWork, run: ClosingRun) -> ClosingSnapshot:
         snapshot = ClosingService._snapshot(uow, run.company_id, run.accounting_period_id, run.id)
         if snapshot.source_digest != run.source_digest:
             raise ClosingRunStale()
         return snapshot
 
     @staticmethod
-    def _sync_adjustments(uow: ClosingSQLAlchemyUnitOfWork, company: UUID, run_id: UUID) -> None:
+    def _sync_adjustments(uow: ClosingUnitOfWork, company: UUID, run_id: UUID) -> None:
         for adjustment in uow.closing.adjustments(company, run_id):
             journal = uow.journals.get(company, adjustment.proposed_journal_id)
             if journal is not None and journal.status == "POSTED" and adjustment.status != "POSTED":
@@ -200,7 +211,7 @@ class ClosingService:
 
     @staticmethod
     def _reviewer_still_authorized(
-        uow: ClosingSQLAlchemyUnitOfWork,
+        uow: ClosingUnitOfWork,
         company: UUID,
         approval: ClosingApproval,
         permission: str,
@@ -554,7 +565,11 @@ class ClosingService:
             if approval.target_digest != expected:
                 raise ClosingRunStale()
             if approval.action_code == "CLOSE":
+                if period.status != "CLOSING" or run.status != "SUBMITTED":
+                    raise PeriodNotClosing()
                 self._fresh(uow, run)
+            elif period.status != "CLOSED" or run.status != "COMPLETED":
+                raise StateConflict()
             result = replace(
                 approval,
                 status="APPROVED",
