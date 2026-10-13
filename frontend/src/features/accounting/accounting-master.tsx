@@ -80,7 +80,7 @@ export function AccountingMaster({ company, showCatalog = true }: { company: Com
       <p>아직 회계 기준 정보가 없습니다. 회사의 회계연도를 확인한 뒤 초기 설정을 진행해 주세요.</p>
       {canManage ? <form onSubmit={submit}>
         <p>계정과목은 서버에서 준비한 고정 목록을 사용합니다. 회계연도만 확인해 주세요.</p>
-        <label>회계연도 시작 연도<input name="year" type="number" min={2026} max={9998} defaultValue={new Date().getFullYear()} required /></label>
+        <label>회계연도 시작 연도<input name="year" type="number" min={1900} max={9998} defaultValue={new Date().getFullYear()} required /></label>
         <label>회계연도 시작 월<select name="month">{Array.from({ length: 12 }, (_, i) => <option key={i} value={i + 1}>{i + 1}월</option>)}</select></label>
         <p className="muted">초기 설정 후 회계 기준 통화와 회계연도 시작 월은 이 화면에서 변경할 수 없습니다.</p>
         <button disabled={busy}>{busy ? "설정 중…" : "회계연도 설정"}</button>

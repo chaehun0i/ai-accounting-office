@@ -24,9 +24,20 @@ def validate_journal(uow: JournalUnitOfWork, value: Journal, *, balanced: bool =
     period = uow.periods.get(company_id=value.company_id, resource_id=value.accounting_period_id)
     if period is None:
         raise ResourceNotFound()
-    if period.status != "OPEN" or not period.start_date <= value.entry_date <= period.end_date:
+    closing_allowed = value.source_type == "CLOSING" and period.status == "CLOSING"
+    if (
+        period.status != "OPEN" and not closing_allowed
+    ) or not period.start_date <= value.entry_date <= period.end_date:
         raise AccountingError(
             "PERIOD_NOT_OPEN", "전표 날짜에 해당하는 열린 회계기간을 선택해 주세요.", 409
+        )
+    if (
+        value.source_type == "CLOSING"
+        and balanced
+        and not uow.reference_exists(value.company_id, "closing_journal", value.id)
+    ):
+        raise AccountingError(
+            "CLOSING_ADJUSTMENT_REQUIRED", "결산조정과 연결된 전표만 기표할 수 있습니다.", 409
         )
     uow.lock_accounts(value.company_id, tuple(line.account_id for line in value.lines))
     uow.dimensions.lock_scope(value.company_id)
@@ -116,7 +127,7 @@ class JournalService:
                         "확정된 전표는 수정할 수 없습니다. 역분개를 이용해 주세요.",
                         409,
                     )
-                if old.source_type in ("OPENING", "REVERSAL"):
+                if old.source_type in ("OPENING", "REVERSAL", "CLOSING"):
                     raise AccountingError(
                         "BUSINESS_RULE_VIOLATION",
                         "원천에서 생성된 기초·역분개 초안은 직접 수정할 수 없습니다.",

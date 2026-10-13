@@ -12,6 +12,9 @@ class Period:
     start_date: date
     end_date: date
     status: str = "OPEN"
+    close_version: int = 0
+    closed_at: datetime | None = None
+    closed_by: UUID | None = None
     version: int = 1
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))

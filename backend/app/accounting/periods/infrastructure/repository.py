@@ -1,7 +1,9 @@
 from dataclasses import asdict
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.accounting.periods.domain.entities import Period
@@ -37,3 +39,21 @@ class PeriodRepository:
     def add(self, value: Period) -> None:
         self.session.add(PeriodModel(**asdict(value)))
         self.session.flush()
+
+    def update(self, value: Period, expected_version: int) -> bool:
+        fields = asdict(value)
+        fields.pop("id")
+        fields.pop("company_id")
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(PeriodModel)
+                .where(
+                    PeriodModel.company_id == value.company_id,
+                    PeriodModel.id == value.id,
+                    PeriodModel.version == expected_version,
+                )
+                .values(**fields)
+            ),
+        )
+        return result.rowcount == 1
