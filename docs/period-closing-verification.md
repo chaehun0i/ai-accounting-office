@@ -25,7 +25,7 @@
 
 위 수치는 각각 별도의 실행 결과다. PostgreSQL 테스트는 이름이 `_test`로 끝나는 격리 DB에서 실행했다. 실제 Gemini 네트워크 호출은 수행하지 않았다. 결산 판단에는 LLM을 사용하지 않는다.
 
-전체 PostgreSQL `pytest --require-postgres` 실행은 별도로 진행 중이며 이 문서의 개별 통과 건수에 합산하지 않는다. 완료 전에는 전체 회귀 통과로 표시하지 않는다.
+전체 PostgreSQL `pytest --require-postgres` 실행은 사용자 요청으로 중단했다. 이 문서의 개별 통과 건수에 합산하지 않으며 전체 회귀 통과로 표시하지 않는다. 서비스업 native 은행 대사 후 월마감 통합 테스트는 별도로 1건 통과했다.
 
 ## Fixture와 한계
 
