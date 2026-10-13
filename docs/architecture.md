@@ -4,7 +4,7 @@
 
 ## 실제 구현
 
-Identity/Company/RBAC, 회계 Master, Storage/Evidence/Intake, Onboarding/Data Exchange, Transaction/Journal/Approval/Posting/Reversal/GL/TB, Governance 및 Finance Subledger가 구현되어 있습니다. Finance는 채권·채무·수금·지급·배분·Aging·GL 대사를 소유합니다. 실제 은행 이체·Tax·Asset/Inventory·Closing 전체는 구현하지 않았습니다.
+Identity/Company/RBAC, 회계 Master, Storage/Evidence/Intake, Onboarding/Data Exchange, Transaction/Journal/Approval/Posting/Reversal/GL/TB, Governance, Finance Subledger, Business Document, Bank/Card Reconciliation 및 Closing V1이 구현되어 있습니다. Finance는 채권·채무·수금·지급·배분·Aging·GL 대사를 소유합니다. 실제 은행 이체·Tax·Asset/Inventory·BS/IS는 구현하지 않았습니다.
 
 이번 P0 Runtime은 기존 거래에서 Tool 조회 → 구조화 계정 제안 → 결정론적 검증 → 사람 응답 대기 → 전표 **초안** 전달을 수행합니다. 실제 Gemini 호출은 선택 사항이며 기본 공급자는 Fake입니다. 전체 Chat UI나 자율 회계 승인은 제공하지 않습니다.
 
@@ -72,10 +72,20 @@ AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 
 
 ## 은행·카드 원천 대사
 
-`014_bank_card_reconciliation`은 기존 009의 match/line 구조를 재사용하고 은행·카드 계좌/원천/명세와 policy/item/event 8개 테이블을 추가합니다. 기존 013 이하 migration을 변경하지 않았습니다. 현재 head는 014이며 전용 PostgreSQL 실측은 업무 테이블 **88**, FK **250**, 인덱스 **495**, CHECK **232**, orphan **0**, 업무 JSON **0**, JSONB **0**입니다. Framework checkpoint schema는 변경하지 않았습니다.
+`014_bank_card_reconciliation`은 기존 009의 match/line 구조를 재사용하고 은행·카드 계좌/원천/명세와 policy/item/event 8개 테이블을 추가합니다. 기존 013 이하 migration을 변경하지 않았습니다. 014 시점 전용 PostgreSQL 실측은 업무 테이블 **88**, FK **250**, 인덱스 **495**, CHECK **232**, orphan **0**, 업무 JSON **0**, JSONB **0**입니다. Framework checkpoint schema는 변경하지 않았습니다.
 
 `finance/banking`은 확정 Intake의 원본 digest/Receipt/version을 다시 검증해 source를 정규화합니다. `finance/reconciliation`의 기존 AR/AP 원장 조회는 유지하고 별도 명시적 BankReconciliationService를 확장합니다. 회사 transaction lock 안에서 source/target 잔여액과 후보 version을 재검증합니다. 동시 초과 대사와 stale 후보를 차단하고 typed event/line 이력을 보존합니다. Router는 Application만 호출하고 Repository는 commit하지 않습니다.
 
-은행 명세와 GL, 확정 source 잔액을 구분합니다. 카드매출 정산채권과 법인카드 미지급금은 명시적 통제계정 role/usage로 분리합니다. 대사는 Journal 생성·승인·Posting 권한을 갖지 않으며 차이를 자동 조정하지 않습니다. Agent Tool/Framework는 확장하지 않았습니다. `blocker` summary는 향후 Closing V1 입력이며 Closing은 현재 구현하지 않았습니다.
+은행 명세와 GL, 확정 source 잔액을 구분합니다. 카드매출 정산채권과 법인카드 미지급금은 명시적 통제계정 role/usage로 분리합니다. 대사는 Journal 생성·승인·Posting 권한을 갖지 않으며 차이를 자동 조정하지 않습니다. Agent Tool/Framework는 확장하지 않았습니다. `blocker` summary는 Closing V1 검사 입력으로 사용합니다.
 
-설계 roadmap/Coverage의 오래된 PR #12 Current 기준은 실제 main PR #13/91918e9로 직접 동기화하고 readback 검증했습니다. 진행 중인 014를 merged 상태라고 기록하지 않았습니다. [은행·카드 계약](bank-card-reconciliation.md)을 참고하세요. 다음 후보는 Closing V1이며 후속 시작 시 최신 main/Drive를 다시 확인합니다.
+PR #14 병합 기준 main은 `f1915db34688e6dc41b46f0db08ef8a843e41520`입니다. [은행·카드 계약](bank-card-reconciliation.md)을 참고하세요.
+
+## 월마감 V1
+
+`015_period_closing`은 이미 배포된 014 이하 이력을 수정하지 않는 순방향 revision입니다. 회계기간에 `CLOSING`과 `close_version`을 추가하고 결산 실행·검사·조정·승인·감사 이벤트·멱등 명령을 관계형 테이블에 기록합니다. 활성 실행은 회사·기간별로 유일하며 검사 재실행은 기존 행을 지우지 않고 버전별 이력을 추가합니다.
+
+`closing` Application은 기존 총계정원장/시산표, AR/AP 원장 대사, 은행/카드 대사의 계산 결과를 조합합니다. 미처리 거래, 미승인 전표, 금융 미대사, AR/AP 차이, 시산표 불균형, 필수 조정을 BLOCKER로 판정하고 컷오프 날짜 차이는 WARNING으로 보입니다. 계산 입력의 digest가 달라진 실행은 재검사 전에는 마감할 수 없습니다. Asset/Inventory/Cost/Tax 미구현 상태는 서비스업 기본 월마감의 차단 사유로 만들지 않습니다.
+
+결산조정은 기존 Journal 초안·독립 승인·Posting을 통과합니다. 일반 전표는 CLOSING 기간에 신규 작성하거나 기표할 수 없습니다. 최종 마감과 재개는 요청자와 다른 활성 권한자의 승인을 요구하고, 기간 상태·마감 버전·실행 상태·감사 이벤트를 하나의 작업단위로 변경합니다. 자동 역분개 대상은 다음 열린 기간의 기존 Reversal 명령으로 초안을 생성한 후 동일한 사람 승인 절차를 따릅니다. CLOSED 장부의 수정이나 GL 직접 쓰기는 없습니다.
+
+명시적인 `UNADJUSTED`/`ADJUSTED` 시산표 조회와 장부·대사 digest는 후속 BS/IS의 입력 경계입니다. 월별 손익 계정을 물리적으로 0으로 만드는 연말 마감은 포함하지 않았습니다. [월마감 계약](period-closing.md)과 [검증 기록](period-closing-verification.md)을 참고하세요.
