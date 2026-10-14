@@ -183,7 +183,9 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     from app.intake.promotion.application.service import PromotionService
     from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemyUnitOfWork
     from app.reporting.financial_statements.application.service import StatementService
-    from app.reporting.financial_statements.infrastructure.unit_of_work import ReportingSQLAlchemyUnitOfWork
+    from app.reporting.financial_statements.infrastructure.unit_of_work import (
+        ReportingSQLAlchemyUnitOfWork,
+    )
 
     app.state.services = replace(
         app.state.services,
