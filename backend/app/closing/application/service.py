@@ -750,6 +750,25 @@ class ClosingService:
             calculated = _facts_digest(facts)
             return calculated, rows
 
+    @staticmethod
+    def closed_adjusted_source(
+        uow: ClosingUnitOfWork, company: UUID, period_id: UUID
+    ) -> tuple[Period, ClosingRun, str, list[TrialRow], list[LedgerFact]]:
+        """동일 UoW에서 잠근 CLOSED 기간의 마감 장부와 출처를 제공합니다."""
+        uow.lock_period(company, period_id)
+        period = ClosingService._period(uow, company, period_id)
+        if period.status != "CLOSED":
+            raise StateConflict()
+        runs = uow.closing.runs(company, period_id)
+        if not runs or runs[0].status != "COMPLETED":
+            raise ClosingRunStale()
+        run = runs[0]
+        facts = uow.ledger.facts(company, period.end_date)
+        source_digest = _facts_digest(facts)
+        if source_digest != run.adjusted_tb_digest:
+            raise ClosingRunStale()
+        return period, run, source_digest, trial_balance(facts, period.start_date), facts
+
     def propose_reversal(
         self,
         actor: Principal,
