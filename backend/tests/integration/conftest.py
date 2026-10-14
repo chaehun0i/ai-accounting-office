@@ -182,6 +182,8 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     from app.finance.reconciliation.application.bank_service import BankReconciliationService
     from app.intake.promotion.application.service import PromotionService
     from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemyUnitOfWork
+    from app.reporting.financial_statements.application.service import StatementService
+    from app.reporting.financial_statements.infrastructure.unit_of_work import ReportingSQLAlchemyUnitOfWork
 
     app.state.services = replace(
         app.state.services,
@@ -192,6 +194,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         closing=ClosingService(
             lambda: ClosingSQLAlchemyUnitOfWork(factory), app.state.services.journal_commands
         ),
+        statements=StatementService(lambda: ReportingSQLAlchemyUnitOfWork(factory)),
         documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(factory)),
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
         promotion=PromotionService(
