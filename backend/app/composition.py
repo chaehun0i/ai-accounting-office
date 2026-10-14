@@ -59,6 +59,10 @@ from app.onboarding.application.merge import OnboardingImportService
 from app.onboarding.application.service import OnboardingService
 from app.onboarding.infrastructure.template import parse_onboarding
 from app.onboarding.infrastructure.unit_of_work import OnboardingSQLAlchemyUnitOfWork
+from app.reporting.financial_statements.application.service import StatementService
+from app.reporting.financial_statements.infrastructure.unit_of_work import (
+    ReportingSQLAlchemyUnitOfWork,
+)
 from app.storage.infrastructure.local import LocalObjectStorage
 from app.tools.accounting import build_registry
 from app.tools.registry import ToolRegistry
@@ -91,6 +95,7 @@ class Services:
     banking: BankingService | None = None
     bank_reconciliation: BankReconciliationService | None = None
     closing: ClosingService | None = None
+    statements: StatementService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -147,6 +152,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         closing=ClosingService(
             lambda: ClosingSQLAlchemyUnitOfWork(sessions), container.journal_commands
         ),
+        statements=StatementService(lambda: ReportingSQLAlchemyUnitOfWork(sessions)),
     )
     assert container.accounting and container.transactions and container.accounting_reports
     assert (
