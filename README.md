@@ -2,7 +2,7 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation + Closing V1**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation + Closing V1 + BS/IS Snapshot**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
 
 **채권·채무** 메뉴에서 확정 전표 연결 → 수금·지급 등록 → 배분 → 확정 → 기준일 잔액·기한 분석·원장 대사를 사용할 수 있습니다. 수금·지급은 먼저 사람 승인과 장부 반영을 마친 회계 전표를 참조합니다. 실제 은행 이체 기능은 아닙니다. [재무 보조부 사용법과 경계](docs/finance-subledger.md), [검증 결과](docs/finance-verification.md)를 참고하세요.
 
@@ -11,7 +11,7 @@
 
 **은행 대사 · 카드 대사**에서 기존 CSV/XLSX 확인 자료를 금융 원천으로 연결하고 후보 검토 → 다중·부분 배분 → 사람 확정 → 사유 있는 해제 → 원천/장부 잔액 비교를 사용할 수 있습니다. 원번호 대신 별칭을 사용하며 카드매출 수납과 법인카드 비용을 구분합니다. 대사 차이를 자동 분개로 상쇄하지 않습니다. [은행·카드 계약과 제한](docs/bank-card-reconciliation.md)을 참고하세요.
 
-**월마감**에서 기간을 `OPEN → CLOSING → CLOSED`로 전환하고 미처리 거래·미승인 전표·은행/카드 미대사·채권채무 원장 차이·시산표·필수 조정을 결정론적으로 검사합니다. 결산조정은 기존 전표 초안 → 별도 담당자 승인 → 기표를 거치며, 최종 마감과 재개에도 별도 사람 승인이 필요합니다. [월마감 계약과 제한](docs/period-closing.md), [검증 범위와 남은 항목](docs/period-closing-verification.md)을 참고하세요. BS/IS 생성은 다음 범위입니다.
+**월마감**에서 기간을 `OPEN → CLOSING → CLOSED`로 전환하고 미처리 거래·미승인 전표·은행/카드 미대사·채권채무 원장 차이·시산표·필수 조정을 결정론적으로 검사합니다. 결산조정은 기존 전표 초안 → 별도 담당자 승인 → 기표를 거치며, 최종 마감과 재개에도 별도 사람 승인이 필요합니다. [월마감 계약과 제한](docs/period-closing.md), [검증 범위와 남은 항목](docs/period-closing-verification.md)을 참고하세요. **재무제표** 메뉴에서는 CLOSED 기간의 조정 시산표로 BS/IS를 생성하고 계정·전표까지 조회할 수 있습니다. [BS/IS 계약과 제한](docs/financial-statements.md)을 참고하세요.
 
 ## 바로 실행하고 테스트하기
 
@@ -222,7 +222,7 @@ python -m pytest --require-postgres
 
 Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. 이번 Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개까지 지원합니다. Tax 정본, 자율 승인·Posting, 전체 Chat UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
 
-확정 가져오기 승격, 매출·매입 업무문서 → 거래·채권채무 연결, 은행·카드 대사와 Closing V1을 제공합니다. 다음 후보는 최신 로드맵의 **BS / IS**입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
+확정 가져오기 승격, 매출·매입 업무문서 → 거래·채권채무 연결, 은행·카드 대사와 Closing V1을 제공합니다. CLOSED 기간 BS/IS 스냅샷을 제공합니다. 비교재무제표·CF/SCE·주석·보고서 파일 Export는 후속 범위입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
 
 ## 거래 기반 회계 제안 실행
 

@@ -47,6 +47,8 @@ PERMISSION_GRANTS: dict[str, tuple[str, ...]] = {
     "journal.reverse": ("REVIEWER", "OWNER"),
     "ledger.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "trial_balance.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
+    "financial_statement.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
+    "financial_statement.generate": ("OWNER", "ADMIN", "ACCOUNTANT"),
     "period.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "period.start_closing": ("ACCOUNTANT", "REVIEWER"),
     "period.close": ("REVIEWER", "OWNER"),

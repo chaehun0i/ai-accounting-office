@@ -17,9 +17,14 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     # 전용 테스트 DB라도 업무 테이블이 있으면 삭제하지 않고 검증을 중단합니다.
     expected = set(Base.metadata.tables) | {"alembic_version"}
     assert set(inspect(db_connection).get_table_names(schema="public")) <= expected
+    # 016은 회사 데이터가 아닌 고정 KR_INTERNAL taxonomy v1과 표시 항목을 seed합니다.
+    # 나머지 업무 데이터는 여전히 비어 있어야 downgrade 검증을 시작할 수 있습니다.
+    reference_rows = {"report_taxonomies": 1, "report_lines": 18}
     for table in Base.metadata.sorted_tables:
         if inspect(db_connection).has_table(table.name):
-            assert db_connection.scalar(select(func.count()).select_from(table)) == 0
+            assert db_connection.scalar(
+                select(func.count()).select_from(table)
+            ) == reference_rows.get(table.name, 0)
     db_connection.commit()
     command.downgrade(config, "base")
     db_connection.execute(text("DROP TABLE IF EXISTS public.alembic_version"))
@@ -51,7 +56,7 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     command.upgrade(config, "head")
     command.check(config)
     migration = MigrationContext.configure(db_connection, opts={"compare_type": True})
-    assert migration.get_current_heads() == ("015_period_closing",)
+    assert migration.get_current_heads() == ("016_financial_statements",)
     assert compare_metadata(migration, Base.metadata) == []
     assert_relational_schema(db_connection)
     assert set(inspect(db_connection).get_table_names(schema="public")) == expected
