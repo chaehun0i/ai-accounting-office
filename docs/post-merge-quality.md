@@ -9,3 +9,5 @@
 현재 문서의 구현 설명과 메뉴 목록은 README·아키텍처·내비게이션·Agent·월마감·재무제표·feature 안내에 동기화했다. 과거 `*-verification.md`의 SHA·수치는 해당 시점의 실행 기록으로 보존한다. [문서 읽기 안내](README.md)가 현재 계약과 과거 기록을 구분한다.
 
 후속 유지보수에서는 거래 전표 제안과 기간 질의의 LangGraph 정의를 분리하고, AI 회계팀 화면에서 API/폴링 상태를 전용 hook으로 분리했다. 기능이나 DB 계약은 바꾸지 않았다. Backend 집중 unit/contract **15 passed**, PostgreSQL 통합 **12 passed**, Ruff·format·mypy 통과. Frontend **36 passed**, lint·typecheck·production build 통과. 이 변경은 파일의 책임을 좁히는 구조 정리이며 실행 성능 향상을 주장하지 않는다.
+
+회계기간 재조회가 겹칠 때 이전 응답이 새 목록을 덮지 않도록 요청별 취소 상태를 적용하고, 재조회 시작 시 이전 기간 목록을 비운다. 관련 AI 회계팀 테스트 **2 passed**, lint·typecheck 통과.
