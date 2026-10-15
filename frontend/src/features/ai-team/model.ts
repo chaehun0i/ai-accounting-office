@@ -42,9 +42,3 @@ export function runMessage(run: QueryRun) {
   if (!isFinal(run.status)) return "회계 자료를 확인하고 있습니다…";
   return run.answer_text ?? "표시할 답변이 없습니다.";
 }
-
-export function formatAnswerAmount(value: string | null) {
-  if (value === null) return null;
-  // API의 Decimal 문자열을 계산하거나 본문에서 파싱하지 않습니다.
-  return value;
-}

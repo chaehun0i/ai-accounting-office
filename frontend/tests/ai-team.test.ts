@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatAnswerAmount, isFinal, queryPayload, queryRequest, runMessage, type QueryRun } from "../src/features/ai-team/model.ts";
+import { isFinal, queryPayload, queryRequest, runMessage, type QueryRun } from "../src/features/ai-team/model.ts";
 
 const base: QueryRun = {
   id: "run", period_id: "period", question_text: "손익이 얼마야?",
@@ -14,8 +14,7 @@ test("기간 UUID와 질문을 분리해 제출하고 Decimal 문자열을 보�
   const request = queryRequest("company", "period", "  손익이 얼마야?  ", "retry-key");
   assert.deepEqual(request.headers, { "X-Company-ID": "company", "Idempotency-Key": "retry-key" });
   assert.deepEqual(JSON.parse(String(request.body)), { period_id: "period", question: "손익이 얼마야?" });
-  assert.equal(formatAnswerAmount(base.answer_amount), "100.0000");
-  assert.equal(formatAnswerAmount(null), null);
+  assert.equal(base.answer_amount, "100.0000");
   assert.equal(runMessage(base), base.answer_text);
 });
 
