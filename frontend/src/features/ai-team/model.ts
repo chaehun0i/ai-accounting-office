@@ -36,15 +36,16 @@ export function isFinal(status: QueryRun["status"]) {
   return status === "COMPLETED" || status === "BLOCKED" || status === "FAILED";
 }
 
+export function runStatusLabel(status: QueryRun["status"]) {
+  return {
+    PENDING: "대기 중", RUNNING: "자료 확인 중", WAITING_FOR_INPUT: "입력 대기",
+    COMPLETED: "조회 완료", BLOCKED: "검증 차단", FAILED: "실행 실패",
+  }[status];
+}
+
 export function runMessage(run: QueryRun) {
   if (run.status === "BLOCKED") return "검증 단계에서 답변이 차단됐습니다. 기준 자료와 권한을 확인해 주세요.";
   if (run.status === "FAILED") return "질의를 완료하지 못했습니다. 기간과 권한을 확인한 뒤 다시 시도해 주세요.";
   if (!isFinal(run.status)) return "회계 자료를 확인하고 있습니다…";
   return run.answer_text ?? "표시할 답변이 없습니다.";
-}
-
-export function formatAnswerAmount(value: string | null) {
-  if (value === null) return null;
-  // API의 Decimal 문자열을 계산하거나 본문에서 파싱하지 않습니다.
-  return value;
 }

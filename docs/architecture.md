@@ -4,9 +4,9 @@
 
 ## 실제 구현
 
-Identity/Company/RBAC, 회계 Master, Storage/Evidence/Intake, Onboarding/Data Exchange, Transaction/Journal/Approval/Posting/Reversal/GL/TB, Governance, Finance Subledger, Business Document, Bank/Card Reconciliation 및 Closing V1이 구현되어 있습니다. Finance는 채권·채무·수금·지급·배분·Aging·GL 대사를 소유합니다. 실제 은행 이체·Tax·Asset/Inventory·BS/IS는 구현하지 않았습니다.
+Identity/Company/RBAC, 회계 Master, Storage/Evidence/Intake, Onboarding/Data Exchange, Transaction/Journal/Approval/Posting/Reversal/GL/TB, Governance, Finance Subledger, Business Document, Bank/Card Reconciliation, Closing V1 및 CLOSED 기간 BS/IS 관계형 스냅샷이 구현되어 있습니다. Finance는 채권·채무·수금·지급·배분·Aging·GL 대사를 소유합니다. 실제 은행 이체·Tax·Asset/Inventory는 구현하지 않았습니다.
 
-이번 P0 Runtime은 기존 거래에서 Tool 조회 → 구조화 계정 제안 → 결정론적 검증 → 사람 응답 대기 → 전표 **초안** 전달을 수행합니다. 실제 Gemini 호출은 선택 사항이며 기본 공급자는 Fake입니다. 전체 Chat UI나 자율 회계 승인은 제공하지 않습니다.
+P0 Runtime은 기존 거래에서 Tool 조회 → 구조화 계정 제안 → 결정론적 검증 → 사람 응답 대기 → 전표 **초안** 전달을 수행합니다. 별도의 읽기 전용 기간 질의는 Closing readiness와 CLOSED 기간 BS/IS 스냅샷을 기존 Tool Registry와 Application Service로 조회하며, `AI 회계팀` 화면에서 사용합니다. 실제 Gemini 호출은 선택 사항이며 기본 공급자는 Fake입니다. 대화방/장기 메모리와 자율 회계 승인은 제공하지 않습니다.
 
 기본 의존 방향은 `API → Application → Domain`입니다. Infrastructure가 계약을 구현하고 UoW가 transaction을 소유합니다. Repository는 commit하지 않습니다. Domain/Application은 ORM·FastAPI·Provider SDK에 의존하지 않습니다.
 
@@ -58,7 +58,7 @@ AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 
 
 `import_promotion_rows`는 원본 행을 복제하지 않고 locator·digest·거래 FK·review를 보존합니다. `import_promotion_commands`는 company/actor/command/key/fingerprint와 Receipt 참조만 저장합니다. 요청·Import·원천 identity 잠금과 기존 Transaction UNIQUE가 동시 재시도를 보호합니다. 회사·Receipt/Transaction composite FK가 다른 회사 참조를 차단합니다. Agent mutation Tool과 framework checkpoint 예외는 변경하지 않았습니다. API·상태·재사용·실측 검증은 [승격 계약](import-transaction-promotion.md)을 따릅니다.
 
-012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011 수치는 이전 revision의 기록이며 당시 head는 012이며 아래 014가 현재 head입니다.
+012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011·012 수치는 각 revision 당시 기록이며 현재 head는 `017_accounting_agent_queries`입니다.
 
 
 ## 매출·매입 업무문서

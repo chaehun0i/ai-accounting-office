@@ -64,6 +64,10 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 
 기간 질의는 `closing.readiness`와 `financial_statement.read` 두 읽기 Tool만 사용합니다. 전자는 Closing Application의 검사·차단 사유를 그대로 반환하며 `period.read` 권한을 요구합니다. 후자는 CLOSED 기간의 최신 BS/IS 스냅샷과 요청 항목의 계정·전표 출처를 Reporting Application에서 읽으며 `financial_statement.read` 권한을 요구합니다. Tool Registry가 회사 범위와 사용자 권한을 재검증하고 Controller가 답변의 금액·문구·resource·출처가 Tool 결과와 정확히 일치하는지 확인합니다. 마감·기표·승인 명령은 Agent에 노출하지 않습니다.
 
+`/ai-team`은 회사와 회계기간을 선택해 위 기간 질의를 실행하는 최소 Workspace입니다. 차단 검사는 건수와 검사 코드·영향 금액을 Tool 결과 그대로 답변하며, Controller는 건수와 검사 목록의 불일치도 차단합니다. UI는 답변·Decimal 문자열 금액·검증 상태·resource/digest를 구분합니다. 회사 전환 시 이전 입력·응답을 폐기하며 대화 이력과 토큰 스트리밍은 저장·제공하지 않습니다.
+
+거래 전표 제안 그래프는 `agents/graphs/bookkeeping.py`, 기간 질의 그래프는 `agents/graphs/accounting_question.py`에 둡니다. 두 그래프는 같은 Tool Registry와 Runtime 감사 경계를 사용합니다. 화면의 기간 조회·질의 재시도·run 조회 상태는 `ai-team/use-accounting-query.ts`가 소유하고 Workspace 컴포넌트는 결과 표시만 담당합니다.
+
 ## 영속성·복구
 
 `010_agent_runtime_foundation`은 jobs/agent_runs/agent_steps/tool_executions/job_events와 빈 framework schema를 추가합니다. 기존 009 및 그 이전 migration은 수정하지 않았습니다. 공식 PostgresSaver.setup()이 별도 schema에 자체 table을 설치하며 동시 설치를 advisory lock으로 보호합니다. 같은 thread 실행도 PostgreSQL advisory lock으로 직렬화합니다.

@@ -13,11 +13,16 @@
 | `/journals` | 전표 작성·제출·승인·장부 반영 |
 | `/receivables` | 채권·수금·배분·기한 분석·원장 대사 |
 | `/payables` | 채무·지급·배분·기한 분석·원장 대사 |
+| `/bank-reconciliation` | 은행 명세·매칭 후보·대사 결과 |
+| `/card-reconciliation` | 카드 원천·취소/환불·대사 결과 |
 | `/ledger` | 계정별 총계정원장 |
 | `/trial-balance` | 기간별 합계잔액시산표 |
+| `/closing` | 기간별 결산 검사·조정·마감 이력 |
+| `/financial-statements` | CLOSED 기간 BS/IS 생성·조회·출처 확인 |
+| `/ai-team` | 회사·기간 기준 마감·재무제표 읽기 질의 |
 | `/accounting` | 회계 설정·계정과목·회계기간 |
 
-메뉴 그룹과 permission 계약은 `features/navigation/routes.ts` 한 곳에서 관리한다. 회사 미선택과 권한 부족을 구분해 안내하며 직접 URL 진입에도 같은 화면 접근 검사를 적용한다. 실제 데이터 권한은 기존 Backend가 계속 검증한다. 페이지 이동 시 로그인·회사 context는 유지하지만 저장하지 않은 개별 입력폼의 내용은 유지하지 않으므로 저장 후 이동한다. 여러 회사 사용자가 새로고침하면 회사 선택을 다시 확인한다.
+메뉴 그룹과 permission 계약은 `features/navigation/routes.ts` 한 곳에서 관리한다. 회사 미선택과 권한 부족을 구분해 안내하며 직접 URL 진입에도 같은 화면 접근 검사를 적용한다. 실제 데이터 권한은 기존 Backend가 계속 검증한다. AI 회계팀 메뉴는 기간 조회 권한으로 열리지만 BS/IS Tool 실행에는 별도 `financial_statement.read` 권한이 필요하다. 페이지 이동 시 로그인·회사 context는 유지하지만 저장하지 않은 개별 입력폼의 내용은 유지하지 않으므로 저장 후 이동한다. 여러 회사 사용자가 새로고침하면 회사 선택을 다시 확인한다.
 
 원장·시산표는 같은 조회 컴포넌트를 mode로 재사용하면서 각 API와 표를 독립적으로 표시한다. 원장 전표 링크는 `/journals#journal-UUID`로 연결한다. 전표 페이지 첫 진입·새로고침과 hash 변경 모두 회사 범위로 상세를 조회한다. 금액 계산과 승인 상태를 Frontend가 변경하지 않는다.
 

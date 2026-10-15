@@ -10,13 +10,8 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
 
-from app.agents.graphs.bookkeeping import (
-    AccountingQuestionState,
-    BookkeeperState,
-    HumanDecision,
-    build_accounting_question,
-    build_bookkeeper,
-)
+from app.agents.graphs.accounting_question import AccountingQuestionState, build_accounting_question
+from app.agents.graphs.bookkeeping import BookkeeperState, HumanDecision, build_bookkeeper
 from app.agents.runtime.controller import AccountingAnswer
 from app.contracts.access_errors import InvalidInput, StateConflict
 from app.core.digests import digest

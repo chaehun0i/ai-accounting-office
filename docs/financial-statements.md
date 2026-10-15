@@ -9,3 +9,5 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 `POST /financial-statements/generate`에는 회사 헤더와 Idempotency-Key가 필요합니다. 동일 마감 버전·시산표 digest·taxonomy·매핑 digest의 재요청은 기존 세트를 반환합니다. 마감 장부가 바뀌면 생성은 실패합니다. 세트, BS/IS, 항목별 계정·전표 라인 출처는 각각 조회 API로 확인할 수 있습니다. 다른 회사의 세트는 조회되지 않습니다.
 
 이 단계는 BS/IS 생성과 읽기만 제공합니다. 승인, 비교재무제표, CF/SCE, 주석, Export는 포함하지 않습니다. 전체 회귀와 브라우저 E2E는 Fast Development Mode의 후속 Release Gate로 남깁니다.
+
+Bookkeeper의 `financial_statement.read`는 기존 읽기 Application Service와 `financial_statement.read` 사용자 권한을 재사용합니다. `AI 회계팀` 화면은 CLOSED 기간의 기존 스냅샷 금액·버전·digest를 표시하며 재무제표를 새로 생성하거나 승인하지 않습니다.

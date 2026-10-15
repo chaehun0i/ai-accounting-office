@@ -147,6 +147,10 @@ def test_open_period_closing_query_matches_application_check(api_client, auth_se
     assert (
         str(sum(check.severity == "BLOCKER" for check in expected.checks)) in answer["answer_text"]
     )
+    for check in expected.checks:
+        if check.severity == "BLOCKER":
+            assert check.check_code in answer["answer_text"]
+            assert str(check.amount_impact) in answer["answer_text"]
     tool = runtime.registry.execute(
         "closing.readiness", {"period_id": period}, ToolContext(actor, company)
     )

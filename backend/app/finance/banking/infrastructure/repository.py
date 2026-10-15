@@ -58,18 +58,7 @@ class BankingRepository:
     def accounts(self, company: UUID, kind: str) -> list[FinancialAccount]:
         model = BankAccountModel if kind == "BANK" else CardAccountModel
         return [
-            FinancialAccount(
-                kind=kind,
-                id=r.id,
-                company_id=r.company_id,
-                institution_code=r.institution_code,
-                alias=r.alias,
-                control_account_id=r.control_account_id,
-                currency_code=r.currency_code,
-                status=r.status,
-                version=r.version,
-                usage_type=getattr(r, "usage_type", "CORPORATE"),
-            )
+            self._account_value(kind, r)
             for r in (
                 cast(BankAccountModel | CardAccountModel, row)
                 for row in self.session.scalars(
@@ -79,7 +68,30 @@ class BankingRepository:
         ]
 
     def account(self, company: UUID, kind: str, identifier: UUID) -> FinancialAccount | None:
-        return next((a for a in self.accounts(company, kind) if a.id == identifier), None)
+        model = BankAccountModel if kind == "BANK" else CardAccountModel
+        row = self.session.scalar(
+            select(model).where(model.company_id == company, model.id == identifier)
+        )
+        return (
+            self._account_value(kind, cast(BankAccountModel | CardAccountModel, row))
+            if row
+            else None
+        )
+
+    @staticmethod
+    def _account_value(kind: str, row: BankAccountModel | CardAccountModel) -> FinancialAccount:
+        return FinancialAccount(
+            kind=kind,
+            id=row.id,
+            company_id=row.company_id,
+            institution_code=row.institution_code,
+            alias=row.alias,
+            control_account_id=row.control_account_id,
+            currency_code=row.currency_code,
+            status=row.status,
+            version=row.version,
+            usage_type=getattr(row, "usage_type", "CORPORATE"),
+        )
 
     def add_account(self, value: FinancialAccount) -> None:
         model = BankAccountModel if value.kind == "BANK" else CardAccountModel

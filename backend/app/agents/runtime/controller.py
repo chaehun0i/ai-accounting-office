@@ -36,6 +36,13 @@ def reporting_answer(
         blockers = data["blocker_count"]
         stale = data["stale"]
         text = f"회계기간 상태는 {status}이며 차단 검사는 {blockers}건입니다."
+        blocked = [check for check in data["checks"] if check["severity"] == "BLOCKER"]
+        if blocked:
+            details = ", ".join(
+                f"{check['check_code']} (영향 금액 {Decimal(check['amount_impact'])})"
+                for check in blocked
+            )
+            text += f" 차단 항목: {details}."
         if stale:
             text += " 마감 검사 기준이 변경되어 다시 검사해야 합니다."
         return AccountingAnswer(
@@ -64,6 +71,10 @@ def reporting_verdict(
     tool_code: str, result: dict[str, Any], line_code: str | None, answer: AccountingAnswer
 ) -> Literal["PASS", "BLOCK"]:
     data = result["data"]
+    if tool_code == "closing.readiness" and data["blocker_count"] != sum(
+        check["severity"] == "BLOCKER" for check in data["checks"]
+    ):
+        return "BLOCK"
     if tool_code == "financial_statement.read" and (
         data["period_status"] != "CLOSED"
         or data["statement_status"] != "GENERATED"
