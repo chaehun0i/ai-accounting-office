@@ -3,7 +3,7 @@ import test from "node:test";
 import { canVisit, officeRoutes } from "../src/features/navigation/routes.ts";
 
 test("업무마다 독립 경로를 제공하고 회사 선택은 권한 없이 열 수 있습니다", () => {
-  assert.equal(new Set(officeRoutes.map(route => route.href)).size, 16);
+  assert.equal(new Set(officeRoutes.map(route => route.href)).size, 17);
   assert.ok(canVisit("/companies", []));
   assert.ok(canVisit("/", []));
   assert.equal(canVisit("/unknown", []), false);
@@ -21,6 +21,8 @@ test("메뉴와 직접 URL 진입은 같은 서버 permission 계약을 사용�
   assert.ok(canVisit("/business-documents", ["invoice.read"]));
   assert.ok(canVisit("/closing", ["period.read"]));
   assert.ok(canVisit("/financial-statements", ["financial_statement.read"]));
+  assert.ok(canVisit("/ai-team", ["period.read"]));
+  assert.equal(canVisit("/ai-team", ["financial_statement.read"]), false);
   assert.equal(canVisit("/financial-statements", ["ledger.read"]), false);
   assert.equal(canVisit("/closing", ["ledger.read"]), false);
   assert.equal(canVisit("/business-documents", ["ledger.read"]), false);
