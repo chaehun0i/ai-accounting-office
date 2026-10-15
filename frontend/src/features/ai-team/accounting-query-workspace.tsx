@@ -1,74 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Company } from "@/features/companies/selection-state";
-import { ApiError } from "@/shared/api";
-import { askBookkeeper, getQueryRun, listPeriods } from "./api";
-import { isFinal, runMessage, type Period, type QueryRun } from "./model";
+import { isFinal, runMessage } from "./model";
+import { useAccountingQuery } from "./use-accounting-query";
 
 export function AccountingQueryWorkspace({ company }: { company: Company }) {
-  const [periods, setPeriods] = useState<Period[]>([]);
-  const [periodId, setPeriodId] = useState("");
-  const [question, setQuestion] = useState("");
-  const [run, setRun] = useState<QueryRun | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [showSource, setShowSource] = useState(false);
-  const [periodRevision, setPeriodRevision] = useState(0);
-  const retry = useRef<{ signature: string; key: string } | null>(null);
-  const requestVersion = useRef(0);
-  const active = useRef(true);
+  const {
+    periods, periodId, question, run, loading, busy, error, showSource,
+    setPeriodId, setQuestion, setShowSource, clearResult, submit, reloadPeriods,
+  } = useAccountingQuery(company.id);
   const selected = periods.find(period => period.id === periodId);
-
-  useEffect(() => {
-    active.current = true;
-    setLoading(true);
-    setError("");
-    listPeriods(company.id).then(values => {
-      if (!active.current) return;
-      setPeriods(values);
-      setPeriodId(values[0]?.id ?? "");
-    }).catch(reason => { if (active.current) setError(errorMessage(reason)); })
-      .finally(() => { if (active.current) setLoading(false); });
-    return () => { active.current = false; requestVersion.current += 1; };
-  }, [company.id, periodRevision]);
-
-  function clearResult() {
-    requestVersion.current += 1;
-    retry.current = null;
-    setRun(null);
-    setShowSource(false);
-    setError("");
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const text = question.trim();
-    if (busy || !periodId || !text) return;
-    const version = ++requestVersion.current;
-    const signature = JSON.stringify([company.id, periodId, text]);
-    if (retry.current?.signature !== signature) retry.current = { signature, key: crypto.randomUUID() };
-    const key = retry.current.key;
-    setBusy(true);
-    setError("");
-    setRun(null);
-    try {
-      let result = await askBookkeeper(company.id, periodId, text, key);
-      for (let attempt = 0; !isFinal(result.status) && attempt < 15; attempt += 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        if (!active.current || requestVersion.current !== version) return;
-        result = await getQueryRun(company.id, result.id);
-      }
-      if (!active.current || requestVersion.current !== version) return;
-      setRun(result);
-      if (isFinal(result.status)) retry.current = null;
-    } catch (reason) {
-      if (active.current && requestVersion.current === version) setError(errorMessage(reason));
-    } finally {
-      if (active.current && requestVersion.current === version) setBusy(false);
-    }
-  }
 
   return <div className="workspace-stack">
     <section className="panel">
@@ -87,7 +28,7 @@ export function AccountingQueryWorkspace({ company }: { company: Company }) {
           <button type="submit" disabled={busy || !periodId || !question.trim()}>{busy ? "자료 확인 중…" : run && !isFinal(run.status) ? "계속 확인" : "질문하기"}</button>
         </form>}
       {error && <p role="alert" className="error">{error}</p>}
-      {!loading && periods.length === 0 && error && <button type="button" onClick={() => setPeriodRevision(value => value + 1)}>회계기간 다시 불러오기</button>}
+      {!loading && periods.length === 0 && error && <button type="button" onClick={reloadPeriods}>회계기간 다시 불러오기</button>}
     </section>
     {run && <section className="panel" aria-live="polite">
       <h2>조회 결과</h2>
@@ -104,10 +45,4 @@ export function AccountingQueryWorkspace({ company }: { company: Company }) {
       </dl>}
     </section>}
   </div>;
-}
-
-function errorMessage(reason: unknown) {
-  if (reason instanceof ApiError && (reason.status === 401 || reason.status === 403)) return "이 회사의 회계 자료를 조회할 권한이 없습니다.";
-  if (reason instanceof ApiError && reason.status === 404) return "선택한 회계기간 또는 자료를 찾을 수 없습니다.";
-  return reason instanceof ApiError ? reason.message : "질의를 처리하지 못했습니다. 다시 시도해 주세요.";
 }
