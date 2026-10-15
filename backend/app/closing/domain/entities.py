@@ -74,3 +74,19 @@ class ClosingSnapshot:
     ar_digest: str
     ap_digest: str
     checks: tuple[ClosingCheckResult, ...]
+
+
+@dataclass(frozen=True, kw_only=True)
+class ClosingReadiness:
+    period_id: UUID
+    period_start: date
+    period_end: date
+    period_status: str
+    close_version: int
+    run_id: UUID | None
+    run_version: int | None
+    run_status: str | None
+    source_digest: str
+    tb_digest: str
+    stale: bool
+    checks: tuple[ClosingCheckResult, ...]

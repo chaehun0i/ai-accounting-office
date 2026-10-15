@@ -18,12 +18,14 @@ from app.accounting.transactions.application.evidence import (
 )
 from app.accounting.transactions.application.service import TransactionService
 from app.accounting.transactions.domain.entities import Transaction
+from app.closing.application.service import ClosingService
 from app.companies.application.service import require_company
 from app.contracts.access_errors import InvalidInput
 from app.finance.receivables.domain.entities import Obligation
 from app.finance.reconciliation.application.service import FinanceReports
 from app.finance.reconciliation.domain.reports import Reconciliation
 from app.finance.settlements.application.service import FinanceService
+from app.reporting.financial_statements.application.service import StatementService
 from app.tools.contracts import (
     AsOfInput,
     Input,
@@ -36,6 +38,7 @@ from app.tools.contracts import (
     ToolDefinition,
 )
 from app.tools.registry import ToolRegistry
+from app.tools.reporting import definitions as reporting_definitions
 
 
 class ProposalInput(Input):
@@ -58,6 +61,8 @@ def build_registry(
     finance: FinanceService,
     finance_reports: FinanceReports,
     proposals: AgentProposalService,
+    closing: ClosingService | None = None,
+    statements: StatementService | None = None,
 ) -> ToolRegistry:
     def authorize(context: ToolContext, permission: str) -> None:
         with master.factory() as uow:
@@ -250,4 +255,7 @@ def build_registry(
             side_effect_level="PROPOSAL",
         )
     )
+    if closing is not None and statements is not None:
+        for definition in reporting_definitions(closing, statements):
+            registry.register(definition)
     return registry
