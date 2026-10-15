@@ -1,4 +1,4 @@
-import { BookOpen, Building2, ClipboardList, FileInput, Home, ListChecks, ReceiptText, Settings2, Table2, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, Building2, ClipboardList, FileInput, Home, ListChecks, ReceiptText, Settings2, Table2, type LucideIcon } from "lucide-react";
 export const routeIcons: Record<string, LucideIcon> = {
   "/": Home, "/companies": Building2, "/onboarding": ListChecks, "/imports": FileInput,
   "/transactions": ReceiptText, "/journals": ClipboardList, "/ledger": BookOpen,
@@ -8,6 +8,7 @@ export const routeIcons: Record<string, LucideIcon> = {
   "/trial-balance": Table2, "/accounting": Settings2,
   "/closing": ListChecks,
   "/financial-statements": Table2,
+  "/ai-team": Bot,
 };
 export const routeDescriptions: Record<string, string> = {
   "/": "회계 업무의 준비부터 승인과 장부 확인까지 한곳에서 이어가세요.",
@@ -25,5 +26,6 @@ export const routeDescriptions: Record<string, string> = {
   "/trial-balance": "회계기간별 차변·대변과 계정 잔액을 함께 확인합니다.",
   "/closing": "차단 항목과 조정 전표를 검토하고 별도 승인 후 회계기간을 마감합니다.",
   "/financial-statements": "마감된 기간의 장부에서 재무상태표와 손익계산서를 생성하고 숫자의 출처를 확인합니다.",
+  "/ai-team": "선택한 회사와 회계기간의 마감 상태·재무제표를 근거와 함께 질문하세요.",
   "/accounting": "초기 설정 이후 회사정보와 회계 기준을 필요한 항목별로 관리합니다.",
 };

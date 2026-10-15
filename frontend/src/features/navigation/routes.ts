@@ -15,6 +15,7 @@ export const officeRoutes = [
   { href: "/trial-balance", label: "합계잔액시산표", group: "장부 조회", permission: "ledger.read" },
   { href: "/closing", label: "월마감", group: "장부 조회", permission: "period.read" },
   { href: "/financial-statements", label: "재무제표", group: "장부 조회", permission: "financial_statement.read" },
+  { href: "/ai-team", label: "AI 회계팀", group: "장부 조회", permission: "period.read" },
   { href: "/accounting", label: "설정 관리", group: "설정", permission: "account.read" },
 ] as const;
 export function canVisit(href: string, permissions: readonly string[]) {
