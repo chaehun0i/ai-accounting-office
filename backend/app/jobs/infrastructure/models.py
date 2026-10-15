@@ -1,6 +1,7 @@
 """실행 제품 정본은 명시적인 열과 회사 복합 외래키로 저장합니다."""
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, ForeignKey, ForeignKeyConstraint, String, UniqueConstraint
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
 from app.core.database.mixins import UUIDPrimaryKey, Versioned
+from app.core.database.types import MoneyNumeric
 
 
 class JobModel(UUIDPrimaryKey, Base):
@@ -53,7 +55,13 @@ class AgentRunModel(UUIDPrimaryKey, Versioned, Base):
         ForeignKey("users.id", ondelete="RESTRICT"), index=True
     )
     job_id: Mapped[UUID] = mapped_column(index=True, unique=True)
-    transaction_id: Mapped[UUID] = mapped_column(index=True)
+    transaction_id: Mapped[UUID | None] = mapped_column(index=True)
+    period_id: Mapped[UUID | None] = mapped_column(index=True)
+    question_text: Mapped[str | None] = mapped_column(String(500))
+    answer_text: Mapped[str | None] = mapped_column(String(2000))
+    answer_amount: Mapped[Decimal | None] = mapped_column(MoneyNumeric())
+    answer_resource_id: Mapped[UUID | None]
+    answer_source_digest: Mapped[str | None] = mapped_column(String(64))
     principal_session_id: Mapped[UUID] = mapped_column(
         ForeignKey("refresh_sessions.id", ondelete="RESTRICT")
     )
@@ -87,6 +95,16 @@ class AgentRunModel(UUIDPrimaryKey, Versioned, Base):
             ["company_id", "transaction_id"],
             ["transactions.company_id", "transactions.id"],
             ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "period_id"],
+            ["accounting_periods.company_id", "accounting_periods.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "(transaction_id IS NOT NULL AND period_id IS NULL AND question_text IS NULL) "
+            "OR (transaction_id IS NULL AND period_id IS NOT NULL AND question_text IS NOT NULL)",
+            name="query_or_transaction",
         ),
         ForeignKeyConstraint(
             ["company_id", "result_journal_id"],

@@ -1,6 +1,7 @@
 """짧은 row lock으로 실행 소유권과 감사 순서를 보호합니다."""
 
 from datetime import datetime, timedelta
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -36,12 +37,14 @@ class RuntimeRepository:
         self,
         actor: Principal,
         company: UUID,
-        transaction: UUID,
+        transaction: UUID | None,
         provider: str,
         model: str,
         key: str,
         fingerprint: str,
         now: datetime,
+        period_id: UUID | None = None,
+        question_text: str | None = None,
     ) -> RunRead:
         # 회사 행을 잠가 같은 회사/사용자/키의 최초 생성 경쟁을 직렬화합니다.
         from app.companies.infrastructure.models import CompanyModel
@@ -66,7 +69,7 @@ class RuntimeRepository:
                 id=job_id,
                 company_id=company,
                 requested_by=actor.user_id,
-                job_type="BOOKKEEPER",
+                job_type="ACCOUNTING_QUERY" if question_text is not None else "BOOKKEEPER",
                 status="PENDING",
                 stage="PENDING",
                 progress_percent=0,
@@ -84,9 +87,11 @@ class RuntimeRepository:
             requested_by=actor.user_id,
             job_id=job_id,
             transaction_id=transaction,
+            period_id=period_id,
+            question_text=question_text,
             principal_session_id=actor.session_id,
             graph_name="bookkeeper",
-            graph_version="1",
+            graph_version="2" if question_text is not None else "1",
             agent_type="BOOKKEEPER",
             prompt_version="1",
             tool_registry_version="1",
@@ -161,6 +166,10 @@ class RuntimeRepository:
         verdict: str | None = None,
         journal: UUID | None = None,
         error: str | None = None,
+        answer_text: str | None = None,
+        answer_amount: Decimal | None = None,
+        answer_resource_id: UUID | None = None,
+        answer_source_digest: str | None = None,
     ) -> None:
         value = self._run(company, run, True)
         assert value is not None
@@ -168,6 +177,11 @@ class RuntimeRepository:
         value.controller_verdict, value.error_code = verdict, error
         value.pending_action = "REVIEW_PROPOSAL" if status == "WAITING_FOR_INPUT" else None
         value.result_journal_id = journal
+        if answer_text is not None:
+            value.answer_text = answer_text
+            value.answer_amount = answer_amount
+            value.answer_resource_id = answer_resource_id
+            value.answer_source_digest = answer_source_digest
         value.version += 1
         terminal = status in ("COMPLETED", "FAILED", "BLOCKED")
         value.finished_at = now if terminal else None

@@ -22,6 +22,12 @@ class StartRun(BaseModel):
     transaction_id: UUID
 
 
+class AskAccounting(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    period_id: UUID
+    question: str = Field(min_length=1, max_length=500)
+
+
 class ResumeRun(HumanDecision):
     expected_version: int = Field(ge=1)
 
@@ -41,6 +47,13 @@ def start(
     payload: StartRun, actor: Actor, company_id: CompanyScope, key: Key, service: Service
 ) -> RunRead:
     return service.start(actor, company_id, payload.transaction_id, key)
+
+
+@router.post("/agent/queries/bookkeeper", response_model=RunRead, dependencies=[Depends(csrf)])
+def ask(
+    payload: AskAccounting, actor: Actor, company_id: CompanyScope, key: Key, service: Service
+) -> RunRead:
+    return service.ask(actor, company_id, payload.period_id, payload.question, key)
 
 
 @router.get("/agent/runs/{run_id}", response_model=RunRead)

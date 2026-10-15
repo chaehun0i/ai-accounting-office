@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Protocol, Self
 from uuid import UUID
 
@@ -12,12 +13,14 @@ class RuntimeRecords(Protocol):
         self,
         actor: Principal,
         company: UUID,
-        transaction: UUID,
+        transaction: UUID | None,
         provider: str,
         model: str,
         key: str,
         fingerprint: str,
         now: datetime,
+        period_id: UUID | None = None,
+        question_text: str | None = None,
     ) -> RunRead: ...
     def get(self, company: UUID, run: UUID, *, lock: bool = False) -> RunRead | None: ...
     def claim(self, company: UUID, run: UUID, worker: UUID, now: datetime) -> bool: ...
@@ -32,6 +35,10 @@ class RuntimeRecords(Protocol):
         verdict: str | None = None,
         journal: UUID | None = None,
         error: str | None = None,
+        answer_text: str | None = None,
+        answer_amount: Decimal | None = None,
+        answer_resource_id: UUID | None = None,
+        answer_source_digest: str | None = None,
     ) -> None: ...
     def begin_step(self, company: UUID, run: UUID, node: str, now: datetime) -> UUID: ...
     def finish_step(
