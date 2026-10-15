@@ -20,16 +20,19 @@ export function useAccountingQuery(companyId: string) {
   const active = useRef(true);
 
   useEffect(() => {
+    let cancelled = false;
     active.current = true;
     setLoading(true);
     setError("");
+    setPeriods([]);
+    setPeriodId("");
     listPeriods(companyId).then(values => {
-      if (!active.current) return;
+      if (cancelled) return;
       setPeriods(values);
       setPeriodId(values[0]?.id ?? "");
-    }).catch(reason => { if (active.current) setError(errorMessage(reason)); })
-      .finally(() => { if (active.current) setLoading(false); });
-    return () => { active.current = false; requestVersion.current += 1; };
+    }).catch(reason => { if (!cancelled) setError(errorMessage(reason)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; active.current = false; requestVersion.current += 1; };
   }, [companyId, periodRevision]);
 
   function clearResult() {
