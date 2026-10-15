@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isFinal, queryPayload, queryRequest, runMessage, type QueryRun } from "../src/features/ai-team/model.ts";
+import { isFinal, queryPayload, queryRequest, runMessage, runStatusLabel, type QueryRun } from "../src/features/ai-team/model.ts";
 
 const base: QueryRun = {
   id: "run", period_id: "period", question_text: "손익이 얼마야?",
@@ -24,4 +24,6 @@ test("검증 차단과 실행 실패는 정상 답변과 구별한다", () => {
   assert.equal(isFinal("COMPLETED"), true);
   assert.match(runMessage({ ...base, status: "BLOCKED", answer_text: null }), /검증 단계/);
   assert.match(runMessage({ ...base, status: "FAILED", error_code: "INTERNAL", answer_text: null }), /다시 시도/);
+  assert.equal(runStatusLabel("COMPLETED"), "조회 완료");
+  assert.equal(runStatusLabel("BLOCKED"), "검증 차단");
 });

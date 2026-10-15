@@ -200,6 +200,31 @@ main.auth-form { align-self:center; width:min(480px,100%); margin:0 auto; paddin
 .setup-stepper li{flex:1}.setup-stepper button{width:100%;border:0;background:transparent;font-size:12px;padding:9px 4px}.setup-stepper button span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#edf1ee;color:#52665a}.setup-stepper [aria-current="step"] button{color:var(--accent-dark);font-weight:700;background:var(--accent-wash)}.setup-stepper [aria-current="step"] span{color:white;background:var(--accent)}
 .setup-step-heading h3{font-size:22px;margin:8px 0}.setup-step-heading p{color:var(--muted);margin:6px 0 24px}.setup-review>div{display:flex;align-items:center;gap:20px;padding:18px 0;border-bottom:1px solid var(--line)}.setup-review strong{min-width:90px}.setup-review span{flex:1;color:var(--muted)}.setup-review{margin-bottom:24px}.opening-choice{padding:0 18px 10px;background:#f5faf7;border-radius:9px}.setup-finished{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 18px;background:var(--accent-wash);border-radius:8px;color:var(--accent-dark)}
 @media(max-width:650px){.setup-stepper{gap:3px}.setup-stepper button{flex-direction:column;font-size:11px}.setup-review>div{gap:10px;flex-wrap:wrap}.setup-review strong{min-width:70px}.setup-wizard{padding:18px}}
+
+/* AI 회계 질의는 입력, 검증된 결과, 출처를 한눈에 구분합니다. */
+.ai-query-workspace{max-width:980px}
+.ai-query-panel,.ai-query-result{margin-top:0}
+.ai-query-heading,.ai-query-result-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.ai-query-heading h2{margin:8px 0}.ai-query-heading p{margin:0}
+.ai-query-company{max-width:240px;padding:7px 11px;border-radius:18px;background:var(--accent-wash);color:var(--accent-dark);font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-query-form{display:grid;gap:12px;margin-top:28px;padding-top:18px;border-top:1px solid var(--line)}
+.ai-query-form label{margin:0 0 8px}.ai-query-form textarea{resize:vertical;min-height:112px}
+.ai-query-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ai-query-actions small{font-size:12px}.ai-query-actions button{min-width:116px}
+.ai-query-empty{padding:24px;background:#f7faf8;border-radius:8px;color:var(--muted)}
+.ai-query-result-heading{align-items:center}.ai-query-result-heading h2{margin:0}
+.ai-query-status{display:inline-flex;padding:5px 10px;border-radius:16px;background:#e9f4ec;color:#176339;font-size:12px;font-weight:700}
+.ai-query-status-blocked,.ai-query-status-failed{background:#fff1ed;color:#a3302b}
+.ai-query-status-pending,.ai-query-status-running,.ai-query-status-waiting_for_input{background:#f1f4f6;color:#536474}
+.ai-query-answer{font-size:16px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;margin:24px 0}
+.ai-query-amount{display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-radius:9px;background:#f1f8f3}
+.ai-query-amount span,.ai-query-verdict span{font-size:12px;color:var(--muted)}
+.ai-query-amount strong{font-size:25px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ai-query-verdict{display:flex;gap:10px;align-items:center;margin:18px 0;color:#365846}
+.ai-query-source-toggle{font-size:12px}
+.ai-query-source{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px 18px;margin:16px 0 0;padding:18px;border:1px solid var(--line);border-radius:8px;background:#fafcfb;font-size:12px}
+.ai-query-source dt{color:var(--muted)}.ai-query-source dd{margin:0;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+@media(max-width:700px){.ai-query-heading{flex-direction:column;gap:12px}.ai-query-company{max-width:100%}.ai-query-actions{align-items:stretch;flex-direction:column}.ai-query-actions button{width:100%}.ai-query-source{grid-template-columns:1fr;gap:5px}.ai-query-source dd{margin-bottom:10px}}
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
