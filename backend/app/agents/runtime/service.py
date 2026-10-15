@@ -10,7 +10,14 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
 
-from app.agents.graphs.bookkeeping import BookkeeperState, HumanDecision, build_bookkeeper
+from app.agents.graphs.bookkeeping import (
+    AccountingQuestionState,
+    BookkeeperState,
+    HumanDecision,
+    build_accounting_question,
+    build_bookkeeper,
+)
+from app.agents.runtime.controller import AccountingAnswer
 from app.contracts.access_errors import InvalidInput, StateConflict
 from app.core.digests import digest
 from app.identity.users.domain.entities import Principal
@@ -58,6 +65,58 @@ class AgentRuntime:
             return self.audit.get(actor, company, run.id)
         return self._drive(actor, company, run)
 
+    def ask(
+        self, actor: Principal, company: UUID, period_id: UUID, question: str, key: str
+    ) -> RunRead:
+        question = question.strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key) or not 1 <= len(question) <= 500:
+            raise InvalidInput()
+        # 회사 범위 Period를 먼저 확인해 다른 회사 FK를 통한 존재 누출을 막습니다.
+        self.registry.execute(
+            "closing.readiness", {"period_id": period_id}, ToolContext(actor, company)
+        )
+        run = self.audit.create_query(
+            actor,
+            company,
+            period_id,
+            question,
+            self.gateway.provider.code,
+            self.gateway.provider.model,
+            key,
+            digest({"period_id": str(period_id), "question": question, "graph_version": "2"}),
+        )
+        if run.status in ("COMPLETED", "BLOCKED"):
+            return run
+        if not self.audit.claim(actor, company, run.id):
+            return self.audit.get(actor, company, run.id)
+        context = ToolContext(actor, company, run.id)
+        try:
+            graph = build_accounting_question(self.registry, self.gateway, context, self.audit)
+            state: AccountingQuestionState = {
+                "question": question,
+                "period_id": str(period_id),
+            }
+            result = graph.invoke(state)
+            if result["controller_verdict"] == "BLOCK":
+                self.audit.finish(context, "BLOCKED", "FINALIZING", "BLOCK")
+            else:
+                answer = AccountingAnswer.model_validate(result["answer"])
+                self.audit.finish(
+                    context,
+                    "COMPLETED",
+                    "FINALIZING",
+                    "PASS",
+                    answer_text=answer.text,
+                    answer_amount=answer.amount,
+                    answer_resource_id=answer.resource_id,
+                    answer_source_digest=answer.source_digest,
+                )
+        except Exception as error:
+            self.audit.finish(
+                context, "FAILED", "FAILED", error=getattr(error, "code", "AGENT_RUNTIME_FAILED")
+            )
+        return self.audit.get(actor, company, run.id)
+
     def resume(
         self,
         actor: Principal,
@@ -77,6 +136,7 @@ class AgentRuntime:
         self, actor: Principal, company: UUID, run: RunRead, decision: HumanDecision | None = None
     ) -> RunRead:
         context = ToolContext(actor, company, run.id)
+        assert run.transaction_id is not None
         try:
             with self.checkpoints(run.graph_thread_id) as saver:
                 graph = build_bookkeeper(self.registry, self.gateway, context, self.audit, saver)

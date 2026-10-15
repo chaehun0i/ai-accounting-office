@@ -1,6 +1,7 @@
 """제품 실행 이력의 짧은 UoW와 접근 검증을 담당합니다."""
 
 from collections.abc import Callable
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.companies.application.service import require_company
@@ -31,22 +32,56 @@ class RuntimeAudit:
                 actor, company, transaction, provider, model, key, fingerprint, uow.now()
             )
 
+    def create_query(
+        self,
+        actor: Principal,
+        company: UUID,
+        period_id: UUID,
+        question: str,
+        provider: str,
+        model: str,
+        key: str,
+        fingerprint: str,
+    ) -> RunRead:
+        with self.factory() as uow:
+            require_company(uow, actor, company, "company.read")
+            return uow.runtime.create(
+                actor,
+                company,
+                None,
+                provider,
+                model,
+                key,
+                fingerprint,
+                uow.now(),
+                period_id,
+                question,
+            )
+
     def get(self, actor: Principal, company: UUID, run: UUID) -> RunRead:
         with self.factory() as uow:
-            require_company(uow, actor, company, "journal.read")
+            require_company(uow, actor, company, "company.read")
             value = uow.runtime.get(company, run)
             if value is None:
                 raise ResourceNotFound()
+            require_company(
+                uow,
+                actor,
+                company,
+                "period.read" if value.period_id is not None else "journal.read",
+            )
             return value
 
     def claim(
         self, actor: Principal, company: UUID, run: UUID, expected_version: int | None = None
     ) -> bool:
         with self.factory() as uow:
-            require_company(uow, actor, company, "journal.propose")
+            require_company(uow, actor, company, "company.read")
             value = uow.runtime.get(company, run, lock=True)
             if value is None:
                 raise ResourceNotFound()
+            if value.period_id is None:
+                require_company(uow, actor, company, "journal.propose")
             if value.requested_by != actor.user_id:
                 raise AuthorizationDenied()
             if expected_version is not None and value.version != expected_version:
@@ -61,6 +96,10 @@ class RuntimeAudit:
         verdict: str | None = None,
         journal: UUID | None = None,
         error: str | None = None,
+        answer_text: str | None = None,
+        answer_amount: Decimal | None = None,
+        answer_resource_id: UUID | None = None,
+        answer_source_digest: str | None = None,
     ) -> None:
         assert context.run_id is not None
         with self.factory() as uow:
@@ -73,6 +112,10 @@ class RuntimeAudit:
                 verdict,
                 journal,
                 error,
+                answer_text,
+                answer_amount,
+                answer_resource_id,
+                answer_source_digest,
             )
 
     def begin_step(self, context: ToolContext, node: str) -> UUID:

@@ -18,6 +18,7 @@ from app.closing.domain.entities import (
     ClosingAdjustment,
     ClosingApproval,
     ClosingCheckResult,
+    ClosingReadiness,
     ClosingRun,
     ClosingSnapshot,
 )
@@ -235,6 +236,29 @@ class ClosingService:
             require_company(uow, actor, company, "period.read")
             self._period(uow, company, period_id)
             return uow.closing.runs(company, period_id)
+
+    def readiness(self, actor: Principal, company: UUID, period_id: UUID) -> ClosingReadiness:
+        """기존 결산 검사 정본을 조회합니다. 검사나 상태를 변경하지 않습니다."""
+        with self.factory() as uow:
+            require_company(uow, actor, company, "period.read")
+            period = self._period(uow, company, period_id)
+            runs = uow.closing.runs(company, period_id)
+            run = runs[0] if runs else None
+            snapshot = self._snapshot(uow, company, period_id, run.id if run else None)
+            return ClosingReadiness(
+                period_id=period.id,
+                period_start=period.start_date,
+                period_end=period.end_date,
+                period_status=period.status,
+                close_version=period.close_version,
+                run_id=run.id if run else None,
+                run_version=run.run_version if run else None,
+                run_status=run.status if run else None,
+                source_digest=snapshot.source_digest,
+                tb_digest=snapshot.tb_digest,
+                stale=run is not None and snapshot.source_digest != run.source_digest,
+                checks=snapshot.checks,
+            )
 
     def detail(
         self, actor: Principal, company: UUID, identifier: UUID

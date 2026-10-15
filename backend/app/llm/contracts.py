@@ -25,6 +25,21 @@ class AccountSelection(StructuredModel):
     evidence_ids: list[UUID] = Field(default_factory=list, max_length=20)
 
 
+class AccountingQuestionRoute(StructuredModel):
+    capability: Literal["CLOSING", "BALANCE_SHEET", "INCOME_STATEMENT", "UNSUPPORTED"]
+    line_code: (
+        Literal[
+            "ASSETS",
+            "LIABILITIES",
+            "EQUITY",
+            "REVENUE",
+            "OPERATING_PROFIT",
+            "NET_PROFIT",
+        ]
+        | None
+    ) = None
+
+
 class LLMError(ApplicationError):
     status_code = 503
     message = "제안을 만들 수 없습니다. 잠시 후 다시 시도해 주세요."

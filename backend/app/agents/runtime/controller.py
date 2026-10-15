@@ -1,6 +1,10 @@
 """결정론 검증 실패는 모델의 신뢰도와 관계없이 차단합니다."""
 
-from typing import Literal
+from decimal import Decimal
+from typing import Any, Literal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
 
 
 def verdict(
@@ -11,3 +15,60 @@ def verdict(
     if not evidence_sufficient or category == "OTHER":
         return "REVIEW"
     return "PASS"
+
+
+class AccountingAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str
+    amount: Decimal | None
+    resource_id: UUID
+    source_digest: str
+    source_ids: list[UUID]
+
+
+def reporting_answer(
+    tool_code: str, result: dict[str, Any], line_code: str | None
+) -> AccountingAnswer:
+    """모델 서술 대신 Tool의 숫자·상태·출처만으로 답변을 고정합니다."""
+    data = result["data"]
+    if tool_code == "closing.readiness":
+        status = data["period_status"]
+        blockers = data["blocker_count"]
+        stale = data["stale"]
+        text = f"회계기간 상태는 {status}이며 차단 검사는 {blockers}건입니다."
+        if stale:
+            text += " 마감 검사 기준이 변경되어 다시 검사해야 합니다."
+        return AccountingAnswer(
+            text=text,
+            amount=None,
+            resource_id=UUID(data["run_id"] or data["period_id"]),
+            source_digest=data["source_digest"],
+            source_ids=[UUID(check["source_id"]) for check in data["checks"] if check["source_id"]],
+        )
+    line = next(row for row in data["lines"] if row["line_code"] == line_code)
+    amount = Decimal(line["current_amount"])
+    text = (
+        f"{line['label']}은(는) {amount}입니다. "
+        f"마감 버전 {data['close_version']}의 스냅샷 기준입니다."
+    )
+    return AccountingAnswer(
+        text=text,
+        amount=amount,
+        resource_id=UUID(data["statement_set_id"]),
+        source_digest=data["snapshot_digest"],
+        source_ids=[UUID(source["journal_line_id"]) for source in data["sources"]],
+    )
+
+
+def reporting_verdict(
+    tool_code: str, result: dict[str, Any], line_code: str | None, answer: AccountingAnswer
+) -> Literal["PASS", "BLOCK"]:
+    data = result["data"]
+    if tool_code == "financial_statement.read" and (
+        data["period_status"] != "CLOSED"
+        or data["statement_status"] != "GENERATED"
+        or not line_code
+    ):
+        return "BLOCK"
+    expected = reporting_answer(tool_code, result, line_code)
+    return "PASS" if answer == expected else "BLOCK"

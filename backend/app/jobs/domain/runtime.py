@@ -1,6 +1,7 @@
 """제품 실행 이력은 프레임워크 체크포인트와 별도로 유지합니다."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -14,7 +15,13 @@ class RunRead(BaseModel):
     id: UUID
     company_id: UUID
     job_id: UUID
-    transaction_id: UUID
+    transaction_id: UUID | None
+    period_id: UUID | None
+    question_text: str | None
+    answer_text: str | None
+    answer_amount: Decimal | None
+    answer_resource_id: UUID | None
+    answer_source_digest: str | None
     requested_by: UUID
     graph_name: str
     graph_version: str

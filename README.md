@@ -193,7 +193,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `015_period_closing`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `db_foundation → 001_identity → 002_tenant_company_rbac → 003_master_accounting_settings → 004_storage_evidence_intake → 005_onboarding_data_exchange → 006_transactions → 007_journal_core → 008_governance → 009_finance_subledger → 010_agent_runtime_foundation → 011_accounting_dimensions → 012_import_transaction_promotion → 013_business_documents → 014_bank_card_reconciliation → 015_period_closing` chain을 유지합니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 이력을 보존하고 v0.2.6 정책에 따라 순방향 revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
+현재 head는 `017_accounting_agent_queries`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `015_period_closing → 016_financial_statements → 017_accounting_agent_queries`가 기존 migration chain 뒤에 이어집니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 이력을 보존하고 v0.2.6 정책에 따라 순방향 revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -227,6 +227,8 @@ Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance�
 ## 거래 기반 회계 제안 실행
 
 `LLM_PROVIDER=fake` 기본값으로 API Key 없이 실행할 수 있습니다. `/docs`에서 회계 담당자 권한으로 `POST /agent/runs/bookkeeper`에 `transaction_id`와 `Idempotency-Key`를 전달합니다. 대기 상태를 조회한 뒤 `POST /agent/runs/{id}/resume`에 현재 `expected_version`과 `CONTINUE` 또는 `REJECT`를 전달하세요. CONTINUE도 전표 초안까지만 만들며 회계 승인이 아닙니다.
+
+기간 질의는 `POST /agent/queries/bookkeeper`에 `period_id`, `question`, `Idempotency-Key`를 전달합니다. Bookkeeper는 월마감 준비도와 CLOSED 기간 BS/IS 스냅샷만 읽고, 권한·회사 범위·숫자·출처를 Tool Registry와 Controller에서 확인합니다. 이 경로는 마감이나 기표를 실행하지 않습니다.
 
 Gemini/LangGraph/LangChain/MCP 역할, 실제 Tool 목록, 로컬 MCP 실행과 제한은 [Agent Runtime](docs/agent-runtime.md), 실제 검증 결과는 [검증 기록](docs/agent-runtime-verification.md)에 있습니다.
 

@@ -168,6 +168,8 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         container.finance,
         container.finance_reports,
         AgentProposalService(container.journals, container.journal_commands),
+        container.closing,
+        container.statements,
     )
     audit = RuntimeAudit(lambda: RuntimeSQLAlchemyUnitOfWork(sessions))
     registry.record = audit.record_tool
