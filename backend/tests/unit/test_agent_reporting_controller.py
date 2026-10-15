@@ -69,11 +69,28 @@ def test_closing_answer_uses_exact_status_and_blocker_count():
             "blocker_count": 2,
             "stale": False,
             "source_digest": "b" * 64,
-            "checks": [],
+            "checks": [
+                {
+                    "check_code": "BANK_CARD_UNRECONCILED",
+                    "severity": "BLOCKER",
+                    "amount_impact": "100.0000",
+                    "source_id": None,
+                },
+                {
+                    "check_code": "AR_GL_MISMATCH",
+                    "severity": "BLOCKER",
+                    "amount_impact": "2.0000",
+                    "source_id": None,
+                },
+            ],
         }
     }
     answer = reporting_answer("closing.readiness", result, None)
     assert answer.resource_id == period and answer.amount is None
+    assert "BANK_CARD_UNRECONCILED (영향 금액 100.0000)" in answer.text
+    assert "AR_GL_MISMATCH (영향 금액 2.0000)" in answer.text
     assert reporting_verdict("closing.readiness", result, None, answer) == "PASS"
     forged = AccountingAnswer.model_validate({**answer.model_dump(), "text": "마감할 수 있습니다."})
     assert reporting_verdict("closing.readiness", result, None, forged) == "BLOCK"
+    result["data"]["blocker_count"] = 1
+    assert reporting_verdict("closing.readiness", result, None, answer) == "BLOCK"
