@@ -10,6 +10,8 @@
 
 검사 결과는 `PASS`, `WARNING`, `BLOCKER`로 저장합니다. V1 차단 항목은 미처리 거래, 미승인 전표, 미대사 은행/카드, AR/GL·AP/GL 차이, 시산표 불균형, 미완료 필수 조정입니다. 회계일과 거래일이 다른 컷오프 자료는 검토용 `WARNING`입니다. 자동 조정분개로 차이를 감추지 않습니다. Asset/Inventory/Cost/Tax 미구현 모듈은 V1 필수 차단 항목이 아닙니다.
 
+Bookkeeper의 `closing.readiness`는 이 결정론적 검사 결과를 읽기 전용으로 전달합니다. `AI 회계팀` 화면에서 차단 항목을 물으면 검사 코드와 영향 금액을 표시하지만 마감·재개나 조정을 실행하지 않습니다.
+
 ## 조정과 승인
 
 지원 조정 유형은 `ACCRUED_EXPENSE`, `ACCRUED_REVENUE`, `PREPAID_EXPENSE_RELEASE`, `UNEARNED_REVENUE_RELEASE`, `MANUAL_CUTOFF_ADJUSTMENT`입니다. 조정 생성은 균형 잡힌 Journal DRAFT를 만들고, 기존 제출→검토 요청→다른 사용자 승인→Posting을 거칩니다. 결산이 GL을 직접 바꾸지 않습니다. 다음 기간 자동 역분개 옵션은 예정일을 기록하며, 실행 시 기존 Reversal 명령으로 다음 열린 기간에 DRAFT만 만듭니다. 스케줄러나 무승인 자동기표는 포함하지 않습니다.

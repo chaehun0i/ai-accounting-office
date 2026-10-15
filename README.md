@@ -1,8 +1,10 @@
 # AI Accounting Office
 
+[현재·과거 문서 읽기 안내](docs/README.md)를 먼저 확인하면 기능 계약과 당시 검증 기록을 구분할 수 있습니다.
+
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation + Closing V1 + BS/IS Snapshot**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation + Closing V1 + BS/IS Snapshot + Bookkeeper Agent 기간 질의와 AI 회계팀 화면**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
 
 **채권·채무** 메뉴에서 확정 전표 연결 → 수금·지급 등록 → 배분 → 확정 → 기준일 잔액·기한 분석·원장 대사를 사용할 수 있습니다. 수금·지급은 먼저 사람 승인과 장부 반영을 마친 회계 전표를 참조합니다. 실제 은행 이체 기능은 아닙니다. [재무 보조부 사용법과 경계](docs/finance-subledger.md), [검증 결과](docs/finance-verification.md)를 참고하세요.
 
@@ -220,7 +222,7 @@ python -m pytest --require-postgres
 
 ## 제외 범위와 다음 구현
 
-Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. 이번 Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개까지 지원합니다. Tax 정본, 자율 승인·Posting, 전체 Chat UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
+Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개, 기간별 월마감·BS/IS 읽기 질의를 지원합니다. Tax 정본, 자율 승인·Posting, 대화방/장기 메모리 UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
 
 확정 가져오기 승격, 매출·매입 업무문서 → 거래·채권채무 연결, 은행·카드 대사와 Closing V1을 제공합니다. CLOSED 기간 BS/IS 스냅샷을 제공합니다. 비교재무제표·CF/SCE·주석·보고서 파일 Export는 후속 범위입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
 
@@ -231,6 +233,7 @@ Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance�
 기간 질의는 `POST /agent/queries/bookkeeper`에 `period_id`, `question`, `Idempotency-Key`를 전달합니다. Bookkeeper는 월마감 준비도와 CLOSED 기간 BS/IS 스냅샷만 읽고, 권한·회사 범위·숫자·출처를 Tool Registry와 Controller에서 확인합니다. 이 경로는 마감이나 기표를 실행하지 않습니다.
 
 화면의 **AI 회계팀**에서 회사를 선택한 뒤 회계기간과 질문을 입력하면 이 기간 질의 API의 답변, 장부 기준 금액, 검증 상태와 스냅샷 근거를 확인할 수 있습니다. 회사 전환 시 이전 질의 결과는 화면에서 제거됩니다.
+마감 차단 질의는 검사 건수와 각 검사 코드·영향 금액을 기존 Closing 결과에서 표시합니다. 입력·응답은 대화 이력 DB에 저장하지 않으며, 질문 실패와 검증 차단을 성공 답변과 구분합니다.
 
 Gemini/LangGraph/LangChain/MCP 역할, 실제 Tool 목록, 로컬 MCP 실행과 제한은 [Agent Runtime](docs/agent-runtime.md), 실제 검증 결과는 [검증 기록](docs/agent-runtime-verification.md)에 있습니다.
 

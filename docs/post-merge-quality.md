@@ -1,0 +1,9 @@
+# PR #18 이후 오류·코드 정리 검증
+
+시작 main: `96618cb56505bbf60743cc76a7ab4dd3a0242364` (PR #18 병합). 설계 기준은 Google Drive `AI_Accounting_Office_v0.2.6_통합설계_정본`이며 이전 버전 fallback은 사용하지 않았다.
+
+마감 차단 질의가 건수만 보여 주던 오류를 고쳐 기존 Closing Tool의 검사 코드·Decimal 영향 금액을 답변에 포함했다. Controller는 Tool의 차단 건수와 검사 목록이 다르면 응답을 차단한다. 프론트엔드는 회계기간 조회 실패를 빈 기간과 구분하고 같은 화면에서 재시도할 수 있게 했다. 처리 중인 질의는 기존 run 조회를 계속 사용할 수 있다. 사용되지 않는 AI Team 자리표시 파일과 금액 문자열을 그대로 반환하던 불필요한 helper를 제거했다.
+
+검증: Backend 집중 unit/contract **4 passed**, Agent PostgreSQL 통합 **2 passed**, Ruff·format·mypy 통과. Frontend **36 passed**, lint·typecheck 통과. Next.js production build는 Windows 제한된 실행에서 `.next` 디렉터리 생성 `EPERM`이 발생했으나 동일 작업공간의 빌드 산출물을 정리하고 실행 권한을 확장해 19개 정적 페이지 생성까지 통과했다. 코드·migration·업무 DB schema는 변경하지 않았다.
+
+현재 문서의 구현 설명과 메뉴 목록은 README·아키텍처·내비게이션·Agent·월마감·재무제표·feature 안내에 동기화했다. 과거 `*-verification.md`의 SHA·수치는 해당 시점의 실행 기록으로 보존한다. [문서 읽기 안내](README.md)가 현재 계약과 과거 기록을 구분한다.
