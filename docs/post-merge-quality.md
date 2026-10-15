@@ -11,3 +11,5 @@
 후속 유지보수에서는 거래 전표 제안과 기간 질의의 LangGraph 정의를 분리하고, AI 회계팀 화면에서 API/폴링 상태를 전용 hook으로 분리했다. 기능이나 DB 계약은 바꾸지 않았다. Backend 집중 unit/contract **15 passed**, PostgreSQL 통합 **12 passed**, Ruff·format·mypy 통과. Frontend **36 passed**, lint·typecheck·production build 통과. 이 변경은 파일의 책임을 좁히는 구조 정리이며 실행 성능 향상을 주장하지 않는다.
 
 회계기간 재조회가 겹칠 때 이전 응답이 새 목록을 덮지 않도록 요청별 취소 상태를 적용하고, 재조회 시작 시 이전 기간 목록을 비운다. 관련 AI 회계팀 테스트 **2 passed**, lint·typecheck 통과.
+
+AI 회계팀 화면은 기존 업무 화면의 초록색·패널 스타일을 유지하면서 회사·기간 입력, 답변, 검증 상태, 장부 금액, 출처를 분리해 읽기 쉽게 정리했다. 상태 표시는 한국어 레이블을 사용하며 차단·실패를 별도 색상으로 구분한다. 숫자는 여전히 API의 `answer_amount` 문자열을 그대로 표시하고 출처 식별자는 줄바꿈해 확인할 수 있다.
