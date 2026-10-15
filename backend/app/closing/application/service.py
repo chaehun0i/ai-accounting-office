@@ -110,16 +110,16 @@ class ClosingService:
             company, period.start_date, period.end_date
         )
         cutoff_count = uow.closing.cutoff_count(company, period.start_date, period.end_date)
+        statements = [
+            statement
+            for statement in uow.banking.statements(company)
+            if period.start_date <= statement.statement_end <= period.end_date
+        ]
         bank_summaries = [
             BankReconciliationService._summary(uow, company, statement.id)
-            for statement in uow.banking.statements(company)
-            if period.start_date <= statement.statement_end <= period.end_date
+            for statement in statements
         ]
-        bank_statement_status = [
-            statement.status
-            for statement in uow.banking.statements(company)
-            if period.start_date <= statement.statement_end <= period.end_date
-        ]
+        bank_statement_status = [statement.status for statement in statements]
         card_summaries = [
             BankReconciliationService.card_summary_in(uow, company, account.id, period.end_date)
             for account in uow.banking.accounts(company, "CARD")
