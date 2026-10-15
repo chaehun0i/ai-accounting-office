@@ -53,6 +53,7 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 | 요청 | 내용 |
 | --- | --- |
 | POST /agent/runs/bookkeeper | `{transaction_id}`, Idempotency-Key 필수 |
+| POST /agent/queries/bookkeeper | `{period_id, question}`, Idempotency-Key 필수. 마감 상태 또는 CLOSED 기간 BS/IS 조회 |
 | GET /agent/runs/{id} | status/version/pending_action/controller_verdict/result_journal_id |
 | GET /agent/runs/{id}/steps | 노드 실행과 안전한 오류 코드 |
 | GET /agent/runs/{id}/events?after_seq=0 | 저장된 이벤트 순서 조회, 최대 1,000개 |
@@ -61,9 +62,13 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 
 다른 회사 run/transaction은 404이며 실행 작성자만 resume할 수 있습니다. stale version은 409입니다. 클라이언트는 이전 event_seq 이후를 조회하여 복구합니다. SSE 전송 실패는 이미 저장된 Run에 영향을 주지 않습니다.
 
+기간 질의는 `closing.readiness`와 `financial_statement.read` 두 읽기 Tool만 사용합니다. 전자는 Closing Application의 검사·차단 사유를 그대로 반환하며 `period.read` 권한을 요구합니다. 후자는 CLOSED 기간의 최신 BS/IS 스냅샷과 요청 항목의 계정·전표 출처를 Reporting Application에서 읽으며 `financial_statement.read` 권한을 요구합니다. Tool Registry가 회사 범위와 사용자 권한을 재검증하고 Controller가 답변의 금액·문구·resource·출처가 Tool 결과와 정확히 일치하는지 확인합니다. 마감·기표·승인 명령은 Agent에 노출하지 않습니다.
+
 ## 영속성·복구
 
 `010_agent_runtime_foundation`은 jobs/agent_runs/agent_steps/tool_executions/job_events와 빈 framework schema를 추가합니다. 기존 009 및 그 이전 migration은 수정하지 않았습니다. 공식 PostgresSaver.setup()이 별도 schema에 자체 table을 설치하며 동시 설치를 advisory lock으로 보호합니다. 같은 thread 실행도 PostgreSQL advisory lock으로 직렬화합니다.
+
+`017_accounting_agent_queries`는 기존 `agent_runs`가 거래 UUID를 필수로 요구하던 제약을 확장해 기간 질의와 답변의 정형 열을 기록합니다. 기존 실행·단계·Tool 감사 테이블을 재사용하고 새 업무 테이블이나 JSON 컬럼은 추가하지 않습니다.
 
 운영은 forward migration만 사용합니다. downgrade는 이번 격리 테스트 DB의 왕복 검증용이며 framework 실행 이력도 제거하므로 활성 실행이 있는 운영 DB에서 사용하지 않습니다.
 
