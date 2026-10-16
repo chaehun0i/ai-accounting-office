@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "@/shared/api";
 import { askBookkeeper, getQueryRun, listPeriods } from "./api";
+import { CLOSING_QUESTION, selectContextPeriod, type ClosingAskContext } from "./context";
 import { isFinal, type Period, type QueryRun } from "./model";
 
-export function useAccountingQuery(companyId: string) {
+export function useAccountingQuery(companyId: string, context: ClosingAskContext | null) {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [periodId, setPeriodId] = useState("");
   const [question, setQuestion] = useState("");
@@ -13,6 +14,7 @@ export function useAccountingQuery(companyId: string) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [contextNotice, setContextNotice] = useState("");
   const [showSource, setShowSource] = useState(false);
   const [periodRevision, setPeriodRevision] = useState(0);
   const retry = useRef<{ signature: string; key: string } | null>(null);
@@ -24,16 +26,23 @@ export function useAccountingQuery(companyId: string) {
     active.current = true;
     setLoading(true);
     setError("");
+    setContextNotice("");
     setPeriods([]);
     setPeriodId("");
+    setQuestion(context ? CLOSING_QUESTION : "");
+    setRun(null);
+    setShowSource(false);
+    retry.current = null;
     listPeriods(companyId).then(values => {
       if (cancelled) return;
+      const selection = selectContextPeriod(values, context);
       setPeriods(values);
-      setPeriodId(values[0]?.id ?? "");
+      setPeriodId(selection.periodId);
+      setContextNotice(selection.notice);
     }).catch(reason => { if (!cancelled) setError(errorMessage(reason)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; active.current = false; requestVersion.current += 1; };
-  }, [companyId, periodRevision]);
+  }, [companyId, context?.kind, context?.periodId, periodRevision]);
 
   function clearResult() {
     requestVersion.current += 1;
@@ -72,7 +81,7 @@ export function useAccountingQuery(companyId: string) {
   }
 
   return {
-    periods, periodId, question, run, loading, busy, error, showSource,
+    periods, periodId, question, run, loading, busy, error, contextNotice, showSource,
     setPeriodId, setQuestion, setShowSource, clearResult, submit,
     reloadPeriods: () => setPeriodRevision(value => value + 1),
   };

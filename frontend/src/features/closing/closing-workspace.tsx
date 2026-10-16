@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
+import { closingAskHref } from "@/features/ai-team/context";
 import {
   adjustmentLabels, checkLabels,
   type Account, type Approval, type ClosingRun, type Period, type Trial,
@@ -140,6 +141,7 @@ export function ClosingWorkspace({ company }: { company: Company }) {
       </select></label>
       {periods.length === 0 && <p>회계기간이 없습니다. 회계 설정을 먼저 완료해 주세요.</p>}
       {selected && <p aria-live="polite">현재 상태 <strong>{selected.status}</strong> · 마감 버전 {selected.close_version}</p>}
+      {selected && <p><Link href={closingAskHref(selected.id)}>AI에게 묻기</Link></p>}
       {selected?.status === "OPEN" && canStart && <button disabled={busy} onClick={() => void runCommand(async () => {
         const created = await command<ClosingRun>("/closing-runs", { accounting_period_id: selected.id });
         setRunId(created.id); return "마감을 시작했습니다. 차단 항목을 검토해 주세요.";

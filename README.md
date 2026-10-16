@@ -232,7 +232,7 @@ Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance�
 
 기간 질의는 `POST /agent/queries/bookkeeper`에 `period_id`, `question`, `Idempotency-Key`를 전달합니다. Bookkeeper는 월마감 준비도와 CLOSED 기간 BS/IS 스냅샷만 읽고, 권한·회사 범위·숫자·출처를 Tool Registry와 Controller에서 확인합니다. 이 경로는 마감이나 기표를 실행하지 않습니다.
 
-화면의 **AI 회계팀**에서 회사를 선택한 뒤 회계기간과 질문을 입력하면 이 기간 질의 API의 답변, 장부 기준 금액, 검증 상태와 스냅샷 근거를 확인할 수 있습니다. 회사 전환 시 이전 질의 결과는 화면에서 제거됩니다.
+화면의 **AI 회계팀**에서 회사를 선택한 뒤 회계기간과 질문을 입력하면 이 기간 질의 API의 답변, 장부 기준 금액, 검증 상태와 스냅샷 근거를 확인할 수 있습니다. 월마감 화면의 **AI에게 묻기** 링크는 현재 기간과 수정 가능한 질문 초안을 이 화면으로 전달합니다. 이동만으로 질의를 실행하지 않으며, 회사 전환 시 이전 질의 결과는 화면에서 제거됩니다.
 마감 차단 질의는 검사 건수와 각 검사 코드·영향 금액을 기존 Closing 결과에서 표시합니다. 입력·응답은 대화 이력 DB에 저장하지 않으며, 질문 실패와 검증 차단을 성공 답변과 구분합니다.
 
 Gemini/LangGraph/LangChain/MCP 역할, 실제 Tool 목록, 로컬 MCP 실행과 제한은 [Agent Runtime](docs/agent-runtime.md), 실제 검증 결과는 [검증 기록](docs/agent-runtime-verification.md)에 있습니다.
