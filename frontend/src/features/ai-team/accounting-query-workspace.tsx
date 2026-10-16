@@ -1,14 +1,15 @@
 "use client";
 
 import type { Company } from "@/features/companies/selection-state";
+import type { ClosingAskContext } from "./context";
 import { isFinal, runMessage, runStatusLabel } from "./model";
 import { useAccountingQuery } from "./use-accounting-query";
 
-export function AccountingQueryWorkspace({ company }: { company: Company }) {
+export function AccountingQueryWorkspace({ company, context }: { company: Company; context: ClosingAskContext | null }) {
   const {
-    periods, periodId, question, run, loading, busy, error, showSource,
+    periods, periodId, question, run, loading, busy, error, contextNotice, showSource,
     setPeriodId, setQuestion, setShowSource, clearResult, submit, reloadPeriods,
-  } = useAccountingQuery(company.id);
+  } = useAccountingQuery(company.id, context);
   const selected = periods.find(period => period.id === periodId);
 
   return <div className="workspace-stack ai-query-workspace">
@@ -17,10 +18,12 @@ export function AccountingQueryWorkspace({ company }: { company: Company }) {
         <div>
           <span className="eyebrow">AI 회계팀 · 기간별 질의</span>
           <h2 id="ai-query-heading">장부와 마감 결과에 질문하기</h2>
+          {context?.kind === "closing" && <p className="ai-query-context">월마감 화면에서 이어서 질문 · 내용을 확인하고 직접 실행해 주세요.</p>}
           <p className="muted">마감 검사와 확정된 재무제표를 조회합니다. 금액과 검증 근거는 회계 자료에서 가져옵니다.</p>
         </div>
         <span className="ai-query-company">{company.company_name}</span>
       </div>
+      {contextNotice && <p role="status">{contextNotice}</p>}
       {loading ? <p role="status">회계기간을 불러오고 있습니다…</p> : periods.length === 0 && !error
         ? <p className="ai-query-empty">조회할 회계기간이 없습니다.</p>
         : periods.length > 0 && <form className="ai-query-form" onSubmit={submit}>

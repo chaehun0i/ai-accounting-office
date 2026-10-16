@@ -206,6 +206,7 @@ main.auth-form { align-self:center; width:min(480px,100%); margin:0 auto; paddin
 .ai-query-panel,.ai-query-result{margin-top:0}
 .ai-query-heading,.ai-query-result-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
 .ai-query-heading h2{margin:8px 0}.ai-query-heading p{margin:0}
+.ai-query-heading .ai-query-context{display:inline-block;margin:2px 0 10px;padding:5px 9px;border-radius:6px;background:#edf6ef;color:var(--accent-dark);font-size:12px;font-weight:600}
 .ai-query-company{max-width:240px;padding:7px 11px;border-radius:18px;background:var(--accent-wash);color:var(--accent-dark);font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ai-query-form{display:grid;gap:12px;margin-top:28px;padding-top:18px;border-top:1px solid var(--line)}
 .ai-query-form label{margin:0 0 8px}.ai-query-form textarea{resize:vertical;min-height:112px}
