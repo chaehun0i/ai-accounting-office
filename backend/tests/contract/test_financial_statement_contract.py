@@ -17,3 +17,9 @@ def test_reporting_api_requires_company_and_idempotency(settings):
     assert "/financial-statements/sets/{set_id}/drilldown" in paths
     with pytest.raises(ValidationError):
         Generate(period_id=uuid4(), status="APPROVED")
+
+
+def test_metric_read_contract_is_company_scoped(settings):
+    operation = create_app(settings).openapi()["paths"]["/financial-metrics"]["get"]
+    assert any(p["name"] == "X-Company-ID" and p["required"] for p in operation["parameters"])
+    assert any(p["name"] == "period_id" and p["required"] for p in operation["parameters"])
