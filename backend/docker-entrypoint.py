@@ -25,7 +25,7 @@ def main() -> None:
     command.upgrade(Config("alembic.ini"), "head")
     seed_permissions()
     seed_templates()
-    uvicorn.run(create_app(load_settings()), host="0.0.0.0", port=8000, access_log=False)
+    uvicorn.run(create_app(load_settings()), host="0.0.0.0", port=8000, access_log=True)
 
 
 if __name__ == "__main__":
