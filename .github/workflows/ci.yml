@@ -9,6 +9,45 @@ concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      postgresql: ${{ steps.paths.outputs.postgresql }}
+      infrastructure: ${{ steps.paths.outputs.infrastructure }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: paths
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            echo "postgresql=true" >> "$GITHUB_OUTPUT"
+            echo "infrastructure=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          postgresql=false
+          infrastructure=false
+          while IFS= read -r file; do
+            case "$file" in
+              backend/app/agents/graphs/accounting_question.py|backend/app/agents/runtime/controller.py|backend/app/llm/contracts.py|backend/tests/unit/*|backend/tests/contract/*)
+                ;;
+              backend/*|scripts/verify_accounting_schema.py)
+                postgresql=true
+                ;;
+            esac
+            case "$file" in
+              infra/*|scripts/dev.py|scripts/bootstrap_local.py|backend/Dockerfile|frontend/Dockerfile|backend/requirements-dev.lock|frontend/package-lock.json|.env.example)
+                infrastructure=true
+                ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA" HEAD)
+          echo "postgresql=$postgresql" >> "$GITHUB_OUTPUT"
+          echo "infrastructure=$infrastructure" >> "$GITHUB_OUTPUT"
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -29,6 +68,8 @@ jobs:
       - run: python -m pip check
       - run: python -m pytest --ignore=tests/integration
   postgresql:
+    needs: scope
+    if: needs.scope.outputs.postgresql == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -94,6 +135,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
   infrastructure:
+    needs: scope
+    if: needs.scope.outputs.infrastructure == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
