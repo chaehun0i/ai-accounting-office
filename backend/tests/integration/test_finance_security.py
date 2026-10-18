@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.companies.infrastructure.models import MembershipModel
@@ -16,15 +16,6 @@ def test_finance_company_and_permissions(api_client, auth_service):
     target = make_source(api_client, owner, writer, payload, accounts, cp, "AR", 100)
     path, record = make_record(api_client, owner, writer, payload, accounts, cp, "AR", 100)
     assert api_client.get("/receivables?as_of=2026-01-31").status_code == 401
-    assert api_client.get("/receivables?as_of=2026-01-31", headers=owner).status_code == 403
-    assert (
-        api_client.post(
-            f"/{path}/{record['id']}/confirm",
-            headers={**owner, "Idempotency-Key": str(uuid4())},
-            json={"expected_version": record["version"]},
-        ).status_code
-        == 403
-    )
     response = api_client.post(
         "/companies",
         headers=owner,
@@ -39,6 +30,28 @@ def test_finance_company_and_permissions(api_client, auth_service):
     )
     assert response.status_code == 201, response.text
     other_company = response.json()["id"]
+    owner_actor = api_client.app.state.services.auth.authenticate(
+        owner["Authorization"].removeprefix("Bearer ")
+    )
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        session.execute(
+            update(MembershipModel)
+            .where(
+                MembershipModel.company_id == UUID(owner["X-Company-ID"]),
+                MembershipModel.user_id == owner_actor.user_id,
+            )
+            .values(role_code="ADMIN")
+        )
+        session.commit()
+    assert api_client.get("/receivables?as_of=2026-01-31", headers=owner).status_code == 403
+    assert (
+        api_client.post(
+            f"/{path}/{record['id']}/confirm",
+            headers={**owner, "Idempotency-Key": str(uuid4())},
+            json={"expected_version": record["version"]},
+        ).status_code
+        == 403
+    )
     actor = api_client.app.state.services.auth.authenticate(
         writer["Authorization"].removeprefix("Bearer ")
     )

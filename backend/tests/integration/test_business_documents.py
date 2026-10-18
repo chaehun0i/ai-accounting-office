@@ -216,9 +216,12 @@ def test_rollback_retry_and_immutable_document(api_client, auth_service, monkeyp
 
 
 def test_document_security_stale_and_source_conflict(api_client, auth_service):
+    from sqlalchemy import update
+
+    from app.companies.infrastructure.models import MembershipModel
     from tests.integration.test_intake_api import COMPANY
 
-    owner, writer, _, _, cp, _ = finance_setup(api_client, auth_service)
+    owner, writer, _, _, cp, connection = finance_setup(api_client, auth_service)
     value = create(api_client, writer, "/sales-invoices", body(cp))
     assert (
         transition(api_client, writer, "/sales-invoices", value, "submit", version=999).status_code
@@ -230,14 +233,6 @@ def test_document_security_stale_and_source_conflict(api_client, auth_service):
         json=body(cp, supply="999"),
     )
     assert collision.json()["code"] == "IMPORT_SOURCE_CONFLICT"
-    assert (
-        api_client.post(
-            "/sales-invoices",
-            headers={**owner, "Idempotency-Key": str(uuid4())},
-            json=body(cp, "forbidden"),
-        ).status_code
-        == 403
-    )
     assert (
         api_client.post(
             "/sales-invoices",
@@ -256,6 +251,25 @@ def test_document_security_stale_and_source_conflict(api_client, auth_service):
             "/sales-invoices/" + value["id"], headers={**owner, "X-Company-ID": other["id"]}
         ).status_code
         == 404
+    )
+    owner_actor = api_client.app.state.services.auth.authenticate(
+        owner["Authorization"].removeprefix("Bearer ")
+    )
+    connection.execute(
+        update(MembershipModel)
+        .where(
+            MembershipModel.company_id == UUID(owner["X-Company-ID"]),
+            MembershipModel.user_id == owner_actor.user_id,
+        )
+        .values(role_code="VIEWER")
+    )
+    assert (
+        api_client.post(
+            "/sales-invoices",
+            headers={**owner, "Idempotency-Key": str(uuid4())},
+            json=body(cp, "forbidden"),
+        ).status_code
+        == 403
     )
 
 
