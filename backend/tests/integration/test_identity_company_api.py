@@ -272,21 +272,22 @@ def test_company_creation_rolls_back_without_owner_role(
     assert connection.scalar(select(func.count()).select_from(TenantModel)) == 0
 
 
-def test_permission_changes_are_enforced_from_database(
+def test_non_owner_permissions_are_enforced_from_database(
     api_client: TestClient, auth_service
 ) -> None:
-    from sqlalchemy import delete
-
-    from app.companies.infrastructure.models import RolePermissionModel
-
     headers = register(api_client, "permissions@example.com")
     company = api_client.post("/companies", json=COMPANY, headers=headers).json()
     _, connection = auth_service
+    actor = api_client.app.state.services.auth.authenticate(
+        headers["Authorization"].removeprefix("Bearer ")
+    )
     connection.execute(
-        delete(RolePermissionModel).where(
-            RolePermissionModel.role_code == "OWNER",
-            RolePermissionModel.permission_code == "company.update",
+        update(MembershipModel)
+        .where(
+            MembershipModel.company_id == UUID(company["id"]),
+            MembershipModel.user_id == actor.user_id,
         )
+        .values(role_code="VIEWER")
     )
     assert (
         api_client.patch(
