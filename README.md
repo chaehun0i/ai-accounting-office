@@ -1,5 +1,6 @@
 # AI Accounting Office
 
+보고기간 preset 조회는 회사 timezone·회계연도·주 시작 정책으로 날짜를 해석합니다. [기간 조회 계약](docs/report-periods.md)을 참고하세요.
 재무비율 1차 조회 API는 닫힌 기간의 BS/IS 스냅샷에서 여섯 가지 비율을 계산합니다. 지원 공식과 후속 범위는 [재무비율 구현 범위](docs/financial-metrics.md)에 정리했습니다.
 
 [현재·과거 문서 읽기 안내](docs/README.md)를 먼저 확인하면 기능 계약과 당시 검증 기록을 구분할 수 있습니다.

@@ -1,0 +1,1 @@
+"""Company reporting period resolution."""
