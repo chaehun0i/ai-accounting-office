@@ -102,6 +102,13 @@ def test_closed_period_generates_balanced_bs_is_and_drilldown(api_client, auth_s
     income_by_code = {line["line_code"]: line["current_amount"] for line in income["lines"]}
     assert by_code["ASSETS"] == by_code["LIABILITIES_EQUITY"] == "100.0000"
     assert by_code["UNTRANSFERRED_PROFIT"] == income_by_code["NET_PROFIT"] == "100.0000"
+    metrics = api_client.get("/financial-metrics", headers=owner, params={"period_id": period})
+    assert metrics.status_code == 200, metrics.text
+    assert metrics.json()["statement_set_id"] == result["id"]
+    by_metric = {row["metric_code"]: row for row in metrics.json()["metrics"]}
+    assert by_metric["NET_MARGIN"]["value"] == "1"
+    assert by_metric["DEBT_RATIO"]["value"] == "0"
+    assert by_metric["DEBT_TO_EQUITY"]["status"] == "AVAILABLE"
     drill = api_client.get(
         f"/financial-statements/sets/{result['id']}/drilldown",
         headers=owner,

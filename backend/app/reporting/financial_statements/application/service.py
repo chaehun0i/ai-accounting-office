@@ -253,6 +253,29 @@ class StatementService:
                 raise ResourceNotFound()
             return uow.statements.sets(company, period_id)
 
+    def metric_source(
+        self, actor: Principal, company: UUID, period_id: UUID
+    ) -> tuple[StatementSet, StatementView, StatementView]:
+        """Read the latest CLOSED version and both statements in one transaction."""
+        with self.factory() as uow:
+            require_company(uow, actor, company, "financial_statement.read")
+            period = uow.periods.get(company_id=company, resource_id=period_id)
+            if period is None:
+                raise ResourceNotFound()
+            if period.status != "CLOSED":
+                raise ReportSourceStale()
+            sets = uow.statements.sets(company, period_id)
+            current = next(
+                (item for item in sets if item.close_version == period.close_version), None
+            )
+            if current is None:
+                raise ResourceNotFound()
+            balance = uow.statements.statement(company, current.id, "BALANCE_SHEET")
+            income = uow.statements.statement(company, current.id, "INCOME_STATEMENT")
+            if balance is None or income is None:
+                raise ResourceNotFound()
+            return current, balance, income
+
     def statement(self, actor: Principal, company: UUID, set_id: UUID, kind: str) -> StatementView:
         if kind not in {"BALANCE_SHEET", "INCOME_STATEMENT"}:
             raise InvalidInput()
