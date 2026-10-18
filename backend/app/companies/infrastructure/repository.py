@@ -9,6 +9,7 @@ from app.companies.domain.entities import Company, CompanyAccess
 from app.companies.infrastructure.models import (
     CompanyModel,
     MembershipModel,
+    PermissionModel,
     RolePermissionModel,
     TenantModel,
 )
@@ -19,15 +20,21 @@ class CompanyRepository:
         self.session = session
 
     def _access(self, company: CompanyModel, member: MembershipModel) -> CompanyAccess:
-        permissions = tuple(
-            self.session.scalars(
-                select(RolePermissionModel.permission_code)
-                .where(
-                    RolePermissionModel.role_code == member.role_code,
-                )
-                .order_by(RolePermissionModel.permission_code)
+        # OWNER has every company capability, including permissions introduced after
+        # the membership was created. The company-scoped membership query above
+        # remains the boundary: ownership never grants access to another company.
+        if member.role_code == "OWNER":
+            permissions = tuple(
+                self.session.scalars(select(PermissionModel.code).order_by(PermissionModel.code))
             )
-        )
+        else:
+            permissions = tuple(
+                self.session.scalars(
+                    select(RolePermissionModel.permission_code)
+                    .where(RolePermissionModel.role_code == member.role_code)
+                    .order_by(RolePermissionModel.permission_code)
+                )
+            )
         entity = Company(**{key: getattr(company, key) for key in Company.__dataclass_fields__})
         return CompanyAccess(entity, member.role_code, permissions)
 

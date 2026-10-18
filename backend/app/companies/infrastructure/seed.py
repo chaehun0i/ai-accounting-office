@@ -18,7 +18,7 @@ def seed_permissions(session: Session) -> None:
         session.execute(
             insert(PermissionModel).values(code=code, name=code).on_conflict_do_nothing()
         )
-        for role in roles:
+        for role in set(roles) | {"OWNER"}:
             session.execute(
                 insert(RolePermissionModel)
                 .values(role_code=role, permission_code=code)

@@ -14,7 +14,7 @@ export function filterCompanies(companies: Company[], search: string): Company[]
 
 export function roleGuide(role: string): string {
   const guides: Record<string, string> = {
-    OWNER: "회사 관리자 · 회사 설정, 전표 승인과 장부 반영을 할 수 있습니다. 거래·전표 작성과 자료 업로드는 회계 담당자 계정을 이용해 주세요.",
+    OWNER: "이 회사의 모든 기능을 이용할 수 있습니다. 다른 회사의 정보와 작업에는 접근할 수 없습니다.",
     ADMIN: "회사 운영 관리자 · 회사 정보와 구성원을 관리합니다. 회계 작성·승인은 해당 역할의 계정을 이용해 주세요.",
     ACCOUNTANT: "회계 담당자 · 자료 업로드, 거래와 전표 작성, 제출을 할 수 있습니다. 제출한 전표는 별도 검토자의 승인이 필요합니다.",
     REVIEWER: "회계 검토자 · 제출된 전표를 검토·승인하고 장부에 반영할 수 있습니다.",
