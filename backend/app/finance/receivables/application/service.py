@@ -12,7 +12,11 @@ from app.companies.application.service import require_company
 from app.contracts.access_errors import ResourceNotFound
 from app.finance.receivables.domain.entities import Obligation
 from app.finance.settlements.application.contracts import FinanceUnitOfWork
-from app.finance.settlements.application.policy import CONTROL_NAMES, permission, require_currency
+from app.finance.settlements.application.policy import (
+    control_account_ids,
+    permission,
+    require_currency,
+)
 from app.identity.users.domain.entities import Principal
 
 
@@ -50,11 +54,12 @@ class ObligationService:
                 )
             repo = uow.obligations(kind)
             result = []
+            control_ids = control_account_ids(uow, company, kind)
             for line in journal.lines:
                 account = uow.accounts.get(company_id=company, resource_id=line.account_id)
                 assert account is not None
                 amount = line.debit_amount if kind == "AR" else line.credit_amount
-                if account.account_name not in CONTROL_NAMES[kind] or amount == 0:
+                if account.id not in control_ids or amount == 0:
                     continue
                 if line.counterparty_id is None:
                     raise AccountingError(
@@ -134,14 +139,13 @@ class ObligationService:
         """승인된 업무문서 명령의 동일 작업단위에서만 채권·채무를 인식합니다."""
         require_company(uow, actor, company, "invoice.approve")
         require_currency(uow, company)
-        candidates = [
-            account
-            for account in uow.accounts.list(company)
-            if account.account_name == ("외상매출금" if kind == "AR" else "외상매입금")
-            and account.status == "ACTIVE"
-            and account.posting_allowed
-        ]
-        if len(candidates) != 1:
+        mapping = uow.control_accounts.mapping(company, kind)
+        account = (
+            uow.accounts.get(company_id=company, resource_id=mapping.account_id)
+            if mapping is not None
+            else None
+        )
+        if account is None or account.status != "ACTIVE" or not account.posting_allowed:
             raise AccountingError(
                 "BUSINESS_RULE_VIOLATION", "회사 회계설정에서 채권·채무 계정을 확인해 주세요."
             )
@@ -151,7 +155,7 @@ class ObligationService:
                 raise AccountingError("IMPORT_SOURCE_CONFLICT", "원천 업무문서가 다릅니다.", 409)
             return existing.id
         return uow.obligations(kind).add_invoice(
-            company, invoice, transaction, counterparty, candidates[0].id, amount, due, recognized
+            company, invoice, transaction, counterparty, account.id, amount, due, recognized
         )
 
     @staticmethod
