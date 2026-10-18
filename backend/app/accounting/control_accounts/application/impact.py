@@ -3,12 +3,10 @@
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import text
-
 from app.accounting.control_accounts.domain.roles import ROLE_ACCOUNT_TYPE, ControlAccountRole
-from app.accounting.control_accounts.infrastructure.repository import ControlAccountRepository
 
 
 @dataclass(frozen=True)
@@ -26,38 +24,17 @@ class ImpactAssessment:
     blocking: bool
 
 
-# These are actual FK/reference paths in the current relational schema. Query
-# text is fixed here, never supplied by a caller.
-_REFERENCE_QUERIES = (
-    (
-        "POSTED_JOURNAL",
-        "SELECT count(*) FROM journal_lines l "
-        "JOIN journal_entries j ON j.company_id=l.company_id AND j.id=l.journal_entry_id "
-        "WHERE l.company_id=:company AND l.account_id=:account AND j.status='POSTED'",
-    ),
-    (
-        "AR_REFERENCE",
-        "SELECT count(*) FROM receivables WHERE company_id=:company AND account_id=:account",
-    ),
-    (
-        "AP_REFERENCE",
-        "SELECT count(*) FROM payables WHERE company_id=:company AND account_id=:account",
-    ),
-    (
-        "BANK_REFERENCE",
-        "SELECT count(*) FROM bank_accounts "
-        "WHERE company_id=:company AND control_account_id=:account",
-    ),
-    (
-        "CARD_REFERENCE",
-        "SELECT count(*) FROM card_accounts "
-        "WHERE company_id=:company AND control_account_id=:account",
-    ),
+_REFERENCE_CODES = (
+    "POSTED_JOURNAL",
+    "AR_REFERENCE",
+    "AP_REFERENCE",
+    "BANK_REFERENCE",
+    "CARD_REFERENCE",
 )
 
 
 def assess_impact(
-    repository: ControlAccountRepository,
+    repository: Any,
     company_id: UUID,
     role: str,
     current_account_id: UUID | None,
@@ -106,13 +83,8 @@ def assess_impact(
     for subject, account_id in (("CURRENT", current_account_id), ("TARGET", target_account_id)):
         if account_id is None:
             continue
-        for code, query in _REFERENCE_QUERIES:
-            count = int(
-                repository.session.scalar(
-                    text(query), {"company": company_id, "account": account_id}
-                )
-                or 0
-            )
+        for code in _REFERENCE_CODES:
+            count = repository.reference_count(code, company_id, account_id)
             # Existing postings and subledger/reconciliation references make a
             # role reassignment unsafe. Target usage is visible and digest-bound.
             blocking = subject == "CURRENT" and account_id != target_account_id and count > 0

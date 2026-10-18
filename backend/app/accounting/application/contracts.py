@@ -3,7 +3,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.accounting.accounts.domain.entities import Account
-from app.accounting.control_accounts.infrastructure.repository import ControlAccountRepository
+from app.accounting.control_accounts.application.contracts import ControlAccounts
 from app.accounting.periods.domain.entities import Period
 from app.accounting.settings.domain.entities import AccountingSettings
 from app.accounting.templates.domain.entities import Template, TemplateAccount
@@ -48,7 +48,7 @@ class Sequences(Protocol):
 
 class MasterUnitOfWork(CompanyUnitOfWork, Protocol):
     @property
-    def control_accounts(self) -> ControlAccountRepository: ...
+    def control_accounts(self) -> ControlAccounts: ...
     @property
     def payment_terms(self) -> PaymentTerms: ...
     @property

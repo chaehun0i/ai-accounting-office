@@ -6,16 +6,13 @@ from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from app.accounting.application.contracts import MasterUnitOfWork
+from app.accounting.control_accounts.application.contracts import RequestView
 from app.accounting.control_accounts.application.impact import ImpactAssessment
 from app.accounting.control_accounts.domain.errors import (
     ControlAccountIdempotencyConflict,
     ControlAccountProtected,
 )
 from app.accounting.control_accounts.domain.roles import ControlAccountRole
-from app.accounting.control_accounts.infrastructure.models import (
-    ControlAccountEventModel,
-    ControlAccountRequestModel,
-)
 from app.companies.application.service import require_company
 from app.contracts.access_errors import (
     InvalidInput,
@@ -47,14 +44,12 @@ class ControlAccountService:
                 for role in ControlAccountRole
             ]
 
-    def requests(self, actor: Principal, company_id: UUID) -> list[ControlAccountRequestModel]:
+    def requests(self, actor: Principal, company_id: UUID) -> list[RequestView]:
         with self.factory() as uow:
             require_company(uow, actor, company_id, "control_account.manage")
-            return uow.control_accounts.requests(company_id)
+            return list(uow.control_accounts.requests(company_id))
 
-    def request(
-        self, actor: Principal, company_id: UUID, request_id: UUID
-    ) -> ControlAccountRequestModel:
+    def request(self, actor: Principal, company_id: UUID, request_id: UUID) -> RequestView:
         with self.factory() as uow:
             require_company(uow, actor, company_id, "control_account.manage")
             row = uow.control_accounts.request(company_id, request_id)
@@ -82,7 +77,7 @@ class ControlAccountService:
         expected_mapping_version: int,
         expected_target_account_version: int,
         key: str,
-    ) -> ControlAccountRequestModel:
+    ) -> RequestView:
         return self._create_request(
             actor,
             company_id,
@@ -128,7 +123,7 @@ class ControlAccountService:
         expected_mapping_version: int,
         expected_target_account_version: int,
         key: str,
-    ) -> ControlAccountRequestModel:
+    ) -> RequestView:
         if (
             role not in {item.value for item in ControlAccountRole}
             or expected_mapping_version < 0
@@ -165,7 +160,7 @@ class ControlAccountService:
             if assessment.blocking:
                 raise ControlAccountProtected()
             now = uow.now()
-            row = ControlAccountRequestModel(
+            row = uow.control_accounts.add_request(
                 id=uuid4(),
                 company_id=company_id,
                 role=role,
@@ -189,19 +184,16 @@ class ControlAccountService:
                 created_at=now,
                 updated_at=now,
             )
-            uow.control_accounts.add_request(row)
             uow.control_accounts.add_event(
-                ControlAccountEventModel(
-                    id=uuid4(),
-                    company_id=company_id,
-                    request_id=row.id,
-                    role=role,
-                    event_type="REQUESTED",
-                    reason=None,
-                    actor_id=actor.user_id,
-                    before_account_id=current_id,
-                    after_account_id=target_account_id,
-                    occurred_at=now,
-                )
+                id=uuid4(),
+                company_id=company_id,
+                request_id=row.id,
+                role=role,
+                event_type="REQUESTED",
+                reason=None,
+                actor_id=actor.user_id,
+                before_account_id=current_id,
+                after_account_id=target_account_id,
+                occurred_at=now,
             )
             return row

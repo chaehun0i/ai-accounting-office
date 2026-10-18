@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.accounting.accounts.infrastructure.models import AccountModel
@@ -16,6 +16,28 @@ from app.contracts.access_errors import ResourceNotFound, VersionConflict
 
 if TYPE_CHECKING:
     from app.accounting.control_accounts.application.impact import ImpactAssessment
+
+_REFERENCE_QUERIES = {
+    "POSTED_JOURNAL": (
+        "SELECT count(*) FROM journal_lines l JOIN journal_entries j "
+        "ON j.company_id=l.company_id AND j.id=l.journal_entry_id "
+        "WHERE l.company_id=:company AND l.account_id=:account AND j.status='POSTED'"
+    ),
+    "AR_REFERENCE": (
+        "SELECT count(*) FROM receivables WHERE company_id=:company AND account_id=:account"
+    ),
+    "AP_REFERENCE": (
+        "SELECT count(*) FROM payables WHERE company_id=:company AND account_id=:account"
+    ),
+    "BANK_REFERENCE": (
+        "SELECT count(*) FROM bank_accounts "
+        "WHERE company_id=:company AND control_account_id=:account"
+    ),
+    "CARD_REFERENCE": (
+        "SELECT count(*) FROM card_accounts "
+        "WHERE company_id=:company AND control_account_id=:account"
+    ),
+}
 
 
 class ControlAccountRepository:
@@ -109,13 +131,23 @@ class ControlAccountRepository:
         )
         return self.session.scalar(query.with_for_update() if lock else query)
 
-    def add_request(self, value: ControlAccountRequestModel) -> None:
-        self.session.add(value)
+    def add_request(self, **values: Any) -> ControlAccountRequestModel:
+        row = ControlAccountRequestModel(**values)
+        self.session.add(row)
+        self.session.flush()
+        return row
+
+    def add_event(self, **values: Any) -> None:
+        self.session.add(ControlAccountEventModel(**values))
         self.session.flush()
 
-    def add_event(self, value: ControlAccountEventModel) -> None:
-        self.session.add(value)
-        self.session.flush()
+    def reference_count(self, code: str, company_id: UUID, account_id: UUID) -> int:
+        return int(
+            self.session.scalar(
+                text(_REFERENCE_QUERIES[code]), {"company": company_id, "account": account_id}
+            )
+            or 0
+        )
 
     def set_mapping(
         self, company_id: UUID, role: str, target_account_id: UUID, expected_version: int
