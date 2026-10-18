@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.accounting.api.router import router as accounting_router
+from app.accounting.control_accounts.api.approval_router import router as control_approval_router
 from app.accounting.control_accounts.api.router import router as control_core_router
 from app.accounting.dimensions.api.router import router as dimension_router
 from app.accounting.journals.api.router import router as journal_router
@@ -108,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(intake_router)
     app.include_router(accounting_router)
     app.include_router(control_core_router)
+    app.include_router(control_approval_router)
     app.include_router(dimension_router)
     app.include_router(transaction_router)
     app.include_router(journal_router)
