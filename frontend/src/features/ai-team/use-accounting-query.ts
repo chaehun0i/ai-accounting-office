@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "@/shared/api";
 import { askBookkeeper, getQueryRun, listPeriods } from "./api";
-import { CLOSING_QUESTION, selectContextPeriod, type ClosingAskContext } from "./context";
+import { questionDraft, selectContextPeriod, type AskContext } from "./context";
 import { isFinal, type Period, type QueryRun } from "./model";
 
-export function useAccountingQuery(companyId: string, context: ClosingAskContext | null) {
+export function useAccountingQuery(companyId: string, context: AskContext | null) {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [periodId, setPeriodId] = useState("");
   const [question, setQuestion] = useState("");
@@ -29,7 +29,7 @@ export function useAccountingQuery(companyId: string, context: ClosingAskContext
     setContextNotice("");
     setPeriods([]);
     setPeriodId("");
-    setQuestion(context ? CLOSING_QUESTION : "");
+    setQuestion(questionDraft(context));
     setRun(null);
     setShowSource(false);
     retry.current = null;
@@ -42,7 +42,10 @@ export function useAccountingQuery(companyId: string, context: ClosingAskContext
     }).catch(reason => { if (!cancelled) setError(errorMessage(reason)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; active.current = false; requestVersion.current += 1; };
-  }, [companyId, context?.kind, context?.periodId, periodRevision]);
+  }, [companyId, context?.kind, context?.periodId,
+    context?.kind === "financial_statement" ? context.statementType : null,
+    context?.kind === "financial_statement" ? context.lineCode : null,
+    periodRevision]);
 
   function clearResult() {
     requestVersion.current += 1;

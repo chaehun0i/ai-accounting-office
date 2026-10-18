@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
+import { financialStatementAskHref } from "@/features/ai-team/context";
 import { formatMoney, type Account, type Period, type Source, type Statement, type StatementSet } from "./model";
 
 type Kind = "BALANCE_SHEET" | "INCOME_STATEMENT";
@@ -136,7 +137,7 @@ export function FinancialStatements({ company }: { company: Company }) {
       <button role="tab" aria-selected={kind === "BALANCE_SHEET"} onClick={() => setKind("BALANCE_SHEET")}>재무상태표</button>
       <button role="tab" aria-selected={kind === "INCOME_STATEMENT"} onClick={() => setKind("INCOME_STATEMENT")}>손익계산서</button>
       </div><p>생성 상태 {statement.status} · 스냅샷 {statement.snapshot_digest.slice(0, 12)}…</p>
-      <table><thead><tr><th scope="col">항목</th><th scope="col">금액</th><th scope="col">출처</th></tr></thead><tbody>{statement.lines.map(line => <tr key={line.id}><th scope="row">{line.label}{line.subtotal_type === "TOTAL" ? " · 합계" : ""}</th><td>{formatMoney(line.current_amount)}</td><td><button onClick={() => void drilldown(line.line_code)}>계정·전표 보기</button></td></tr>)}</tbody></table>
+      <table><thead><tr><th scope="col">항목</th><th scope="col">금액</th><th scope="col">출처와 질문</th></tr></thead><tbody>{statement.lines.map(line => <tr key={line.id}><th scope="row">{line.label}{line.subtotal_type === "TOTAL" ? " · 합계" : ""}</th><td>{formatMoney(line.current_amount)}</td><td><button onClick={() => void drilldown(line.line_code)}>계정·전표 보기</button> <Link href={financialStatementAskHref(periodId, kind, line.line_code)} aria-label={`${line.label} AI에게 묻기`}>AI에게 묻기</Link></td></tr>)}</tbody></table>
     </section>}
     {sourceCode && <section className="panel"><h2>{statement?.lines.find(line => line.line_code === sourceCode)?.label} 원장 출처</h2>
       {sources.length === 0 ? <p>이 항목에 연결된 확정 전표가 없습니다.</p> : <table><thead><tr><th scope="col">계정</th><th scope="col">전표</th><th scope="col">기준일</th><th scope="col">기여 금액</th></tr></thead><tbody>{sources.map(source => <tr key={source.journal_line_id}><th scope="row">{source.account_code} {source.account_name}</th><td>{source.journal_no || source.journal_id}<br /><Link href="/journals">전표 목록</Link></td><td>{source.entry_date}</td><td>{formatMoney(source.amount)}</td></tr>)}</tbody></table>}

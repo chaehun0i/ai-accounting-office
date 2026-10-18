@@ -11,3 +11,5 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 이 단계는 BS/IS 생성과 읽기만 제공합니다. 승인, 비교재무제표, CF/SCE, 주석, Export는 포함하지 않습니다. 전체 회귀와 브라우저 E2E는 Fast Development Mode의 후속 Release Gate로 남깁니다.
 
 Bookkeeper의 `financial_statement.read`는 기존 읽기 Application Service와 `financial_statement.read` 사용자 권한을 재사용합니다. `AI 회계팀` 화면은 CLOSED 기간의 기존 스냅샷 금액·버전·digest를 표시하며 재무제표를 새로 생성하거나 승인하지 않습니다.
+
+BS/IS 각 항목의 **계정·전표 보기**는 원장 출처 조회이며, **AI에게 묻기**는 해당 기간·제표 종류·항목 코드만 `/ai-team` 질문 초안으로 전달합니다. 회사 ID와 금액은 URL에 넣지 않습니다. AI 회계팀은 현재 회사의 기간 목록을 다시 확인하고 사용자가 질문을 제출한 뒤에만 기존 `financial_statement.read`를 호출합니다. 항목 코드는 기존 taxonomy에서 검증하며, 답변 금액과 출처는 Reporting Application의 스냅샷이 정본입니다.

@@ -1,11 +1,11 @@
 "use client";
 
 import type { Company } from "@/features/companies/selection-state";
-import type { ClosingAskContext } from "./context";
+import type { AskContext } from "./context";
 import { isFinal, runMessage, runStatusLabel } from "./model";
 import { useAccountingQuery } from "./use-accounting-query";
 
-export function AccountingQueryWorkspace({ company, context }: { company: Company; context: ClosingAskContext | null }) {
+export function AccountingQueryWorkspace({ company, context }: { company: Company; context: AskContext | null }) {
   const {
     periods, periodId, question, run, loading, busy, error, contextNotice, showSource,
     setPeriodId, setQuestion, setShowSource, clearResult, submit, reloadPeriods,
@@ -19,6 +19,7 @@ export function AccountingQueryWorkspace({ company, context }: { company: Compan
           <span className="eyebrow">AI 회계팀 · 기간별 질의</span>
           <h2 id="ai-query-heading">장부와 마감 결과에 질문하기</h2>
           {context?.kind === "closing" && <p className="ai-query-context">월마감 화면에서 이어서 질문 · 내용을 확인하고 직접 실행해 주세요.</p>}
+          {context?.kind === "financial_statement" && <p className="ai-query-context">재무제표에서 이어서 질문 · {context.statementType === "BALANCE_SHEET" ? "재무상태표" : "손익계산서"} · {context.lineLabel} · 내용을 확인하고 직접 실행해 주세요.</p>}
           <p className="muted">마감 검사와 확정된 재무제표를 조회합니다. 금액과 검증 근거는 회계 자료에서 가져옵니다.</p>
         </div>
         <span className="ai-query-company">{company.company_name}</span>
