@@ -10,6 +10,16 @@ def test_report_period_policy_api_and_company_permission(api_client, auth_servic
     path = "/report-periods/resolve"
     params = {"period_preset": "THIS_WEEK", "period_mode": "RANGE"}
     assert api_client.get(path, params=params).status_code == 401
+    foreign = api_client.post(
+        "/auth/register",
+        json={"email": "foreign-report-period@example.com", "password": "StrongPassword!2026"},
+    )
+    assert foreign.status_code == 201, foreign.text
+    foreign_headers = {
+        **owner,
+        "Authorization": "Bearer " + foreign.json()["access_token"],
+    }
+    assert api_client.get(path, headers=foreign_headers, params=params).status_code == 404
     initial = api_client.get(path, headers=owner, params=params)
     assert initial.status_code == 200, initial.text
     assert initial.json()["timezone"] == "Asia/Seoul"
