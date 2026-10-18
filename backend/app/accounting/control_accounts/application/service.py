@@ -6,6 +6,7 @@ from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from app.accounting.application.contracts import MasterUnitOfWork
+from app.accounting.control_accounts.application.impact import ImpactAssessment
 from app.accounting.control_accounts.domain.errors import (
     ControlAccountIdempotencyConflict,
     ControlAccountProtected,
@@ -29,7 +30,9 @@ class ControlAccountService:
     def __init__(self, factory: Callable[[], MasterUnitOfWork]) -> None:
         self.factory = factory
 
-    def mappings(self, actor: Principal, company_id: UUID):
+    def mappings(
+        self, actor: Principal, company_id: UUID
+    ) -> list[dict[str, str | UUID | int | None]]:
         with self.factory() as uow:
             require_company(uow, actor, company_id, "account.read")
             existing = {row.role: row for row in uow.control_accounts.mappings(company_id)}
@@ -44,12 +47,14 @@ class ControlAccountService:
                 for role in ControlAccountRole
             ]
 
-    def requests(self, actor: Principal, company_id: UUID):
+    def requests(self, actor: Principal, company_id: UUID) -> list[ControlAccountRequestModel]:
         with self.factory() as uow:
             require_company(uow, actor, company_id, "control_account.manage")
             return uow.control_accounts.requests(company_id)
 
-    def request(self, actor: Principal, company_id: UUID, request_id: UUID):
+    def request(
+        self, actor: Principal, company_id: UUID, request_id: UUID
+    ) -> ControlAccountRequestModel:
         with self.factory() as uow:
             require_company(uow, actor, company_id, "control_account.manage")
             row = uow.control_accounts.request(company_id, request_id)
@@ -57,7 +62,7 @@ class ControlAccountService:
                 raise ResourceNotFound()
             return row
 
-    def impact(self, actor: Principal, company_id: UUID, request_id: UUID):
+    def impact(self, actor: Principal, company_id: UUID, request_id: UUID) -> ImpactAssessment:
         with self.factory() as uow:
             require_company(uow, actor, company_id, "control_account.manage")
             row = uow.control_accounts.request(company_id, request_id)
@@ -77,7 +82,7 @@ class ControlAccountService:
         expected_mapping_version: int,
         expected_target_account_version: int,
         key: str,
-    ):
+    ) -> ControlAccountRequestModel:
         return self._create_request(
             actor,
             company_id,
@@ -97,7 +102,7 @@ class ControlAccountService:
         target_account_id: UUID,
         expected_mapping_version: int,
         expected_target_account_version: int,
-    ):
+    ) -> ImpactAssessment:
         if role not in {item.value for item in ControlAccountRole}:
             raise InvalidInput()
         with self.factory() as uow:
@@ -123,7 +128,7 @@ class ControlAccountService:
         expected_mapping_version: int,
         expected_target_account_version: int,
         key: str,
-    ):
+    ) -> ControlAccountRequestModel:
         if (
             role not in {item.value for item in ControlAccountRole}
             or expected_mapping_version < 0
