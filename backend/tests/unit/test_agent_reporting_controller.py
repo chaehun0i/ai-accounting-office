@@ -59,6 +59,46 @@ def test_statement_amount_and_evidence_cannot_be_invented():
     assert reporting_verdict("financial_statement.read", result, "NET_PROFIT", answer) == "BLOCK"
 
 
+def test_statement_answer_lists_only_accounts_present_in_tool_sources():
+    journal_line = uuid4()
+    result = {
+        "data": {
+            "statement_set_id": str(uuid4()),
+            "statement_status": "GENERATED",
+            "period_status": "CLOSED",
+            "snapshot_digest": "c" * 64,
+            "close_version": 2,
+            "lines": [
+                {"line_code": "OPERATING_EXPENSE", "label": "영업비용", "current_amount": "25.0000"}
+            ],
+            "sources": [
+                {
+                    "journal_line_id": str(journal_line),
+                    "account_code": "6100",
+                    "account_name": "급여",
+                },
+                {"journal_line_id": str(uuid4()), "account_code": "6100", "account_name": "급여"},
+            ],
+        }
+    }
+    answer = reporting_answer("financial_statement.read", result, "OPERATING_EXPENSE")
+    assert answer.amount == Decimal("25.0000")
+    assert "연결 계정: 6100 급여." in answer.text
+    assert answer.text.count("6100 급여") == 1
+    assert (
+        reporting_verdict("financial_statement.read", result, "OPERATING_EXPENSE", answer) == "PASS"
+    )
+    assert (
+        reporting_verdict(
+            "financial_statement.read",
+            result,
+            "OPERATING_EXPENSE",
+            answer.model_copy(update={"text": answer.text + " 9999 가상계정."}),
+        )
+        == "BLOCK"
+    )
+
+
 def test_closing_answer_uses_exact_status_and_blocker_count():
     period = uuid4()
     result = {

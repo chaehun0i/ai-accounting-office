@@ -58,6 +58,18 @@ def reporting_answer(
         f"{line['label']}은(는) {amount}입니다. "
         f"마감 버전 {data['close_version']}의 스냅샷 기준입니다."
     )
+    accounts = sorted(
+        {
+            f"{source['account_code']} {source['account_name']}"
+            for source in data["sources"]
+            if source.get("account_code") and source.get("account_name")
+        }
+    )
+    if accounts:
+        text += f" 연결 계정: {', '.join(accounts[:5])}"
+        if len(accounts) > 5:
+            text += f" 외 {len(accounts) - 5}개"
+        text += "."
     return AccountingAnswer(
         text=text,
         amount=amount,
