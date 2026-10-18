@@ -1,6 +1,7 @@
 from typing import Self
 
 from app.accounting.accounts.infrastructure.repository import AccountRepository
+from app.accounting.control_accounts.infrastructure.repository import ControlAccountRepository
 from app.accounting.periods.infrastructure.repository import PeriodRepository
 from app.accounting.sequences.infrastructure.repository import SequenceRepository
 from app.accounting.settings.infrastructure.repository import AccountingSettingsRepository
@@ -15,6 +16,7 @@ class MasterSQLAlchemyUnitOfWork(CompanySQLAlchemyUnitOfWork):
     counterparties: CounterpartyRepository
     settings: AccountingSettingsRepository
     accounts: AccountRepository
+    control_accounts: ControlAccountRepository
     periods: PeriodRepository
     templates: TemplateRepository
     sequences: SequenceRepository
@@ -25,6 +27,7 @@ class MasterSQLAlchemyUnitOfWork(CompanySQLAlchemyUnitOfWork):
         self.counterparties = CounterpartyRepository(self.session)
         self.settings = AccountingSettingsRepository(self.session)
         self.accounts = AccountRepository(self.session)
+        self.control_accounts = ControlAccountRepository(self.session)
         self.periods = PeriodRepository(self.session)
         self.templates = TemplateRepository(self.session)
         self.sequences = SequenceRepository(self.session)
