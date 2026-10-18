@@ -3,6 +3,7 @@ from typing import Protocol
 from uuid import UUID
 
 from app.accounting.accounts.domain.entities import Account
+from app.accounting.control_accounts.infrastructure.repository import ControlAccountRepository
 from app.accounting.periods.domain.entities import Period
 from app.accounting.settings.domain.entities import AccountingSettings
 from app.accounting.templates.domain.entities import Template, TemplateAccount
@@ -18,7 +19,6 @@ class SettingsRepository(Protocol):
 
 
 class Accounts(Protocol):
-    def map_control(self, company: UUID, identifier: UUID, role: str) -> Account | None: ...
     def get(self, *, company_id: UUID, resource_id: UUID) -> Account | None: ...
     def get_locked(self, *, company_id: UUID, resource_id: UUID) -> Account | None: ...
     def list(self, company_id: UUID) -> builtins.list[Account]: ...
@@ -47,6 +47,8 @@ class Sequences(Protocol):
 
 
 class MasterUnitOfWork(CompanyUnitOfWork, Protocol):
+    @property
+    def control_accounts(self) -> ControlAccountRepository: ...
     @property
     def payment_terms(self) -> PaymentTerms: ...
     @property
