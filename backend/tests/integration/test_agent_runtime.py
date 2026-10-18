@@ -4,12 +4,13 @@ from dataclasses import replace
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import sessionmaker
 
 from app.accounting.journals.application.agent_proposals import AgentProposalService
 from app.agents.checkpoints.postgres import PostgresCheckpoints
 from app.agents.runtime.service import AgentRuntime
+from app.companies.infrastructure.models import MembershipModel
 from app.jobs.application.runtime import RuntimeAudit
 from app.jobs.infrastructure.models import ToolExecutionModel
 from app.jobs.infrastructure.unit_of_work import RuntimeSQLAlchemyUnitOfWork
@@ -173,6 +174,17 @@ def test_wrong_company_permission_and_invalid_input(api_client, agent_environmen
             json={"transaction_id": source["id"], "company_id": owner["X-Company-ID"]},
         ).status_code
         == 422
+    )
+    owner_actor = api_client.app.state.services.auth.authenticate(
+        owner["Authorization"].removeprefix("Bearer ")
+    )
+    connection.execute(
+        update(MembershipModel)
+        .where(
+            MembershipModel.company_id == UUID(owner["X-Company-ID"]),
+            MembershipModel.user_id == owner_actor.user_id,
+        )
+        .values(role_code="VIEWER")
     )
     assert (
         api_client.post(

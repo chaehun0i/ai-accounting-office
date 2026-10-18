@@ -12,8 +12,8 @@ test("회사 전환 뒤 도착한 이전 응답과 사용자 변경 전 응답�
   assert.equal(gate.accepts(second), false);
 });
 
-test("회사 관리자와 회계 담당자의 권한 차이를 사용자에게 안내합니다", () => {
-  assert.match(roleGuide("OWNER"), /거래·전표 작성과 자료 업로드는 회계 담당자/);
+test("OWNER의 회사별 전체 기능 권한과 다른 회사 접근 제한을 안내합니다", () => {
+  assert.match(roleGuide("OWNER"), /모든 기능.*다른 회사/);
   assert.match(roleGuide("ACCOUNTANT"), /별도 검토자의 승인/);
   assert.doesNotMatch(roleGuide("UNKNOWN_INTERNAL_ROLE"), /UNKNOWN_INTERNAL_ROLE/);
 });
