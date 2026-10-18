@@ -273,7 +273,7 @@ class AccountingMasterService:
             raise InvalidInput()
         with self.factory() as uow:
             require_company(uow, principal, company_id, "account.update")
-            current = uow.accounts.get(company_id=company_id, resource_id=account_id, lock=True)
+            current = uow.accounts.get_locked(company_id=company_id, resource_id=account_id)
             if current is None:
                 raise ResourceNotFound()
             if current.version != expected_version:
@@ -315,7 +315,7 @@ class AccountingMasterService:
             raise InvalidInput()
         with self.factory() as uow:
             require_company(uow, principal, company_id, "account.deactivate")
-            current = uow.accounts.get(company_id=company_id, resource_id=account_id, lock=True)
+            current = uow.accounts.get_locked(company_id=company_id, resource_id=account_id)
             if current is None:
                 raise ResourceNotFound()
             if current.version != expected_version:

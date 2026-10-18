@@ -16,11 +16,18 @@ class AccountRepository:
     def entity(row: AccountModel) -> Account:
         return Account(**{k: getattr(row, k) for k in Account.__dataclass_fields__})
 
-    def get(self, *, company_id: UUID, resource_id: UUID, lock: bool = False) -> Account | None:
+    def get(self, *, company_id: UUID, resource_id: UUID) -> Account | None:
         query = select(AccountModel).where(
             AccountModel.company_id == company_id, AccountModel.id == resource_id
         )
-        row = self.session.scalar(query.with_for_update() if lock else query)
+        row = self.session.scalar(query)
+        return self.entity(row) if row else None
+
+    def get_locked(self, *, company_id: UUID, resource_id: UUID) -> Account | None:
+        query = select(AccountModel).where(
+            AccountModel.company_id == company_id, AccountModel.id == resource_id
+        )
+        row = self.session.scalar(query.with_for_update())
         return self.entity(row) if row else None
 
     def list(self, company_id: UUID) -> list[Account]:
