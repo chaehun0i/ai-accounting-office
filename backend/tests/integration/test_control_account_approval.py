@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.accounting.control_accounts.application.approval import ControlAccountApproval
 from app.accounting.control_accounts.application.service import ControlAccountService
+from app.accounting.control_accounts.domain.errors import ControlAccountProtected
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
 from app.companies.infrastructure.models import MembershipModel
 from app.contracts.access_errors import (
@@ -91,6 +92,11 @@ def test_approval_execute_replay_and_audit(master, auth_service):
         "APPROVED",
         "EXECUTED",
     ]
+    _, _, accounting, _, _, _ = master
+    with pytest.raises(ControlAccountProtected):
+        accounting.update_account(owner, company, target.id, target.version, account_name="Changed")
+    with pytest.raises(ControlAccountProtected):
+        accounting.deactivate_account(owner, company, target.id, target.version, "Unused")
 
 
 def test_reject_and_stale_target(master, auth_service):
