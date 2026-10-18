@@ -36,6 +36,7 @@ PERMISSION_GRANTS: dict[str, tuple[str, ...]] = {
     "account.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "account.create": ("OWNER", "ADMIN", "ACCOUNTANT"),
     "account.update": ("OWNER", "ADMIN", "ACCOUNTANT"),
+    "account.deactivate": ("OWNER", "ADMIN", "ACCOUNTANT"),
     "transaction.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "transaction.create": ("ACCOUNTANT",),
     "transaction.update": ("ACCOUNTANT",),

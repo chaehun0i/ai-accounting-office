@@ -1,9 +1,10 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, update
 from sqlalchemy.orm import sessionmaker
 
+from app.accounting.accounts.infrastructure.models import AccountChangeModel, AccountModel
 from app.accounting.templates.domain.defaults import DEFAULT_ACCOUNTS
 from app.accounting.templates.infrastructure.seed import seed_default_coa
 from app.companies.infrastructure.models import MembershipModel
@@ -161,3 +162,130 @@ def test_settings_rbac(api_client, auth_service, role, allowed):
     )
     assert result.status_code == (422 if allowed else 403), result.text
     assert api_client.get("/accounts", headers=headers).status_code == 200
+
+
+def test_company_account_update_deactivate_and_audit(api_client, auth_service):
+    headers = setup(api_client)
+    created = api_client.post(
+        "/accounts",
+        json={"account_code": "ZZ900", "account_name": "Temporary", "account_type": "ASSET"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    resource = created.json()["id"]
+    assert created.json()["control_account_type"] is None
+    update_url = f"/accounts/{resource}"
+    changed = api_client.patch(
+        update_url,
+        json={"expected_version": 1, "account_code": "ZZ901", "account_name": "Updated"},
+        headers=headers,
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["version"] == 2
+    assert changed.json()["account_code"] == "ZZ901"
+    assert (
+        api_client.patch(
+            update_url, json={"expected_version": 1, "account_name": "Stale"}, headers=headers
+        ).status_code
+        == 409
+    )
+    foreign = {**headers, "X-Company-ID": str(uuid4())}
+    assert (
+        api_client.patch(
+            update_url, json={"expected_version": 2, "account_name": "Wrong"}, headers=foreign
+        ).status_code
+        == 404
+    )
+    deactivated = api_client.post(
+        f"{update_url}/deactivate",
+        json={"expected_version": 2, "reason": "No longer used"},
+        headers=headers,
+    )
+    assert deactivated.status_code == 200, deactivated.text
+    assert deactivated.json()["status"] == "INACTIVE"
+    assert (
+        api_client.post(
+            f"{update_url}/deactivate",
+            json={"expected_version": 3, "reason": "Again"},
+            headers=headers,
+        ).status_code
+        == 409
+    )
+    _, connection = auth_service
+    factory = sessionmaker(bind=connection, join_transaction_mode="create_savepoint")
+    with factory() as session:
+        changes = (
+            session.query(AccountChangeModel)
+            .filter_by(account_id=UUID(resource))
+            .order_by(AccountChangeModel.previous_version)
+            .all()
+        )
+        assert [
+            (change.action, change.previous_version, change.next_version) for change in changes
+        ] == [("UPDATE", 1, 2), ("DEACTIVATE", 2, 3)]
+
+
+def test_account_mutation_protects_template_references_and_control_role(api_client, auth_service):
+    headers = setup(api_client)
+    _, connection = auth_service
+    factory = sessionmaker(bind=connection, join_transaction_mode="create_savepoint")
+    with factory.begin() as session:
+        seed_default_coa(session)
+    response = api_client.post(
+        "/accounting/initialize", json={"fiscal_year": 2026}, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    template = api_client.get("/accounts", headers=headers).json()[0]
+    assert template["template_account_id"] is not None
+    assert (
+        api_client.patch(
+            f"/accounts/{template['id']}",
+            json={"expected_version": template["version"], "account_name": "Changed"},
+            headers=headers,
+        ).status_code
+        == 409
+    )
+    parent = api_client.post(
+        "/accounts",
+        json={"account_code": "ZZ800", "account_name": "Parent", "account_type": "ASSET"},
+        headers=headers,
+    ).json()
+    child = api_client.post(
+        "/accounts",
+        json={
+            "account_code": "ZZ801",
+            "account_name": "Child",
+            "account_type": "ASSET",
+            "parent_account_id": parent["id"],
+        },
+        headers=headers,
+    )
+    assert child.status_code == 201, child.text
+    assert (
+        api_client.post(
+            f"/accounts/{parent['id']}/deactivate",
+            json={"expected_version": 1, "reason": "Referenced"},
+            headers=headers,
+        ).status_code
+        == 409
+    )
+    assert (
+        api_client.patch(
+            f"/accounts/{parent['id']}",
+            json={"expected_version": 1, "account_name": "New name"},
+            headers=headers,
+        ).status_code
+        == 409
+    )
+    with factory.begin() as session:
+        row = session.get(AccountModel, UUID(parent["id"]))
+        assert row is not None
+        row.control_account_type = "BANK_CASH"
+    assert (
+        api_client.patch(
+            f"/accounts/{parent['id']}",
+            json={"expected_version": 1, "account_code": "ZZ802"},
+            headers=headers,
+        ).status_code
+        == 409
+    )
