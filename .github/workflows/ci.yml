@@ -12,8 +12,8 @@ jobs:
   scope:
     runs-on: ubuntu-latest
     outputs:
-      postgresql: ${{ steps.paths.outputs.postgresql }}
-      infrastructure: ${{ steps.paths.outputs.infrastructure }}
+      full_postgresql: ${{ steps.paths.outputs.full_postgresql }}
+      full_infrastructure: ${{ steps.paths.outputs.full_infrastructure }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,29 +25,29 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           if [[ "$EVENT_NAME" == "push" ]]; then
-            echo "postgresql=true" >> "$GITHUB_OUTPUT"
-            echo "infrastructure=true" >> "$GITHUB_OUTPUT"
+            echo "full_postgresql=true" >> "$GITHUB_OUTPUT"
+            echo "full_infrastructure=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          postgresql=false
-          infrastructure=false
+          full_postgresql=false
+          full_infrastructure=false
           while IFS= read -r file; do
             case "$file" in
-              backend/app/agents/graphs/accounting_question.py|backend/app/agents/runtime/controller.py|backend/app/llm/contracts.py|backend/tests/unit/*|backend/tests/contract/*)
+              backend/app/agents/graphs/accounting_question.py|backend/app/agents/runtime/controller.py|backend/app/llm/contracts.py|backend/tests/integration/test_agent_reporting_tools.py|backend/tests/unit/*|backend/tests/contract/*)
                 ;;
               backend/*|scripts/verify_accounting_schema.py)
-                postgresql=true
+                full_postgresql=true
                 ;;
             esac
             case "$file" in
               infra/*|scripts/dev.py|scripts/bootstrap_local.py|backend/Dockerfile|frontend/Dockerfile|backend/requirements-dev.lock|frontend/package-lock.json|.env.example)
-                infrastructure=true
+                full_infrastructure=true
                 ;;
             esac
           done < <(git diff --name-only "$BASE_SHA" HEAD)
-          echo "postgresql=$postgresql" >> "$GITHUB_OUTPUT"
-          echo "infrastructure=$infrastructure" >> "$GITHUB_OUTPUT"
+          echo "full_postgresql=$full_postgresql" >> "$GITHUB_OUTPUT"
+          echo "full_infrastructure=$full_infrastructure" >> "$GITHUB_OUTPUT"
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -69,7 +69,6 @@ jobs:
       - run: python -m pytest --ignore=tests/integration
   postgresql:
     needs: scope
-    if: needs.scope.outputs.postgresql == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -107,13 +106,21 @@ jobs:
       - run: python -m alembic current --check-heads
       - run: python -m alembic check
       - name: 은행 카드 대사·관계형 스키마·회계·재무·Agent·산업별 연간 Golden 회귀
+        if: needs.scope.outputs.full_postgresql == 'true'
         run: python -m pytest tests/integration --require-postgres
+      - name: 읽기 전용 회계 질의 PostgreSQL 통합 검증
+        if: needs.scope.outputs.full_postgresql != 'true'
+        run: python -m pytest tests/integration/test_agent_reporting_tools.py --require-postgres
       - name: 업무 테이블과 JSON·FK 실제 수치 검증
         run: python ../scripts/verify_accounting_schema.py
-      - run: python -m app.companies.infrastructure.seed
-      - run: python -m app.companies.infrastructure.seed
-      - run: python -m app.accounting.templates.infrastructure.seed
-      - run: python -m app.accounting.templates.infrastructure.seed
+      - if: needs.scope.outputs.full_postgresql == 'true'
+        run: python -m app.companies.infrastructure.seed
+      - if: needs.scope.outputs.full_postgresql == 'true'
+        run: python -m app.companies.infrastructure.seed
+      - if: needs.scope.outputs.full_postgresql == 'true'
+        run: python -m app.accounting.templates.infrastructure.seed
+      - if: needs.scope.outputs.full_postgresql == 'true'
+        run: python -m app.accounting.templates.infrastructure.seed
       - run: python -m alembic check
   frontend:
     runs-on: ubuntu-latest
@@ -136,15 +143,19 @@ jobs:
       - run: npm run build
   infrastructure:
     needs: scope
-    if: needs.scope.outputs.infrastructure == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: python scripts/dev.py env
       - run: docker compose --env-file .env -f infra/docker-compose.yml config --quiet
       - name: 백엔드·프론트엔드 포함 로컬 환경 실행
+        if: needs.scope.outputs.full_infrastructure == 'true'
         run: docker compose --env-file .env -f infra/docker-compose.yml up -d --build --wait
+      - name: PostgreSQL·Redis 기본 서비스 상태 확인
+        if: needs.scope.outputs.full_infrastructure != 'true'
+        run: docker compose --env-file .env -f infra/docker-compose.yml up -d --wait postgres redis
       - name: 로컬 계정·회사 준비 및 중복 실행 검증
+        if: needs.scope.outputs.full_infrastructure == 'true'
         run: |
           python scripts/bootstrap_local.py
           python scripts/bootstrap_local.py

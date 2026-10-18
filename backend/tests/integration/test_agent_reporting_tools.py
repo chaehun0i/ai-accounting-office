@@ -89,6 +89,25 @@ def test_closed_statement_query_uses_registry_and_exact_snapshot(
     assert Decimal(answer["answer_amount"]) == Decimal("100")
     assert answer["answer_resource_id"] == generated.json()["id"]
     assert answer["answer_source_digest"] == tool.model_dump(mode="json")["data"]["snapshot_digest"]
+    expense_line = next(
+        line
+        for line in tool.model_dump(mode="json")["data"]["lines"]
+        if line["line_code"] == "OPERATING_EXPENSE"
+    )
+    contextual = api_client.post(
+        "/agent/queries/bookkeeper",
+        headers={**writer, "Idempotency-Key": str(uuid4())},
+        json={
+            "period_id": period,
+            "question": (
+                "이 기간 손익계산서의 영업비용 (OPERATING_EXPENSE) "
+                "항목 금액과 연결 계정을 설명해줘."
+            ),
+        },
+    )
+    assert contextual.status_code == 200, contextual.text
+    assert contextual.json()["controller_verdict"] == "PASS"
+    assert Decimal(contextual.json()["answer_amount"]) == Decimal(expense_line["current_amount"])
     assert (
         api_client.post(
             "/agent/queries/bookkeeper",
