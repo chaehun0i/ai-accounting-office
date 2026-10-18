@@ -27,6 +27,7 @@ class SettingsUpdate(Command):
     expected_version: int = Field(ge=1)
     journal_number_prefix: str | None = Field(default=None, pattern=r"^[A-Z][A-Z0-9]{0,9}$")
     allow_manual_journal: bool | None = None
+    reporting_week_start: int | None = Field(default=None, ge=0, le=6)
 
 
 class SettingsRead(BaseModel):
@@ -34,6 +35,7 @@ class SettingsRead(BaseModel):
     company_id: UUID
     functional_currency_code: str
     fiscal_year_start_month: int
+    reporting_week_start: int
     journal_number_prefix: str
     numbering_reset_policy: str
     allow_manual_journal: bool

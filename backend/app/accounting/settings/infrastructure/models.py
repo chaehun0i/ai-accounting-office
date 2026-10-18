@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, String
+from sqlalchemy import CheckConstraint, ForeignKey, SmallInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
@@ -14,6 +14,7 @@ class AccountingSettingsModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     )
     functional_currency_code: Mapped[str] = mapped_column(String(3))
     fiscal_year_start_month: Mapped[int]
+    reporting_week_start: Mapped[int] = mapped_column(SmallInteger, server_default="0")
     accounting_framework_code: Mapped[str] = mapped_column(String(20), server_default="K_GAAP")
     reporting_taxonomy_code: Mapped[str] = mapped_column(String(20), server_default="STANDARD")
     journal_number_prefix: Mapped[str] = mapped_column(String(10))
@@ -26,6 +27,7 @@ class AccountingSettingsModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
             name="currency",
         ),
         CheckConstraint("fiscal_year_start_month BETWEEN 1 AND 12", name="fiscal_month"),
+        CheckConstraint("reporting_week_start BETWEEN 0 AND 6", name="reporting_week_start"),
         CheckConstraint("journal_number_prefix ~ '^[A-Z][A-Z0-9]{0,9}$'", name="prefix"),
         CheckConstraint("numbering_reset_policy IN ('FISCAL_YEAR','NEVER')", name="reset_policy"),
         CheckConstraint("version >= 1", name="version"),

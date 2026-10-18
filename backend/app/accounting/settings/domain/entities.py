@@ -9,6 +9,7 @@ class AccountingSettings:
     company_id: UUID
     functional_currency_code: str = "KRW"
     fiscal_year_start_month: int = 1
+    reporting_week_start: int = 0
     accounting_framework_code: str = "K_GAAP"
     reporting_taxonomy_code: str = "STANDARD"
     journal_number_prefix: str = "J"

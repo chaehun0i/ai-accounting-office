@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import date
 from uuid import UUID
 
 from app.accounting.accounts.domain.entities import Account
@@ -68,6 +69,21 @@ class AccountingMasterService:
             if value is None:
                 raise ResourceNotFound()
             return value
+
+    def report_period_policy(
+        self, principal: Principal, company_id: UUID
+    ) -> tuple[str, int, int, date]:
+        with self.factory() as uow:
+            access = require_company(uow, principal, company_id, "financial_statement.read")
+            settings = uow.settings.get(company_id)
+            if settings is None:
+                raise ResourceNotFound()
+            return (
+                access.company.timezone,
+                settings.fiscal_year_start_month,
+                settings.reporting_week_start,
+                access.company.opening_date,
+            )
 
     def initialize(
         self,
@@ -151,7 +167,10 @@ class AccountingMasterService:
         *,
         journal_number_prefix: str | None = None,
         allow_manual_journal: bool | None = None,
+        reporting_week_start: int | None = None,
     ) -> AccountingSettings:
+        if reporting_week_start is not None and not 0 <= reporting_week_start <= 6:
+            raise InvalidInput()
         if journal_number_prefix is not None:
             journal_number(journal_number_prefix, 2026, 1)
         with self.factory() as uow:
@@ -169,6 +188,9 @@ class AccountingMasterService:
                 allow_manual_journal=allow_manual_journal
                 if allow_manual_journal is not None
                 else current.allow_manual_journal,
+                reporting_week_start=reporting_week_start
+                if reporting_week_start is not None
+                else current.reporting_week_start,
                 version=current.version + 1,
                 updated_at=uow.now(),
             )
