@@ -4,6 +4,9 @@ import os
 import sys
 from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app import model_registry  # noqa: F401
@@ -30,7 +33,9 @@ def main() -> None:
     engine = create_database_engine(settings)
     try:
         with engine.connect() as connection:
-            tables = set(inspect(connection).get_table_names(schema="public")) - {"alembic_version"}
+            tables = set(inspect(connection).get_table_names(schema="public")) - {
+                "alembic_version"
+            }
             assert tables == set(Base.metadata.tables)
             print("business_tables=" + str(len(tables)))
             for kind in ("json", "jsonb"):
@@ -54,7 +59,8 @@ def main() -> None:
                 for constraint in table.foreign_key_constraints:
                     target = constraint.referred_table.alias("fk_target")
                     pairs = [
-                        (item.parent, target.c[item.column.name]) for item in constraint.elements
+                        (item.parent, target.c[item.column.name])
+                        for item in constraint.elements
                     ]
                     join = and_(*(left == right for left, right in pairs))
                     orphan += (
@@ -81,14 +87,17 @@ def main() -> None:
                     {"kind": kind},
                 )
                 print("framework_" + kind + "_columns=" + str(count))
-            assert (
-                connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "017_accounting_agent_queries"
+            migration_head = connection.scalar(
+                text("SELECT version_num FROM alembic_version")
             )
-            print(
-                "migration_head="
-                + str(connection.scalar(text("SELECT version_num FROM alembic_version")))
+            migration_config = Config(
+                str(Path(__file__).resolve().parents[1] / "backend" / "alembic.ini")
             )
+            expected_head = ScriptDirectory.from_config(
+                migration_config
+            ).get_current_head()
+            assert migration_head == expected_head
+            print("migration_head=" + str(migration_head))
     finally:
         engine.dispose()
 
