@@ -10,8 +10,8 @@ from app.accounting.templates.domain.defaults import DEFAULT_ACCOUNTS
 # account name never determines a control role. CARD_CLEARING has no unambiguous
 # default template account and must be selected through the approval workflow.
 DEFAULT_CONTROL_ROLES = {
-    "AR": "1100",
-    "AP": "2010",
+    "AR": "1101",
+    "AP": "2011",
     "TAX_INPUT": "1200",
     "TAX_OUTPUT": "2100",
     "BANK_CASH": "1020",
