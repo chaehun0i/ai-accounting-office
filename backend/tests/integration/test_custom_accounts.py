@@ -117,6 +117,23 @@ def test_custom_account_api_permission_and_extra_fields(api_client, auth_service
         ).status_code
         == 403
     )
+    account_id = response.json()["id"]
+    assert (
+        api_client.patch(
+            f"/accounts/{account_id}",
+            headers=foreign,
+            json={"expected_version": 1, "account_name": "Denied"},
+        ).status_code
+        == 403
+    )
+    assert (
+        api_client.post(
+            f"/accounts/{account_id}/deactivate",
+            headers=foreign,
+            json={"expected_version": 1, "reason": "Denied"},
+        ).status_code
+        == 403
+    )
 
 
 def test_split_control_accounts_reconcile(api_client, auth_service):

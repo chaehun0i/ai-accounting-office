@@ -53,6 +53,7 @@ class AccountRead(BaseModel):
     parent_account_id: UUID | None
     posting_allowed: bool
     is_contra: bool
+    control_account_type: str | None
     status: Literal["ACTIVE", "INACTIVE"]
     version: int
 
@@ -63,6 +64,17 @@ class AccountCreate(Command):
     account_type: AccountType
     is_contra: bool = False
     parent_account_id: UUID | None = None
+
+
+class AccountUpdate(Command):
+    expected_version: int = Field(ge=1)
+    account_code: str | None = Field(default=None, pattern=r"^[A-Z0-9][A-Z0-9_-]{0,19}$")
+    account_name: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class AccountDeactivate(Command):
+    expected_version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class TemplateRead(BaseModel):

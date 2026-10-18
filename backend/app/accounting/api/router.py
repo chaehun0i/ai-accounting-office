@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Header, Query
 
 from app.accounting.api.schemas import (
     AccountCreate,
+    AccountDeactivate,
     AccountRead,
+    AccountUpdate,
     AddressRead,
     BankReferenceRead,
     ContactRead,
@@ -109,6 +111,34 @@ def create_account(
 ) -> AccountRead:
     return AccountRead.model_validate(
         asdict(service.create_account(actor, company_id, **payload.model_dump()))
+    )
+
+
+@router.patch("/accounts/{resource_id}", response_model=AccountRead, dependencies=[Depends(csrf)])
+def update_account(
+    resource_id: UUID,
+    payload: AccountUpdate,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Accounting,
+) -> AccountRead:
+    return AccountRead.model_validate(
+        asdict(service.update_account(actor, company_id, resource_id, **payload.model_dump()))
+    )
+
+
+@router.post(
+    "/accounts/{resource_id}/deactivate", response_model=AccountRead, dependencies=[Depends(csrf)]
+)
+def deactivate_account(
+    resource_id: UUID,
+    payload: AccountDeactivate,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Accounting,
+) -> AccountRead:
+    return AccountRead.model_validate(
+        asdict(service.deactivate_account(actor, company_id, resource_id, **payload.model_dump()))
     )
 
 

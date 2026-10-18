@@ -1,7 +1,9 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
     CheckConstraint,
+    DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -61,4 +63,32 @@ class AccountModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
         ),
         CheckConstraint("status IN ('ACTIVE','INACTIVE')", name="status"),
         CheckConstraint("version >= 1", name="version"),
+    )
+
+
+class AccountChangeModel(UUIDPrimaryKey, Base):
+    __tablename__ = "account_changes"
+    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    account_id: Mapped[UUID] = mapped_column()
+    actor_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    action: Mapped[str] = mapped_column(String(20))
+    reason: Mapped[str | None] = mapped_column(String(500))
+    before_code: Mapped[str] = mapped_column(String(20))
+    after_code: Mapped[str] = mapped_column(String(20))
+    before_name: Mapped[str] = mapped_column(String(200))
+    after_name: Mapped[str] = mapped_column(String(200))
+    before_status: Mapped[str] = mapped_column(String(16))
+    after_status: Mapped[str] = mapped_column(String(16))
+    previous_version: Mapped[int]
+    next_version: Mapped[int]
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        Index("ix_account_changes_company_account", "company_id", "account_id"),
+        ForeignKeyConstraint(
+            ["company_id", "account_id"],
+            ["chart_of_accounts.company_id", "chart_of_accounts.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("next_version = previous_version + 1", name="version_step"),
+        Index("ix_account_changes_company_account", "company_id", "account_id"),
     )

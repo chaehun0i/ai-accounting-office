@@ -251,6 +251,88 @@ class AccountingMasterService:
             uow.accounts.add(value)
             return value
 
+    def update_account(
+        self,
+        principal: Principal,
+        company_id: UUID,
+        account_id: UUID,
+        expected_version: int,
+        *,
+        account_code: str | None = None,
+        account_name: str | None = None,
+    ) -> Account:
+        import re
+
+        if account_code is not None and not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,19}", account_code):
+            raise InvalidInput()
+        if account_name is not None:
+            account_name = account_name.strip()
+            if not account_name or len(account_name) > 200:
+                raise InvalidInput()
+        if account_code is None and account_name is None:
+            raise InvalidInput()
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "account.update")
+            current = uow.accounts.get_locked(company_id=company_id, resource_id=account_id)
+            if current is None:
+                raise ResourceNotFound()
+            if current.version != expected_version:
+                raise VersionConflict()
+            if current.template_account_id is not None or current.control_account_type is not None:
+                raise StateConflict()
+            if current.status != "ACTIVE":
+                raise StateConflict()
+            new_code = account_code if account_code is not None else current.account_code
+            new_name = account_name if account_name is not None else current.account_name
+            if new_code == current.account_code and new_name == current.account_name:
+                return current
+            if uow.accounts.referenced(company_id, account_id):
+                raise StateConflict()
+            if new_code != current.account_code:
+                if any(row.account_code == new_code for row in uow.accounts.list(company_id)):
+                    raise StateConflict()
+            value = replace(
+                current,
+                account_code=new_code,
+                account_name=new_name,
+                version=current.version + 1,
+                updated_at=uow.now(),
+            )
+            if not uow.accounts.update(value, expected_version, principal.user_id, "UPDATE", None):
+                raise VersionConflict()
+            return value
+
+    def deactivate_account(
+        self,
+        principal: Principal,
+        company_id: UUID,
+        account_id: UUID,
+        expected_version: int,
+        reason: str,
+    ) -> Account:
+        reason = reason.strip()
+        if not reason or len(reason) > 500:
+            raise InvalidInput()
+        with self.factory() as uow:
+            require_company(uow, principal, company_id, "account.deactivate")
+            current = uow.accounts.get_locked(company_id=company_id, resource_id=account_id)
+            if current is None:
+                raise ResourceNotFound()
+            if current.version != expected_version:
+                raise VersionConflict()
+            if current.template_account_id is not None or current.control_account_type is not None:
+                raise StateConflict()
+            if current.status != "ACTIVE" or uow.accounts.referenced(company_id, account_id):
+                raise StateConflict()
+            value = replace(
+                current, status="INACTIVE", version=current.version + 1, updated_at=uow.now()
+            )
+            if not uow.accounts.update(
+                value, expected_version, principal.user_id, "DEACTIVATE", reason
+            ):
+                raise VersionConflict()
+            return value
+
     def periods(self, principal: Principal, company_id: UUID) -> list[Period]:
         with self.factory() as uow:
             require_company(uow, principal, company_id, "period.read")
