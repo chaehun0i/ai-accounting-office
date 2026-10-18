@@ -4,18 +4,13 @@ from uuid import uuid4
 from app.accounting.control_accounts.application.impact import assess_impact
 
 
-class ReferenceSession:
-    def __init__(self) -> None:
-        self.posted = 0
-
-    def scalar(self, query, params):
-        return self.posted if "j.status='POSTED'" in str(query) else 0
-
-
 class ImpactRepository:
     def __init__(self, target_id) -> None:
-        self.session = ReferenceSession()
+        self.posted = 0
         self.target_id = target_id
+
+    def reference_count(self, code, company_id, account_id):
+        return self.posted if code == "POSTED_JOURNAL" else 0
 
     def mapping(self, company_id, role):
         return SimpleNamespace(account_id=self.current_id, version=2)
@@ -40,7 +35,7 @@ def test_impact_digest_tracks_posted_usage_and_blocks_reassignment():
     initial = assess_impact(repository, company, "AR", current, target)
     assert not initial.blocking
     assert initial.digest == assess_impact(repository, company, "AR", current, target).digest
-    repository.session.posted = 1
+    repository.posted = 1
     changed = assess_impact(repository, company, "AR", current, target)
     assert changed.blocking
     assert changed.digest != initial.digest
