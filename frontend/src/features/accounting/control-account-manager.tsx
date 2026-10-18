@@ -114,7 +114,7 @@ export function ControlAccountManager({ companyId, canManage }: { companyId: str
   }
   const requiredType = ["AR", "TAX_INPUT", "BANK_CASH", "CARD_CLEARING"].includes(role) ? "ASSET" : "LIABILITY";
   const targetOptions = accounts.filter(account => account.status === "ACTIVE" && account.posting_allowed && account.account_type === requiredType);
-  return <section aria-label="Control Account 역할 관리">
+  return <section className="control-role-manager" aria-label="Control Account 역할 관리">
     <h3>Control Account 역할 관리</h3>
     <p className="muted">역할은 계정명으로 추정하지 않습니다. 변경 신청과 다른 관리자의 승인 후 장부에 적용됩니다.</p>
     {loading && <p role="status">역할 매핑을 불러오는 중입니다.</p>}
