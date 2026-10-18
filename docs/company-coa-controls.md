@@ -33,4 +33,4 @@
 
 신청은 현재 계정 ID, 대상 계정 ID와 버전, mapping 버전, 요청자, 영향 digest를 `control_account_requests`에 고정하고 REQUESTED 이벤트를 `control_account_events`에 기록한다. 같은 키와 같은 payload를 재시도하면 원 요청을 돌려준다. 같은 키로 다른 payload를 보내면 `IDEMPOTENCY_CONFLICT`다. POSTED 전표, AR/AP, 은행·카드의 실제 계정 참조를 세어 영향 facts에 포함한다. 기존 role 계정이 참조되거나 대상이 비활성·전기 불가·유형 불일치·다른 role과 충돌하면 `CONTROL_ACCOUNT_PROTECTED`로 신청을 막는다. 현재 구현에 계정 직접 FK가 없는 Tax 참조는 안전하다고 추정하지 않고 해당 지원 범위가 없음을 유지한다.
 
-이 단계에서는 승인을 소비하거나 매핑을 실행하는 API를 열지 않는다. 별도 승인, 실행 직전 최신 영향 재검증, 감사 결과 조회 및 설정 UI는 이슈 #62의 후속 검토 범위다.
+독립 승인·실행·감사 조회와 설정 UI의 전체 흐름은 [Control Account 역할 변경 업무](control-account-role-workflow.md)에 기록한다.
