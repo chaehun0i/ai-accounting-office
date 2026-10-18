@@ -5,7 +5,10 @@ from datetime import date
 import pytest
 
 from app.accounting.control_accounts.application.service import ControlAccountService
-from app.accounting.control_accounts.domain.errors import ControlAccountIdempotencyConflict
+from app.accounting.control_accounts.domain.errors import (
+    ControlAccountIdempotencyConflict,
+    ControlAccountProtected,
+)
 from app.accounting.infrastructure.unit_of_work import MasterSQLAlchemyUnitOfWork
 from app.contracts.access_errors import ResourceNotFound, VersionConflict
 
@@ -24,6 +27,15 @@ def test_request_impact_key_and_company_isolation(master):
         account_type="ASSET",
     )
     mapping = next(row for row in core.mappings(owner, company.id) if row["role"] == "AR")
+    mapped = next(
+        row for row in accounting.accounts(owner, company.id) if row.id == mapping["account_id"]
+    )
+    with pytest.raises(ControlAccountProtected):
+        accounting.update_account(
+            owner, company.id, mapped.id, mapped.version, account_name="Renamed control"
+        )
+    with pytest.raises(ControlAccountProtected):
+        accounting.deactivate_account(owner, company.id, mapped.id, mapped.version, "Unused")
     preview = core.preview_impact(
         owner,
         company.id,

@@ -54,6 +54,7 @@ class AccountRepository:
             ("payables", "account_id"),
             ("bank_accounts", "control_account_id"),
             ("card_accounts", "control_account_id"),
+            ("control_account_mappings", "account_id"),
             ("report_account_mappings", "account_id"),
             ("financial_statement_sources", "account_id"),
             ("chart_of_accounts", "parent_account_id"),
