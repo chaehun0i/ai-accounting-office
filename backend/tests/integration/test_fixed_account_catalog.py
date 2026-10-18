@@ -86,12 +86,20 @@ def test_catalog_upgrade_preserves_existing_account_ids_and_template_references(
     from sqlalchemy.orm import Session
 
     from app.accounting.accounts.infrastructure.models import AccountModel
+    from app.accounting.control_accounts.infrastructure.models import ControlAccountMappingModel
     from app.accounting.templates.domain.defaults import LEGACY_ACCOUNTS
 
     principal, company, accounting, _, factory, _ = master
     settings = accounting.initialize(principal, company.id, fiscal_year=2026)
     legacy = {row.account_code: row for row in LEGACY_ACCOUNTS}
     with Session(factory.kw["bind"], join_transaction_mode="create_savepoint") as session:
+        # This fixture reconstructs a pre-mapping catalog. A live mapping must
+        # retain its FK protection; only the historical fixture clears it.
+        session.execute(
+            delete(ControlAccountMappingModel).where(
+                ControlAccountMappingModel.company_id == company.id
+            )
+        )
         session.execute(
             delete(AccountModel).where(
                 AccountModel.company_id == company.id,
