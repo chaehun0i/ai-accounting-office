@@ -68,6 +68,8 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 
 월마감 화면의 문맥 링크는 기간 UUID와 허용된 `closing` context만 전달합니다. AI 회계팀은 현재 회사의 기간 목록에서 해당 UUID를 다시 확인한 뒤 질문 초안을 표시하며, 페이지 이동만으로 Agent Run을 만들지 않습니다. 실제 제출에는 기존 권한·Idempotency-Key·Tool Registry 경계를 그대로 적용합니다.
 
+재무제표 항목도 `financial_statement` context로 같은 화면에 연결됩니다. URL은 기간 UUID·BS/IS 종류·taxonomy 항목 코드만 전달하고 금액은 전달하지 않습니다. 기존 Closing 문맥과 동일하게 현재 회사 기간을 확인한 후 수정 가능한 질문 초안을 표시합니다. 질문에 포함된 유효한 taxonomy 항목 코드는 기존 기간 질의 Graph에서 해당 BS/IS 읽기 Tool로 결정론적으로 연결하고, Tool이 반환한 금액·전표 출처를 Controller가 검증합니다. 새 Tool, DB 테이블, 자동 질의 실행은 없습니다.
+
 거래 전표 제안 그래프는 `agents/graphs/bookkeeping.py`, 기간 질의 그래프는 `agents/graphs/accounting_question.py`에 둡니다. 두 그래프는 같은 Tool Registry와 Runtime 감사 경계를 사용합니다. 화면의 기간 조회·질의 재시도·run 조회 상태는 `ai-team/use-accounting-query.ts`가 소유하고 Workspace 컴포넌트는 결과 표시만 담당합니다.
 
 ## 영속성·복구
