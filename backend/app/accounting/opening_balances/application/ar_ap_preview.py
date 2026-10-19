@@ -110,6 +110,14 @@ def preview_ar_ap(
             if not all((account, counterparty, reference, amount, due)):
                 issue("INCOMPLETE_OPEN_ITEM", section, row, "미결 항목의 필수 값을 입력해 주세요.")
                 continue
+            if row != f"{counterparty}|{reference}":
+                issue(
+                    "OPEN_ITEM_KEY_MISMATCH",
+                    section,
+                    row,
+                    "거래처·원천 참조 행 키를 확인해 주세요.",
+                )
+                continue
             if account != mappings.get(role):
                 issue(
                     "CONTROL_ACCOUNT_MISMATCH",

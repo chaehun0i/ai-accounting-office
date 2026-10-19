@@ -114,3 +114,16 @@ def test_payable_and_multiple_cutover_dates() -> None:
     result = preview_ar_ap(cells + source(), 1, {"AR": "110", "AP": "210"}, {"S1", "C1"})
     assert not result.ready
     assert "CUTOVER_DATE_MISMATCH" in {issue.code for issue in result.issues}
+
+
+def test_open_item_row_key_must_match_reference() -> None:
+    cells = source()
+    changed = [
+        Cell(cell.field_code, "arbitrary", cell.value, cell.source_type)
+        if cell.row_key == "C1|INV-2"
+        else cell
+        for cell in cells
+    ]
+    result = preview_ar_ap(changed, 3, {"AR": "110"}, {"C1"})
+    assert not result.ready
+    assert "OPEN_ITEM_KEY_MISMATCH" in {issue.code for issue in result.issues}
