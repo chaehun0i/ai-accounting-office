@@ -42,7 +42,7 @@ React Router/Redux, ESG metric/rollup/DMA, MariaDB/int PK/repository commit/floa
 Alembic clean upgrade, base 왕복, 004↔005 왕복, head/metadata check 통과.
 Frontend 6 test와 lint/typecheck/production build 통과, 같은 lockfile의 offline npm ci 완료.
 실제 브라우저 smoke 및 PostgreSQL/Redis healthy 확인.
-기존 TestClient의 deprecation warning 1건은 [검증 기록](onboarding-verification.md)에 명시했습니다.
+기존 TestClient의 deprecation warning 1건은 [검증 기록](../verification/onboarding-verification.md)에 명시했습니다.
 원격 Actions 결과를 로컬 결과로 대체 주장하지 않습니다.
 
 ## 제외·알려진 제한

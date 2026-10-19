@@ -59,7 +59,7 @@ Google SDK import에서 Python 3.14의 `_UnionGenericAlias` 사용에 관한 Dep
 
 Gemini 실 네트워크 호출은 하지 않았습니다. 별도 `gemini` marker와 `RUN_GEMINI_INTEGRATION=1` opt-in을 제공하며 일반 CI는 skip합니다. Fake 검증을 실 Gemini 성공으로 주장하지 않습니다.
 
-상시 queue worker·운영 scheduler·취소·지속 SSE fanout·외부 MCP OAuth·전체 Chat UI는 제외했습니다. Tool timeout은 강제 중단이 아닌 완료 후 예산 검사이며 Gemini SDK에는 HTTP timeout을 적용합니다. 자세한 경계는 [Runtime 계약](agent-runtime.md)을 따릅니다.
+상시 queue worker·운영 scheduler·취소·지속 SSE fanout·외부 MCP OAuth·전체 Chat UI는 제외했습니다. Tool timeout은 강제 중단이 아닌 완료 후 예산 검사이며 Gemini SDK에는 HTTP timeout을 적용합니다. 자세한 경계는 [Runtime 계약](../platform/agent-runtime.md)을 따릅니다.
 
 ## 최종 PostgreSQL 전체 회귀
 

@@ -100,4 +100,4 @@ Application/UoW만 트랜잭션을 소유합니다. Finance Repository의 commit
 
 현재 목록은 pagination 없이 반환합니다. 실제 은행 이체·은행/카드 workflow·Expense·Treasury·writeoff·정산 취소·후속 미배분 적용·자산·재고·세무·Agent/LLM은 제외합니다.
 
-검증 명령과 실측 결과는 [재무 보조부 검증 기록](finance-verification.md), 용어는 [약어 풀이](abbreviations.md)를 참고하세요.
+검증 명령과 실측 결과는 [재무 보조부 검증 기록](../verification/finance-verification.md), 용어는 [약어 풀이](../abbreviations.md)를 참고하세요.

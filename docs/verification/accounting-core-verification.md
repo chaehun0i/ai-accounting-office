@@ -81,7 +81,7 @@ Golden은 기존 Master Application으로 2025 계정과목을 준비하고 온�
 
 새 전용 합성 DB `accounting_browser_final_test`와 최신 API 코드, Edge headless에서 `node scripts/accounting-browser-smoke.cjs --allow-synthetic`을 실행하여 통과했다. 로그인·접근 가능한 회사 선택, 거래 작성, 분개 추가/삭제와 합계, 제출·승인 요청, 다른 사용자 로그인·승인·장부 반영, 원장·시산표의 차대변 100.0000 및 전표 상세 이동을 검사했다. 원장과 시산표 응답이 독립적으로 도착하므로 각각의 완료를 기다린다. 최초 smoke의 조회 대기 문제를 수정한 뒤 최종 재실행이 성공했다.
 
-이 브라우저 smoke는 정상 사용자 흐름이다. 기초잔액·역분개·권한 실패·롤백·동시성은 PostgreSQL API/Golden 자동 테스트에서 별도로 검증하며, 모든 오류 조합을 브라우저로 검증했다고 주장하지 않는다. 상세 실행 환경과 옵션은 [회계 구조 문서](transaction-journal-ledger.md)에 있다.
+이 브라우저 smoke는 정상 사용자 흐름이다. 기초잔액·역분개·권한 실패·롤백·동시성은 PostgreSQL API/Golden 자동 테스트에서 별도로 검증하며, 모든 오류 조합을 브라우저로 검증했다고 주장하지 않는다. 상세 실행 환경과 옵션은 [회계 구조 문서](../accounting/transaction-journal-ledger.md)에 있다.
 
 ## 로컬 실행과 테스트 계정 보완
 

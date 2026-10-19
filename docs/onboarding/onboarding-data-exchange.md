@@ -230,7 +230,7 @@ node scripts/onboarding-browser-smoke.cjs --allow-synthetic
 ```
 
 실행은 테스트 계정/회사를 생성합니다. 원본 fixture를 수정하지 않습니다. 실패 screenshot은 ignored `.local/`에만 저장합니다.
-검증 실측과 commit 목록은 [검증 기록](onboarding-verification.md)에 정리합니다.
+검증 실측과 commit 목록은 [검증 기록](../verification/onboarding-verification.md)에 정리합니다.
 
 ## 알려진 제한과 후속 계약
 

@@ -57,4 +57,4 @@ P0 Import/대사/해제/차이 기록/명세 마감 명령의 key scope는 compa
 - 대상 조회에 원천·연결 합계 query가 추가됩니다. 연간 source 규모 측정은 별도 검증 기록에 남기며 50k/120초나 API p95를 달성했다고 주장하지 않습니다.
 - PG 수수료/환불 회계사건을 자동 생성하지 않습니다. 순정산과 총액 차이는 item/차이로 남깁니다.
 - source fact 정정은 기존 ID overwrite가 아닌 별도 원천 ID와 정정 관계가 필요합니다. 전체 issuer lifecycle connector는 후속입니다.
-- [공식 fixture 스냅샷과 버전](../backend/tests/fixtures/reconciliation/README.md), 실제 실행 결과는 검증 문서를 따릅니다.
+- [공식 fixture 스냅샷과 버전](../../backend/tests/fixtures/reconciliation/README.md), 실제 실행 결과는 검증 문서를 따릅니다.

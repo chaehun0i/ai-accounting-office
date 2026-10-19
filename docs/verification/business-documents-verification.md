@@ -1,6 +1,6 @@
 # 업무문서 검증 기록
 
-검증일: 2026-10-12 KST. 시작 main: `c4f983fa9ba04a49037f676512c2f6f74e111324`(PR #12). 브랜치: `feat/business-documents`. 구현 계약은 [업무문서 설계](business-documents.md)를 참고합니다.
+검증일: 2026-10-12 KST. 시작 main: `c4f983fa9ba04a49037f676512c2f6f74e111324`(PR #12). 브랜치: `feat/business-documents`. 구현 계약은 [업무문서 설계](../accounting/business-documents.md)를 참고합니다.
 
 ## 실행 결과
 

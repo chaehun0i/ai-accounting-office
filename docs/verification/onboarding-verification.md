@@ -86,7 +86,7 @@ Golden integration 1건이 전체 240개 실행에 포함되어 통과했습니�
 frontend unit/lint/type/build gate가 실행되도록 연결했습니다. 이 작업에서는 push하지 않았으므로 원격 Actions 실행 결과를 주장하지 않습니다.
 브라우저 smoke는 전용 테스트 환경에서 별도로 실행합니다.
 
-현존 제한은 [구조 문서](onboarding-data-exchange.md#알려진-제한과-후속-계약)에 기록했습니다.
+현존 제한은 [구조 문서](../onboarding/onboarding-data-exchange.md#알려진-제한과-후속-계약)에 기록했습니다.
 전체 commit의 실제 SHA와 최종 branch HEAD는 작업 종료 보고의 commit 목록을 기준으로 합니다.
 
 ## 문서 정리 직전 커밋

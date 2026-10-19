@@ -87,7 +87,7 @@ Compose `exec`의 초기 Alembic 호출은 호스트용 주소로 접속해 실�
 
 ## 연간 공식 정본
 
-공식 native Sheet `AI_Accounting_Office_SAMPLE_COMPANY_2025`에서 SYN_MFG_001의 매출 청구서 240건·매입 74건·거래처 20개와 정산 행을 읽었습니다. 상세 행 486/148의 합계를 공급가액과 Decimal로 비교했습니다. 입력 snapshot의 hash와 원본 XLSX hash는 [fixture 기록](../backend/tests/fixtures/finance/native-2025-v1/README.md)에 있습니다.
+공식 native Sheet `AI_Accounting_Office_SAMPLE_COMPANY_2025`에서 SYN_MFG_001의 매출 청구서 240건·매입 74건·거래처 20개와 정산 행을 읽었습니다. 상세 행 486/148의 합계를 공급가액과 Decimal로 비교했습니다. 입력 snapshot의 hash와 원본 XLSX hash는 [fixture 기록](../../backend/tests/fixtures/finance/native-2025-v1/README.md)에 있습니다.
 
 발생일보다 앞선 COLL_MULTI_001/PAY_MULTI_001 전체 batch를 명시적으로 거부합니다. 유효한 정산만 반영한 2025-12-31 AR은 **445,109,940**, AP는 **94,178,810**이며 각각 GL과 일치합니다. 원본 유효 행은 AR PARTIAL 171/OPEN 69, AP PARTIAL 55/OPEN 19입니다. 완납은 원본 금액을 이용한 별도 파생 시나리오에서 검증하며 원본의 부분 정산 값을 바꾸지 않습니다.
 
@@ -107,4 +107,4 @@ Compose `exec`의 초기 Alembic 호출은 호스트용 주소로 접속해 실�
 
 실제 은행 이체·은행/카드 전체 workflow·Expense·Treasury·자산·재고·원가·결산·재무제표·세무·Jobs/Agent/LLM은 구현하지 않았습니다. 다음 작업은 최신 main/Drive를 다시 대조하여 Finance 확장 또는 Asset·Inventory 중 실제 gap을 선택합니다.
 
-실제 참고 원본 파일·함수와 PATTERN/DROP 판단은 [구조 및 참고 코드 기록](finance-subledger.md)에 있습니다. COPY는 없습니다.
+실제 참고 원본 파일·함수와 PATTERN/DROP 판단은 [구조 및 참고 코드 기록](../accounting/finance-subledger.md)에 있습니다. COPY는 없습니다.
