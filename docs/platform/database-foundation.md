@@ -1,4 +1,4 @@
-> 이전 구현 범위의 기록입니다. 현재 상태는 [Identity/Company](identity-company.md)와 [현재 검증](identity-verification.md)을 참고하세요.
+> 이전 구현 범위의 기록입니다. 현재 상태는 [Identity/Company](identity-company.md)와 [현재 검증](../verification/identity-verification.md)을 참고하세요.
 
 # DB Foundation 구조와 마이그레이션 정책
 

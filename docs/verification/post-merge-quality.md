@@ -6,7 +6,7 @@
 
 초기 오류 수정 검증: Backend 집중 unit/contract **4 passed**, Agent PostgreSQL 통합 **2 passed**, Ruff·format·mypy 통과. Frontend **36 passed**, lint·typecheck 통과. Next.js production build는 Windows 제한된 실행에서 `.next` 디렉터리 생성 `EPERM`이 발생했으나 동일 작업공간의 빌드 산출물을 정리하고 실행 권한을 확장해 19개 정적 페이지 생성까지 통과했다. Migration·업무 DB schema는 변경하지 않았다.
 
-현재 문서의 구현 설명과 메뉴 목록은 README·아키텍처·내비게이션·Agent·월마감·재무제표·feature 안내에 동기화했다. 과거 `*-verification.md`의 SHA·수치는 해당 시점의 실행 기록으로 보존한다. [문서 읽기 안내](README.md)가 현재 계약과 과거 기록을 구분한다.
+현재 문서의 구현 설명과 메뉴 목록은 README·아키텍처·내비게이션·Agent·월마감·재무제표·feature 안내에 동기화했다. 과거 `*-verification.md`의 SHA·수치는 해당 시점의 실행 기록으로 보존한다. [문서 읽기 안내](../README.md)가 현재 계약과 과거 기록을 구분한다.
 
 후속 유지보수에서는 거래 전표 제안과 기간 질의의 LangGraph 정의를 분리하고, AI 회계팀 화면에서 API/폴링 상태를 전용 hook으로 분리했다. 기능이나 DB 계약은 바꾸지 않았다. Backend 집중 unit/contract **15 passed**, PostgreSQL 통합 **12 passed**, Ruff·format·mypy 통과. Frontend **36 passed**, lint·typecheck·production build 통과. 이 변경은 파일의 책임을 좁히는 구조 정리이며 실행 성능 향상을 주장하지 않는다.
 

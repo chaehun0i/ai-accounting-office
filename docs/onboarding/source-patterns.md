@@ -34,7 +34,7 @@ CommitLens [docs/current-status.md](https://github.com/chaehun0i/gitproject/blob
 6. ESG localStorage/Redux/Context의 인증·선택 객체 및 ESG report coupling은 회사별 권한 정본과 충돌합니다. 메모리 access token, HttpOnly refresh cookie, 독립 company context와 매 요청 membership 검증으로 변경했습니다.
 7. ESG 회사 입력의 세무·ESG 속성과 conflict marker가 있는 repository는 회사 정본에 부적합합니다. 허용된 회사 필드만 신규 DTO에 반영하고 Tax Profile/ESG context/JSON은 제외했습니다.
 
-전송 방식, 신규 Tenant 생성 정책, 조건부 권한의 보수적 seed와 초대 OWNER 승격 제한은 [구현 계약](identity-company.md)에 기록했습니다. 이전 구현의 편의를 이유로 Drive 설계를 변경하지 않았습니다.
+전송 방식, 신규 Tenant 생성 정책, 조건부 권한의 보수적 seed와 초대 OWNER 승격 제한은 [구현 계약](../platform/identity-company.md)에 기록했습니다. 이전 구현의 편의를 이유로 Drive 설계를 변경하지 않았습니다.
 
 
 ## Accounting Master 범위의 신규 구현 판단

@@ -65,7 +65,7 @@ GOLDEN_CORP_001의 TB 62,650,000/62,650,000, AR 5,500,000, AP 1,650,000, Cash 50
 
 서비스업 은행 3건, 소매업 은행 2건/카드매출·환불 2건은 원천 적재와 대상 거래 후보·사람 확정·미대사 잔액 0을 검증합니다. GL이 없는 원천은 차이를 보존합니다. 제조업 2025 은행 346건/법인카드 88건은 원천 수·정확한 Decimal 합계·source identity·provenance·retry 중복 0을 검증합니다. 기존 연간 회계 회귀는 별도로 실행하며 모든 연간 source를 자동 확정했다고 주장하지 않습니다.
 
-공식 원천은 native Google Sheet 3개입니다. 추가 legacy `_v1.xlsm`은 MIME까지 확인했으며 공식 fixture로 사용/수정/삭제하지 않았습니다. [원본 metadata·스냅샷 SHA·fixture version](../backend/tests/fixtures/reconciliation/README.md)을 보존했습니다.
+공식 원천은 native Google Sheet 3개입니다. 추가 legacy `_v1.xlsm`은 MIME까지 확인했으며 공식 fixture로 사용/수정/삭제하지 않았습니다. [원본 metadata·스냅샷 SHA·fixture version](../../backend/tests/fixtures/reconciliation/README.md)을 보존했습니다.
 
 ## 발견·수정한 검사 실패
 
@@ -73,4 +73,4 @@ GOLDEN_CORP_001의 TB 62,650,000/62,650,000, AR 5,500,000, AP 1,650,000, Cash 50
 
 첫 전체 실행은 451 passed/1 skipped/1 failed(2953.14초)였고 실패는 unit의 오래된 head 013 기대값이었습니다. 014 단일 head/연결을 검증하도록 수정했습니다. 다음 전체 실행은 같은 Confirmed Import를 다른 카드로 재승격할 수 있는 경계를 발견해 중단했고 성공으로 집계하지 않았습니다. 회사 잠금 안에서 최초 계좌 연결을 검증하고 회귀를 추가한 뒤 전체를 다시 실행했습니다. 추가 보안 테스트의 기본 CSRF header 제거 오류와 명세 마감 테스트의 전표 source_type 누락도 각각 명시적인 빈 헤더와 기존 TRANSACTION 출처 계약으로 수정했습니다. 모두 production 권한이나 Accounting 규칙을 완화하지 않고 재검증했습니다. 최종 브라우저 재실행에서는 테스트 서버 시작 전 요청의 연결 종료가 있었으며 startup 완료 확인 후 전체 흐름을 다시 실행해 통과했습니다.
 
-알려진 기능·성능 제한과 재사용 판정, 제외 범위는 [구현 계약](bank-card-reconciliation.md)을 따릅니다. 다음 후보는 Closing V1이며 이 PR에는 포함하지 않습니다.
+알려진 기능·성능 제한과 재사용 판정, 제외 범위는 [구현 계약](../accounting/bank-card-reconciliation.md)을 따릅니다. 다음 후보는 Closing V1이며 이 PR에는 포함하지 않습니다.

@@ -1,32 +1,32 @@
 # AI Accounting Office
 
-회사 추가 계정의 수정·비활성화와 보호 규칙은 [회사 계정과목 변경 구현 범위](docs/company-coa-controls.md)에 정리했습니다.
+회사 추가 계정의 수정·비활성화와 보호 규칙은 [회사 계정과목 변경 구현 범위](docs/accounting/company-coa-controls.md)에 정리했습니다.
 
-회사별 Control Account 역할의 변경 신청·영향검사·독립 승인·실행·감사 이력은 [Control Account 역할 변경 업무](docs/control-account-role-workflow.md)에 정리했습니다.
+회사별 Control Account 역할의 변경 신청·영향검사·독립 승인·실행·감사 이력은 [Control Account 역할 변경 업무](docs/accounting/control-account-role-workflow.md)에 정리했습니다.
 
-보고기간 preset 조회는 회사 timezone·회계연도·주 시작 정책으로 날짜를 해석합니다. [기간 조회 계약](docs/report-periods.md)을 참고하세요.
-재무비율 1차 조회 API는 닫힌 기간의 BS/IS 스냅샷에서 여섯 가지 비율을 계산합니다. 지원 공식과 후속 범위는 [재무비율 구현 범위](docs/financial-metrics.md)에 정리했습니다.
+보고기간 preset 조회는 회사 timezone·회계연도·주 시작 정책으로 날짜를 해석합니다. [기간 조회 계약](docs/accounting/report-periods.md)을 참고하세요.
+재무비율 1차 조회 API는 닫힌 기간의 BS/IS 스냅샷에서 여섯 가지 비율을 계산합니다. 지원 공식과 후속 범위는 [재무비율 구현 범위](docs/accounting/financial-metrics.md)에 정리했습니다.
 
 [현재·과거 문서 읽기 안내](docs/README.md)를 먼저 확인하면 기능 계약과 당시 검증 기록을 구분할 수 있습니다.
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation + Closing V1 + BS/IS Snapshot + Bookkeeper Agent 기간 질의와 AI 회계팀 화면**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding-data-exchange.md), [검증 기록](docs/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting-master.md), [인증·회사 구조](docs/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation + Closing V1 + BS/IS Snapshot + Bookkeeper Agent 기간 질의와 AI 회계팀 화면**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding/onboarding-data-exchange.md), [검증 기록](docs/verification/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/onboarding/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting/accounting-master.md), [인증·회사 구조](docs/platform/identity-company.md)를 참고하세요.
 
-**채권·채무** 메뉴에서 확정 전표 연결 → 수금·지급 등록 → 배분 → 확정 → 기준일 잔액·기한 분석·원장 대사를 사용할 수 있습니다. 수금·지급은 먼저 사람 승인과 장부 반영을 마친 회계 전표를 참조합니다. 실제 은행 이체 기능은 아닙니다. [재무 보조부 사용법과 경계](docs/finance-subledger.md), [검증 결과](docs/finance-verification.md)를 참고하세요.
+**채권·채무** 메뉴에서 확정 전표 연결 → 수금·지급 등록 → 배분 → 확정 → 기준일 잔액·기한 분석·원장 대사를 사용할 수 있습니다. 수금·지급은 먼저 사람 승인과 장부 반영을 마친 회계 전표를 참조합니다. 실제 은행 이체 기능은 아닙니다. [재무 보조부 사용법과 경계](docs/accounting/finance-subledger.md), [검증 결과](docs/verification/finance-verification.md)를 참고하세요.
 
 
-**매출 · 매입 문서** 메뉴에서 청구서 작성 → 승인 요청 → 별도 담당자 확정 → 거래·채권채무 연결을 사용할 수 있습니다. 확정 문서는 직접 수정하지 않고 감액/증액 정정문서를 남깁니다. 문서 확정은 장부 Posting과 다르며 전표 승인 절차가 별도로 필요합니다. [업무문서 계약과 제한](docs/business-documents.md), [검증 기록](docs/business-documents-verification.md)을 참고하세요.
+**매출 · 매입 문서** 메뉴에서 청구서 작성 → 승인 요청 → 별도 담당자 확정 → 거래·채권채무 연결을 사용할 수 있습니다. 확정 문서는 직접 수정하지 않고 감액/증액 정정문서를 남깁니다. 문서 확정은 장부 Posting과 다르며 전표 승인 절차가 별도로 필요합니다. [업무문서 계약과 제한](docs/accounting/business-documents.md), [검증 기록](docs/verification/business-documents-verification.md)을 참고하세요.
 
-**은행 대사 · 카드 대사**에서 기존 CSV/XLSX 확인 자료를 금융 원천으로 연결하고 후보 검토 → 다중·부분 배분 → 사람 확정 → 사유 있는 해제 → 원천/장부 잔액 비교를 사용할 수 있습니다. 원번호 대신 별칭을 사용하며 카드매출 수납과 법인카드 비용을 구분합니다. 대사 차이를 자동 분개로 상쇄하지 않습니다. [은행·카드 계약과 제한](docs/bank-card-reconciliation.md)을 참고하세요.
+**은행 대사 · 카드 대사**에서 기존 CSV/XLSX 확인 자료를 금융 원천으로 연결하고 후보 검토 → 다중·부분 배분 → 사람 확정 → 사유 있는 해제 → 원천/장부 잔액 비교를 사용할 수 있습니다. 원번호 대신 별칭을 사용하며 카드매출 수납과 법인카드 비용을 구분합니다. 대사 차이를 자동 분개로 상쇄하지 않습니다. [은행·카드 계약과 제한](docs/accounting/bank-card-reconciliation.md)을 참고하세요.
 
-**월마감**에서 기간을 `OPEN → CLOSING → CLOSED`로 전환하고 미처리 거래·미승인 전표·은행/카드 미대사·채권채무 원장 차이·시산표·필수 조정을 결정론적으로 검사합니다. 결산조정은 기존 전표 초안 → 별도 담당자 승인 → 기표를 거치며, 최종 마감과 재개에도 별도 사람 승인이 필요합니다. [월마감 계약과 제한](docs/period-closing.md), [검증 범위와 남은 항목](docs/period-closing-verification.md)을 참고하세요. **재무제표** 메뉴에서는 CLOSED 기간의 조정 시산표로 BS/IS를 생성하고 계정·전표까지 조회할 수 있습니다. [BS/IS 계약과 제한](docs/financial-statements.md)을 참고하세요.
+**월마감**에서 기간을 `OPEN → CLOSING → CLOSED`로 전환하고 미처리 거래·미승인 전표·은행/카드 미대사·채권채무 원장 차이·시산표·필수 조정을 결정론적으로 검사합니다. 결산조정은 기존 전표 초안 → 별도 담당자 승인 → 기표를 거치며, 최종 마감과 재개에도 별도 사람 승인이 필요합니다. [월마감 계약과 제한](docs/accounting/period-closing.md), [검증 범위와 남은 항목](docs/verification/period-closing-verification.md)을 참고하세요. **재무제표** 메뉴에서는 CLOSED 기간의 조정 시산표로 BS/IS를 생성하고 계정·전표까지 조회할 수 있습니다. [BS/IS 계약과 제한](docs/accounting/financial-statements.md)을 참고하세요.
 
-온보딩 기초잔액은 OPENING 전표로만 장부에 반영합니다. 다른 입력 항목만 수정한 재시도는 기존 전표를 재사용하고, 이미 고정한 기초잔액을 바꾸면 409로 거부합니다. [기초잔액 재시도 계약](docs/transaction-journal-ledger.md)을 참고하세요.
+온보딩 기초잔액은 OPENING 전표로만 장부에 반영합니다. 다른 입력 항목만 수정한 재시도는 기존 전표를 재사용하고, 이미 고정한 기초잔액을 바꾸면 409로 거부합니다. [기초잔액 재시도 계약](docs/accounting/transaction-journal-ledger.md)을 참고하세요.
 
 ## 바로 실행하고 테스트하기
 
-회사별 계정과목 추가와 준비된 2025년 체험 로그인은 [계정과목·연간 체험 안내](docs/company-accounts-demo.md)를 참고하세요. 기본 계정과목은 통합 목록 175개이며 회사 전용 계정은 다른 회사에 표시되지 않습니다.
+회사별 계정과목 추가와 준비된 2025년 체험 로그인은 [계정과목·연간 체험 안내](docs/guides/company-accounts-demo.md)를 참고하세요. 기본 계정과목은 통합 목록 175개이며 회사 전용 계정은 다른 회사에 표시되지 않습니다.
 
 Docker Desktop을 실행한 뒤 저장소 루트에서 다음 명령을 실행하세요.
 
@@ -51,7 +51,7 @@ python scripts/bootstrap_local.py
 
 ## 설계 기준과 원칙
 
-업무 화면은 홈·회사 관리·회계 준비·파일 가져오기·거래·전표·총계정원장·시산표·회계 설정으로 나뉩니다. 로그인 후 왼쪽 업무 메뉴를 이용하세요. [페이지 구성과 참고 코드·검증](docs/page-navigation.md)에 경로와 권한 안내가 있습니다.
+업무 화면은 홈·회사 관리·회계 준비·파일 가져오기·거래·전표·총계정원장·시산표·회계 설정으로 나뉩니다. 로그인 후 왼쪽 업무 메뉴를 이용하세요. [페이지 구성과 참고 코드·검증](docs/guides/page-navigation.md)에 경로와 권한 안내가 있습니다.
 
 단일 기준선: [AI_Accounting_Office_v0.2.6_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf).
 이전 설계 버전으로 fallback하지 않습니다. [설계 추적과 모듈 경계](docs/architecture.md)를 함께 참고하세요.
@@ -190,7 +190,7 @@ npm test
 npm run build
 ```
 
-GitHub Actions가 backend/frontend를 독립 검증하고, 별도 PostgreSQL 17 service job에서 migration 및 schema/transaction/type integration을 필수 실행합니다. DB 없이 실행하는 pytest에서는 integration만 명시적으로 skip됩니다. Compose 설정도 별도 검사합니다. 현재 검증 기록은 [Identity/Company 검증](docs/identity-verification.md), 이전 기록은 [DB Foundation 검증](docs/database-verification.md), 기존 실행 기반 기록은 [Skeleton 검증](docs/verification.md)을 참고하세요.
+GitHub Actions가 backend/frontend를 독립 검증하고, 별도 PostgreSQL 17 service job에서 migration 및 schema/transaction/type integration을 필수 실행합니다. DB 없이 실행하는 pytest에서는 integration만 명시적으로 skip됩니다. Compose 설정도 별도 검사합니다. 현재 검증 기록은 [Identity/Company 검증](docs/verification/identity-verification.md), 이전 기록은 [DB Foundation 검증](docs/verification/database-verification.md), 기존 실행 기반 기록은 [Skeleton 검증](docs/verification/verification.md)을 참고하세요.
 
 ## Migration과 PostgreSQL 통합 검사
 
@@ -204,7 +204,7 @@ python -m alembic current --check-heads
 python -m alembic check
 ```
 
-현재 head는 `017_accounting_agent_queries`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting-dimensions.md)을 참고하세요. `015_period_closing → 016_financial_statements → 017_accounting_agent_queries`가 기존 migration chain 뒤에 이어집니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 이력을 보존하고 v0.2.6 정책에 따라 순방향 revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
+현재 head는 `017_accounting_agent_queries`입니다. 회사별 관리차원과 분개 분석축, 원장 관리항목 필터를 지원합니다. [관리차원 계약과 검증](docs/accounting/accounting-dimensions.md)을 참고하세요. `015_period_closing → 016_financial_statements → 017_accounting_agent_queries`가 기존 migration chain 뒤에 이어집니다. upgrade 후 위 권한 seed 명령을 실행하세요. `alembic_version`은 내부 migration 상태입니다. 배포된 이력을 보존하고 v0.2.6 정책에 따라 순방향 revision을 추가했습니다. 공식 checkpoint table은 별도 schema에서 최초 실행 때 설치합니다.
 
 통합 검사는 개발 DB와 분리된, 이름이 `_test`로 끝나는 PostgreSQL DB가 필요합니다. 예제 로컬 계정을 그대로 사용하는 경우 루트에서 한 번 생성합니다.
 
@@ -227,7 +227,7 @@ export TEST_POSTGRES_URL='postgresql://accounting_local:local_placeholder_change
 python -m pytest --require-postgres
 ```
 
-`--require-postgres`는 설정 누락을 실패로 처리합니다. 테스트는 전용 DB의 migration 상태를 초기화하고 복구하므로 공유·개발·운영 DB를 지정하지 마세요. 예상하지 않은 테이블이나 알려진 업무 테이블의 데이터가 있으면 삭제하지 않고 중단합니다. seed는 테스트 fixture 내부 transaction에서 실행하므로 통합 검사 전 테스트 DB에 영구 seed를 실행하지 마세요. [DB 구조와 정책](docs/database-foundation.md)에 lifecycle, 타입, 오류 및 schema guard를 설명합니다.
+`--require-postgres`는 설정 누락을 실패로 처리합니다. 테스트는 전용 DB의 migration 상태를 초기화하고 복구하므로 공유·개발·운영 DB를 지정하지 마세요. 예상하지 않은 테이블이나 알려진 업무 테이블의 데이터가 있으면 삭제하지 않고 중단합니다. seed는 테스트 fixture 내부 transaction에서 실행하므로 통합 검사 전 테스트 DB에 영구 seed를 실행하지 마세요. [DB 구조와 정책](docs/platform/database-foundation.md)에 lifecycle, 타입, 오류 및 schema guard를 설명합니다.
 
 ## 제외 범위와 다음 구현
 
@@ -244,9 +244,9 @@ Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance�
 화면의 **AI 회계팀**에서 회사를 선택한 뒤 회계기간과 질문을 입력하면 이 기간 질의 API의 답변, 장부 기준 금액, 검증 상태와 스냅샷 근거를 확인할 수 있습니다. 월마감 화면의 **AI에게 묻기** 링크는 현재 기간과 수정 가능한 질문 초안을 이 화면으로 전달합니다. 이동만으로 질의를 실행하지 않으며, 회사 전환 시 이전 질의 결과는 화면에서 제거됩니다.
 마감 차단 질의는 검사 건수와 각 검사 코드·영향 금액을 기존 Closing 결과에서 표시합니다. 입력·응답은 대화 이력 DB에 저장하지 않으며, 질문 실패와 검증 차단을 성공 답변과 구분합니다.
 
-Gemini/LangGraph/LangChain/MCP 역할, 실제 Tool 목록, 로컬 MCP 실행과 제한은 [Agent Runtime](docs/agent-runtime.md), 실제 검증 결과는 [검증 기록](docs/agent-runtime-verification.md)에 있습니다.
+Gemini/LangGraph/LangChain/MCP 역할, 실제 Tool 목록, 로컬 MCP 실행과 제한은 [Agent Runtime](docs/platform/agent-runtime.md), 실제 검증 결과는 [검증 기록](docs/verification/agent-runtime-verification.md)에 있습니다.
 
-회사 선택 후 회계 관리 권한이 있으면 별도 초기 설정으로 기본 COA·12개월 기간·번호 기준을 만듭니다. 초기화는 같은 조건으로 재실행할 수 있습니다. 거래처와 지급조건 API, 번호·정책 규칙과 제외 범위는 [회계 마스터 문서](docs/accounting-master.md)를 참고하세요.
+회사 선택 후 회계 관리 권한이 있으면 별도 초기 설정으로 기본 COA·12개월 기간·번호 기준을 만듭니다. 초기화는 같은 조건으로 재실행할 수 있습니다. 거래처와 지급조건 API, 번호·정책 규칙과 제외 범위는 [회계 마스터 문서](docs/accounting/accounting-master.md)를 참고하세요.
 
 ## 주석과 사용자 안내 문구
 
@@ -264,18 +264,18 @@ UTF-8 CSV/UTF-8 BOM CSV와 XLSX, 최대 2MB·총 1,000행·40열·5시트를 지
 예를 들어 SALES CSV의 필수 header는 `source_id,transaction_date,amount,currency`이며 날짜는 `2026-01-02`, 금액은 `100.0001`, 통화는 `KRW` 형태입니다.
 원본 파일은 backend 실행 기준 `STORAGE_ROOT=../.local/storage` 아래 서버 생성 키로 보관합니다. 이 경로는 Git에서 제외되며 파일 bytes를 PostgreSQL에 저장하지 않습니다.
 
-API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 수 있습니다. 모든 Import 요청은 Bearer와 `X-Company-ID`, 변경 요청은 `X-CSRF-Protection: 1`, Confirm과 `POST /imports/{id}/promote`는 `Idempotency-Key`가 필요합니다. 승격에는 접수 영수증의 `confirmed_version`, `id`, `source_digest`를 전달합니다. 업로더에게 `import.confirm`과 `transaction.create` 권한이 모두 있어야 합니다. [승격 계약·검증·제한](docs/import-transaction-promotion.md)을 참고하세요.
-[구조·API·파일 제한·후속 계약](docs/storage-evidence-intake.md), [실제 참고 파일과 충돌 처리](docs/intake-source-patterns.md), [검증 결과](docs/intake-verification.md)를 참고하세요.
+API 사용 시 `/docs`에서 multipart 업로드와 typed 명령을 확인할 수 있습니다. 모든 Import 요청은 Bearer와 `X-Company-ID`, 변경 요청은 `X-CSRF-Protection: 1`, Confirm과 `POST /imports/{id}/promote`는 `Idempotency-Key`가 필요합니다. 승격에는 접수 영수증의 `confirmed_version`, `id`, `source_digest`를 전달합니다. 업로더에게 `import.confirm`과 `transaction.create` 권한이 모두 있어야 합니다. [승격 계약·검증·제한](docs/onboarding/import-transaction-promotion.md)을 참고하세요.
+[구조·API·파일 제한·후속 계약](docs/onboarding/storage-evidence-intake.md), [실제 참고 파일과 충돌 처리](docs/onboarding/intake-source-patterns.md), [검증 결과](docs/verification/intake-verification.md)를 참고하세요.
 
 ## 거래·전표·원장·시산표
 
 회사별 거래 입력부터 전표 작성, 제출, 별도 사용자 승인, 장부 반영, 원장·시산표 조회까지 연결했습니다. 기초잔액도 같은 승인·확정 흐름을 사용합니다.
 
-- [회계 흐름과 API 계약](docs/transaction-journal-ledger.md)
-- [최종 검증 기록](docs/accounting-core-verification.md)
+- [회계 흐름과 API 계약](docs/accounting/transaction-journal-ledger.md)
+- [최종 검증 기록](docs/verification/accounting-core-verification.md)
 - 브라우저 검증: `node scripts/accounting-browser-smoke.cjs --allow-synthetic` (전용 테스트 서버 필요)
 - DB 실측: `python scripts/verify_accounting_schema.py` (`TEST_POSTGRES_URL`, `_test` DB 필요)
 
 ## 처음 회사 설정과 설정 관리
 
-새 회사는 업무 홈에서 회사정보 → 회계 기준 → 거래처 → 기초잔액 → 최종 확인 순서로 준비합니다. 완료한 회사는 업무 홈에서 바로 일을 시작하고, 변경할 내용은 설정 관리에서 수정합니다. 서버 기본 계정과목은 175개이며 권한이 있는 사용자는 회사 전용 계정을 추가할 수 있습니다. [현재 계정과목·체험 안내](docs/company-accounts-demo.md)를 참고하세요.
+새 회사는 업무 홈에서 회사정보 → 회계 기준 → 거래처 → 기초잔액 → 최종 확인 순서로 준비합니다. 완료한 회사는 업무 홈에서 바로 일을 시작하고, 변경할 내용은 설정 관리에서 수정합니다. 서버 기본 계정과목은 175개이며 권한이 있는 사용자는 회사 전용 계정을 추가할 수 있습니다. [현재 계정과목·체험 안내](docs/guides/company-accounts-demo.md)를 참고하세요.

@@ -101,7 +101,7 @@ python -m app.accounting.templates.infrastructure.seed
 
 8개 실제 연결의 동시 번호 할당은 1~8, rollback 후 다음 성공은 9입니다. 회사·연도·키별 독립 증가도 검사합니다. Golden CSV는 GOLDEN_CORP_001의 CUSTOMER_A(CUSTOMER), SUPPLIER_B(SUPPLIER)만 제공합니다. T001/T004 거래와 기초잔액 전기는 생성하지 않습니다.
 
-최종 명령·결과는 [회계 마스터 검증 기록](verification-accounting-master.md)을 참고하세요.
+최종 명령·결과는 [회계 마스터 검증 기록](../verification/verification-accounting-master.md)을 참고하세요.
 
 ## 제외와 다음 범위
 

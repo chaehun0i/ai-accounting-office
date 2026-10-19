@@ -43,7 +43,7 @@ Backend 필수값 누락/잘못된 설정은 application factory에서 고정 �
 
 Alembic은 backend에서 실행하며 같은 환경변수 우선순위와 `.env`를 사용합니다. ini에는 접속 주소를 넣지 않습니다. 통합 검사는 `.env`의 개발 DB를 자동 재사용하지 않으며 OS의 TEST_POSTGRES_URL을 별도로 요구합니다. 테스트 주소에 실제 운영 credential을 쓰지 마세요.
 
-인증 키가 없는 local/test에서는 /health가 정상 동작하고 인증 요청은 안전한 503을 반환합니다. 기존 .env에는 `python scripts/dev.py auth-key`로 키를 추가하세요. 운영은 HTTPS, Secure cookie와 별도 비밀 관리가 필요합니다. 자세한 전송 정책은 [Identity/Company](identity-company.md)를 참고하세요.
+인증 키가 없는 local/test에서는 /health가 정상 동작하고 인증 요청은 안전한 503을 반환합니다. 기존 .env에는 `python scripts/dev.py auth-key`로 키를 추가하세요. 운영은 HTTPS, Secure cookie와 별도 비밀 관리가 필요합니다. 자세한 전송 정책은 [Identity/Company](platform/identity-company.md)를 참고하세요.
 
 
 ## 원본 파일 저장 위치
