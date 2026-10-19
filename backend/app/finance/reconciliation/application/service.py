@@ -12,7 +12,7 @@ from app.finance.reconciliation.domain.reports import (
     aging,
 )
 from app.finance.settlements.application.contracts import FinanceUnitOfWork
-from app.finance.settlements.application.policy import CONTROL_NAMES, permission
+from app.finance.settlements.application.policy import control_account_ids, permission
 from app.finance.settlements.domain.rules import ZERO
 from app.identity.users.domain.entities import Principal
 
@@ -38,8 +38,9 @@ class FinanceReports:
         values = uow.obligations(kind).list(company, as_of)
         facts = uow.ledger.facts(company, as_of)
         rows = []
+        selected_ids = control_account_ids(uow, company, kind)
         for account in uow.accounts.list(company):
-            if account.account_name not in CONTROL_NAMES[kind]:
+            if account.id not in selected_ids:
                 continue
             selected = [fact for fact in facts if fact.account_id == account.id]
             obligations = [value for value in values if value.account_id == account.id]

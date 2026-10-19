@@ -6,7 +6,6 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from app.accounting.application.service import AccountingMasterService
 from app.companies.application.service import require_company
 from app.contracts.access_errors import InvalidInput, ResourceNotFound, StateConflict
 from app.core.digests import digest
@@ -57,18 +56,18 @@ class BankingService:
             raise InvalidInput()
         with self.factory() as uow:
             require_company(uow, actor, company, "reconciliation.manage")
+            require_company(uow, actor, company, "control_account.manage")
             uow.banking.lock(company)
-            AccountingMasterService.map_control_in(
-                uow,
-                actor,
-                company,
-                control,
-                "BANK_CASH"
-                if kind == "BANK"
-                else "CARD_CLEARING"
-                if usage_type == "MERCHANT"
-                else "CARD_PAYABLE",
-            )
+            account = uow.accounts.get(company_id=company, resource_id=control)
+            if account is None:
+                raise ResourceNotFound()
+            expected_type = "ASSET" if kind == "BANK" or usage_type == "MERCHANT" else "LIABILITY"
+            if (
+                account.account_type != expected_type
+                or account.status != "ACTIVE"
+                or not account.posting_allowed
+            ):
+                raise InvalidInput()
             if any(a.alias == alias for a in uow.banking.accounts(company, kind)):
                 raise StateConflict()
             # 하나의 GL 통제계정을 여러 계좌로 나누면 계좌별 비교가 모호해집니다.

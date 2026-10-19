@@ -13,7 +13,8 @@ from app.contracts.access_errors import ResourceNotFound
 from app.finance.receivables.application.service import ObligationService
 from app.finance.settlements.application.contracts import FinanceUnitOfWork
 from app.finance.settlements.application.policy import (
-    CONTROL_NAMES,
+    cash_account_ids,
+    control_account_ids,
     fingerprint,
     permission,
     require_currency,
@@ -183,6 +184,8 @@ class FinanceService(ObligationService):
         journal = posted_journal(uow, company, value.journal_entry_id)
         actual: dict[tuple[UUID, UUID], Decimal] = {}
         cash = Decimal(0)
+        control_ids = control_account_ids(uow, company, kind)
+        bank_ids = cash_account_ids(uow, company)
         for line in journal.lines:
             account = uow.accounts.get(company_id=company, resource_id=line.account_id)
             assert account is not None
@@ -191,14 +194,14 @@ class FinanceService(ObligationService):
                 if kind == "AR"
                 else line.debit_amount - line.credit_amount
             )
-            if account.account_name in CONTROL_NAMES[kind]:
+            if account.id in control_ids:
                 if line.counterparty_id is None or control <= 0:
                     raise AccountingError(
                         "BUSINESS_RULE_VIOLATION", "배분 대상 전표의 거래처와 방향을 확인해 주세요."
                     )
                 group = (line.account_id, line.counterparty_id)
                 actual[group] = actual.get(group, Decimal(0)) + control
-            if account.account_name in {"현금", "보통예금", "당좌예금", "현금및현금성자산"}:
+            if account.id in bank_ids:
                 cash += (
                     line.debit_amount - line.credit_amount
                     if kind == "AR"

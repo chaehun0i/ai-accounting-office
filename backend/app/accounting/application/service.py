@@ -6,6 +6,7 @@ from uuid import UUID
 from app.accounting.accounts.domain.entities import Account
 from app.accounting.application.catalog import prepare_accounts
 from app.accounting.application.contracts import MasterUnitOfWork
+from app.accounting.control_accounts.domain.errors import ControlAccountProtected
 from app.accounting.domain.rules import (
     ResetPolicy,
     journal_number,
@@ -36,31 +37,16 @@ from app.master_data.domain.rules import validate_currency
 
 
 class AccountingMasterService:
-    @staticmethod
-    def map_control_in(
-        uow: MasterUnitOfWork, actor: Principal, company: UUID, account_id: UUID, role: str
-    ) -> Account:
-        require_company(uow, actor, company, "control_account.manage")
-        value = uow.accounts.get(company_id=company, resource_id=account_id)
-        if value is None:
-            raise ResourceNotFound()
-        expected_type = {
-            "BANK_CASH": "ASSET",
-            "CARD_PAYABLE": "LIABILITY",
-            "CARD_CLEARING": "ASSET",
-        }.get(role)
-        if (
-            value.account_type != expected_type
-            or value.status != "ACTIVE"
-            or not value.posting_allowed
-        ):
-            raise InvalidInput()
-        result = uow.accounts.map_control(company, account_id, role)
-        assert result is not None
-        return result
-
     def __init__(self, factory: Callable[[], MasterUnitOfWork]) -> None:
         self.factory = factory
+
+    @staticmethod
+    def _protect_mapped_account(uow: MasterUnitOfWork, company_id: UUID, account_id: UUID) -> None:
+        if any(
+            mapping.account_id == account_id
+            for mapping in uow.control_accounts.mappings(company_id)
+        ):
+            raise ControlAccountProtected()
 
     def settings(self, principal: Principal, company_id: UUID) -> AccountingSettings:
         with self.factory() as uow:
@@ -278,6 +264,7 @@ class AccountingMasterService:
                 raise ResourceNotFound()
             if current.version != expected_version:
                 raise VersionConflict()
+            self._protect_mapped_account(uow, company_id, account_id)
             if current.template_account_id is not None or current.control_account_type is not None:
                 raise StateConflict()
             if current.status != "ACTIVE":
@@ -320,6 +307,7 @@ class AccountingMasterService:
                 raise ResourceNotFound()
             if current.version != expected_version:
                 raise VersionConflict()
+            self._protect_mapped_account(uow, company_id, account_id)
             if current.template_account_id is not None or current.control_account_type is not None:
                 raise StateConflict()
             if current.status != "ACTIVE" or uow.accounts.referenced(company_id, account_id):

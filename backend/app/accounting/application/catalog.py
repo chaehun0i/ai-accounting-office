@@ -6,6 +6,18 @@ from app.accounting.accounts.domain.entities import Account
 from app.accounting.application.contracts import MasterUnitOfWork
 from app.accounting.templates.domain.defaults import DEFAULT_ACCOUNTS
 
+# These are explicit identities in the versioned KR_STANDARD template. A company
+# account name never determines a control role. CARD_CLEARING has no unambiguous
+# default template account and must be selected through the approval workflow.
+DEFAULT_CONTROL_ROLES = {
+    "AR": "1101",
+    "AP": "2011",
+    "TAX_INPUT": "1200",
+    "TAX_OUTPUT": "2100",
+    "BANK_CASH": "1020",
+    "CARD_PAYABLE": "2020",
+}
+
 
 def prepare_accounts(uow: MasterUnitOfWork, company_id: UUID) -> int:
     """기존 계정과 전표 참조는 보존하고 누락된 기본 계정만 추가합니다."""
@@ -33,4 +45,14 @@ def prepare_accounts(uow: MasterUnitOfWork, company_id: UUID) -> int:
         )
         known[row.account_code] = account_id
         count += 1
+    accounts = {account.account_code: account for account in uow.accounts.list(company_id)}
+    template_ids = {account.account_code: account.id for account in DEFAULT_ACCOUNTS}
+    for role, code in DEFAULT_CONTROL_ROLES.items():
+        account = accounts.get(code)
+        if (
+            account is not None
+            and account.template_account_id == template_ids.get(code)
+            and uow.control_accounts.mapping(company_id, role) is None
+        ):
+            uow.control_accounts.set_mapping(company_id, role, account.id, 0)
     return count
