@@ -25,7 +25,7 @@ class DraftReader(Protocol):
 class OpeningStore(Protocol):
     def evidence_ids(self, company: UUID, session_id: UUID) -> tuple[UUID, ...]: ...
 
-    def existing(self, company: UUID, session_id: UUID, version: int) -> UUID | None: ...
+    def existing(self, company: UUID, session_id: UUID) -> tuple[UUID, int, str] | None: ...
     def add(
         self,
         journal: Journal,
@@ -68,9 +68,23 @@ class OpeningService:
                 raise ResourceNotFound()
             if draft.version != expected_version:
                 raise VersionConflict()
-            previous = uow.openings.existing(company, draft.id, draft.version)
+            opening_cells = sorted(
+                (c.field_code, c.row_key, str(c.value))
+                for c in draft.cells
+                if c.field_code.startswith("Opening_Balances.")
+            )
+            source_digest = digest({"cells": opening_cells})
+            previous = uow.openings.existing(company, draft.id)
             if previous:
-                journal = uow.journals.get(company, previous)
+                journal_id, source_version, recorded_digest = previous
+                legacy_digest = digest({"version": source_version, "cells": opening_cells})
+                if recorded_digest not in (source_digest, legacy_digest):
+                    raise AccountingError(
+                        "OPENING_SOURCE_CONFLICT",
+                        "기초잔액 원천이 기존 전표와 다릅니다. 기존 전표를 검토해 주세요.",
+                        409,
+                    )
+                journal = uow.journals.get(company, journal_id)
                 if journal is None:
                     raise ResourceNotFound()
                 return journal
@@ -146,16 +160,6 @@ class OpeningService:
             )
             validate_journal(uow, journal)
             uow.journals.add(journal)
-            source_digest = digest(
-                {
-                    "version": draft.version,
-                    "cells": sorted(
-                        (c.field_code, c.row_key, str(c.value))
-                        for c in draft.cells
-                        if c.field_code.startswith("Opening_Balances.")
-                    ),
-                }
-            )
             uow.openings.add(journal, draft.id, draft.version, source_digest, tuple(keys), now)
             uow.governance.record(
                 company, actor.user_id, "opening.create", key, fingerprint, journal.id, 1, now
