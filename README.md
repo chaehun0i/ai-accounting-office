@@ -2,6 +2,8 @@
 
 회사 추가 계정의 수정·비활성화와 보호 규칙은 [회사 계정과목 변경 구현 범위](docs/company-coa-controls.md)에 정리했습니다.
 
+회사별 Control Account 역할의 변경 신청·영향검사·독립 승인·실행·감사 이력은 [Control Account 역할 변경 업무](docs/control-account-role-workflow.md)에 정리했습니다.
+
 보고기간 preset 조회는 회사 timezone·회계연도·주 시작 정책으로 날짜를 해석합니다. [기간 조회 계약](docs/report-periods.md)을 참고하세요.
 재무비율 1차 조회 API는 닫힌 기간의 BS/IS 스냅샷에서 여섯 가지 비율을 계산합니다. 지원 공식과 후속 범위는 [재무비율 구현 범위](docs/financial-metrics.md)에 정리했습니다.
 
