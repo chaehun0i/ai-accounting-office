@@ -15,14 +15,18 @@ class OpeningRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def existing(self, company: UUID, session_id: UUID, version: int) -> UUID | None:
-        return self.session.scalar(
-            select(OpeningImportModel.journal_id).where(
+    def existing(self, company: UUID, session_id: UUID) -> tuple[UUID, int, str] | None:
+        row = self.session.execute(
+            select(
+                OpeningImportModel.journal_id,
+                OpeningImportModel.source_version,
+                OpeningImportModel.source_digest,
+            ).where(
                 OpeningImportModel.company_id == company,
                 OpeningImportModel.onboarding_session_id == session_id,
-                OpeningImportModel.source_version == version,
             )
-        )
+        ).one_or_none()
+        return (row.journal_id, row.source_version, row.source_digest) if row else None
 
     def add(
         self,

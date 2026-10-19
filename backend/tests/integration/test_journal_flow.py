@@ -159,6 +159,54 @@ def test_opening_draft_snapshot(api_client, auth_service):
         api_client.post("/opening-balances/imports", headers=headers, json=request).json()["id"]
         == journal["id"]
     )
+    workspace = save(
+        api_client, writer, workspace, [("Company.company_name", "singleton", "수정된 회사명")]
+    )
+    response = api_client.post(
+        "/opening-balances/imports",
+        headers={**writer, "Idempotency-Key": "opening-unchanged-source"},
+        json={"expected_version": workspace["version"]},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["id"] == journal["id"]
+
+    # 이전 버전에서 저장된 digest도 같은 기초잔액 원천이면 재사용할 수 있습니다.
+    from app.accounting.opening_balances.infrastructure.models import OpeningImportModel
+    from app.intake.domain.digest import digest
+
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        opening = session.query(OpeningImportModel).filter_by(journal_id=UUID(journal["id"])).one()
+        opening_cells = sorted(
+            (cell["field_code"], cell["row_key"], str(cell["value"]))
+            for cell in workspace["cells"]
+            if cell["field_code"].startswith("Opening_Balances.")
+        )
+        opening.source_digest = digest({"version": opening.source_version, "cells": opening_cells})
+        session.commit()
+    workspace = save(
+        api_client, writer, workspace, [("Company.company_name", "singleton", "다시 수정된 회사명")]
+    )
+    response = api_client.post(
+        "/opening-balances/imports",
+        headers={**writer, "Idempotency-Key": "opening-legacy-source"},
+        json={"expected_version": workspace["version"]},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["id"] == journal["id"]
+
+    changed = save(
+        api_client,
+        writer,
+        workspace,
+        [("Opening_Balances.debit_amount", updates[2][1], "101")],
+    )
+    response = api_client.post(
+        "/opening-balances/imports",
+        headers={**writer, "Idempotency-Key": "opening-changed-source"},
+        json={"expected_version": changed["version"]},
+    )
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "OPENING_SOURCE_CONFLICT"
     for action in ["submit", "request-review"]:
         response = command(api_client, writer, journal, action)
         assert response.status_code == 200, response.text
