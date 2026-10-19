@@ -118,6 +118,9 @@ def preview_ar_ap(
                     "거래처·원천 참조 행 키를 확인해 주세요.",
                 )
                 continue
+            if len(row) > 300 or not isinstance(reference, str) or len(reference) > 100:
+                issue("OPEN_ITEM_KEY_INVALID", section, row, "원천 참조 길이를 확인해 주세요.")
+                continue
             if account != mappings.get(role):
                 issue(
                     "CONTROL_ACCOUNT_MISMATCH",

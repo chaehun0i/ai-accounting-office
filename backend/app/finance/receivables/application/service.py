@@ -48,7 +48,11 @@ class ObligationService:
             require_company(uow, actor, company, permission(kind, command=True))
             require_currency(uow, company)
             journal = posted_journal(uow, company, journal_id)
-            if journal.reversal_of_id or due_date < journal.entry_date:
+            if (
+                journal.reversal_of_id
+                or journal.source_type == "OPENING"
+                or due_date < journal.entry_date
+            ):
                 raise AccountingError(
                     "BUSINESS_RULE_VIOLATION", "발생 전표와 지급기일을 확인해 주세요."
                 )

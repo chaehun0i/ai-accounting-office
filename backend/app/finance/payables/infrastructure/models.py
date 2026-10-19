@@ -19,6 +19,9 @@ class PayableModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     counterparty_id: Mapped[UUID] = mapped_column(index=True)
     origin_journal_id: Mapped[UUID | None] = mapped_column(index=True)
     origin_line_no: Mapped[int | None]
+    opening_balance_import_id: Mapped[UUID | None] = mapped_column(index=True)
+    opening_source_row_key: Mapped[str | None] = mapped_column(String(300))
+    opening_reference_code: Mapped[str | None] = mapped_column(String(100))
     source_transaction_id: Mapped[UUID | None] = mapped_column(index=True)
     source_invoice_id: Mapped[UUID | None] = mapped_column(index=True)
     recognized_date: Mapped[date | None]
@@ -31,6 +34,12 @@ class PayableModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "origin_journal_id", "origin_line_no"),
+        UniqueConstraint(
+            "company_id",
+            "opening_balance_import_id",
+            "opening_source_row_key",
+            name="uq_payables_opening_source",
+        ),
         UniqueConstraint("company_id", "source_invoice_id"),
         UniqueConstraint("company_id", "source_transaction_id"),
         ForeignKeyConstraint(
@@ -46,8 +55,17 @@ class PayableModel(UUIDPrimaryKey, Timestamped, Versioned, Base):
         CheckConstraint(
             "(origin_journal_id IS NOT NULL AND origin_line_no IS NOT NULL) OR "
             "(source_invoice_id IS NOT NULL AND source_transaction_id IS NOT NULL "
-            "AND recognized_date IS NOT NULL)",
+            "AND recognized_date IS NOT NULL) OR "
+            "(opening_balance_import_id IS NOT NULL AND opening_source_row_key IS NOT NULL "
+            "AND opening_reference_code IS NOT NULL AND origin_journal_id IS NOT NULL "
+            "AND origin_line_no IS NULL AND recognized_date IS NOT NULL)",
             name="source",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "opening_balance_import_id"],
+            ["opening_balance_imports.company_id", "opening_balance_imports.id"],
+            ondelete="RESTRICT",
+            name="fk_payables_opening_import",
         ),
         ForeignKeyConstraint(
             ["company_id", "counterparty_id"],

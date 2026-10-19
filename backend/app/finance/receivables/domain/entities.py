@@ -26,3 +26,4 @@ class Obligation:
     import_id: UUID | None
     evidence_ids: tuple[UUID, ...]
     source_invoice_id: UUID | None = None
+    opening_reference_code: str | None = None

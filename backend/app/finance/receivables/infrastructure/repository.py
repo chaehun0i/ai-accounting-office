@@ -1,5 +1,6 @@
 """원천 분개와 확정 배분으로 기준일별 보조부를 조회합니다."""
 
+import builtins
 from datetime import date
 from decimal import Decimal
 from typing import cast
@@ -116,6 +117,7 @@ class ObligationRepository:
                 | ({transaction.evidence_id} if transaction and transaction.evidence_id else set())
             ),
             source_invoice_id=row.source_invoice_id,
+            opening_reference_code=row.opening_reference_code,
         )
 
     def get(
@@ -193,6 +195,7 @@ class ObligationRepository:
                 source_transaction_id=journal.source_transaction_id,
                 import_id=import_id,
                 evidence_ids=tuple(evidence.get(journal.id, [])),
+                opening_reference_code=row.opening_reference_code,
             )
             for row, journal, cp, import_id in rows
         ]
@@ -248,6 +251,53 @@ class ObligationRepository:
                 counterparty_id=counterparty,
                 origin_journal_id=journal,
                 origin_line_no=line_no,
+                account_id=account,
+                original_amount=amount,
+                outstanding_amount=amount,
+                currency_code="KRW",
+                due_date=due,
+                status="OPEN",
+                version=1,
+            )
+        )
+        self.session.flush()
+        return resource
+
+    def opening_items(self, company: UUID, opening_import: UUID) -> builtins.list[Obligation]:
+        rows = self.session.scalars(
+            select(self.model)
+            .where(
+                self.model.company_id == company,
+                self.model.opening_balance_import_id == opening_import,
+            )
+            .order_by(self.model.opening_source_row_key)
+        )
+        return [self._read(cast(ReceivableModel | PayableModel, row), date.max) for row in rows]
+
+    def add_opening(
+        self,
+        company: UUID,
+        opening_import: UUID,
+        journal: UUID,
+        row_key: str,
+        reference: str,
+        counterparty: UUID,
+        account: UUID,
+        amount: Decimal,
+        due: date,
+        recognized: date,
+    ) -> UUID:
+        resource = uuid4()
+        self.session.add(
+            self.model(
+                id=resource,
+                company_id=company,
+                counterparty_id=counterparty,
+                origin_journal_id=journal,
+                opening_balance_import_id=opening_import,
+                opening_source_row_key=row_key,
+                opening_reference_code=reference,
+                recognized_date=recognized,
                 account_id=account,
                 original_amount=amount,
                 outstanding_amount=amount,

@@ -95,6 +95,10 @@ class MasterDataService:
         )
         with self.factory() as uow:
             require_company(uow, principal, value.company_id, "counterparty.create")
+            if value.counterparty_code and uow.counterparties.by_code(
+                company_id=value.company_id, code=value.counterparty_code
+            ):
+                raise VersionConflict()
             self._payment_term(uow, value.company_id, value.payment_term_id)
             value = replace(value, created_at=uow.now(), updated_at=uow.now())
             uow.counterparties.add(value)
