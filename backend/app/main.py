@@ -12,6 +12,7 @@ from app.accounting.control_accounts.api.router import router as control_core_ro
 from app.accounting.dimensions.api.router import router as dimension_router
 from app.accounting.journals.api.router import router as journal_router
 from app.accounting.ledger.api.router import router as ledger_router
+from app.accounting.opening_balances.api.router import router as opening_router
 from app.accounting.transactions.api.router import router as transaction_router
 from app.agents.api.router import router as agent_router
 from app.closing.api.router import router as closing_router
@@ -113,6 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dimension_router)
     app.include_router(transaction_router)
     app.include_router(journal_router)
+    app.include_router(opening_router)
     app.include_router(ledger_router)
     app.include_router(finance_router)
     app.include_router(document_router)

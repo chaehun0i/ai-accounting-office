@@ -4,7 +4,6 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import BaseModel, ConfigDict, Field
 
 from app.accounting.api.router import Actor, CompanyScope, Container
 from app.accounting.journals.api.schemas import (
@@ -274,22 +273,3 @@ def reverse(
             **payload.model_dump(),
         )
     )
-
-
-class OpeningCommand(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    expected_version: int = Field(ge=1)
-
-
-@router.post(
-    "/opening-balances/imports",
-    response_model=JournalRead,
-    status_code=201,
-    dependencies=[Depends(csrf)],
-)
-def opening(
-    payload: OpeningCommand, actor: Actor, company_id: CompanyScope, container: Container, key: Key
-) -> JournalRead:
-    if container.opening_balances is None:
-        raise DatabaseUnavailable()
-    return read(container.opening_balances.create(actor, company_id, payload.expected_version, key))
