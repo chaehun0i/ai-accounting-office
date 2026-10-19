@@ -243,6 +243,16 @@ class OpeningService:
                     )
             opening.ar_ap_digest = expected_digest
             opening.ar_ap_promoted_at = uow.now()
+            uow.governance.audit(
+                company,
+                actor.user_id,
+                "opening.promote_ar_ap",
+                journal.id,
+                "",
+                "",
+                expected_digest,
+                opening.ar_ap_promoted_at,
+            )
             return (
                 journal.id,
                 tuple(uow.obligations("AR").opening_items(company, opening.id)),

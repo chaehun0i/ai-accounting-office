@@ -163,7 +163,7 @@ def test_ar_ap_open_items_promote_only_after_posted_opening(api_client, auth_ser
 
     from tests.integration.test_onboarding import save
 
-    owner, writer, payload, _ = prepare(api_client, auth_service)
+    owner, writer, payload, connection = prepare(api_client, auth_service)
     for code in ("CUT-CUSTOMER", "CUT-SUPPLIER"):
         response = api_client.post(
             "/counterparties",
@@ -277,6 +277,16 @@ def test_ar_ap_open_items_promote_only_after_posted_opening(api_client, auth_ser
         api_client.post("/opening-balances/ar-ap-promotion", headers=writer, json=request).json()
         == promoted
     )
+    from app.approvals.infrastructure.models import AuditEventModel
+
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        events = (
+            session.query(AuditEventModel)
+            .filter_by(journal_id=UUID(journal["id"]), action_code="opening.promote_ar_ap")
+            .all()
+        )
+        assert len(events) == 1
+        assert events[0].after_digest == request["expected_digest"]
     for path, expected in (("receivables", Decimal("100")), ("payables", Decimal("60"))):
         listed = api_client.get(f"/{path}", headers=writer, params={"as_of": "2026-01-31"})
         assert listed.status_code == 200, listed.text
