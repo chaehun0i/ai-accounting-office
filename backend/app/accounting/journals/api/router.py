@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -16,6 +17,7 @@ from app.accounting.journals.api.schemas import (
 from app.accounting.journals.application.commands import JournalCommands
 from app.accounting.journals.application.service import JournalService
 from app.accounting.journals.domain.entities import Journal, JournalLine, totals
+from app.accounting.opening_balances.application.ar_ap_preview import ArApPreview
 from app.contracts.errors import DatabaseUnavailable
 from app.identity.auth.api.dependencies import csrf
 
@@ -279,6 +281,45 @@ def reverse(
 class OpeningCommand(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: int = Field(ge=1)
+
+
+class ArApPreviewIssueRead(BaseModel):
+    code: str
+    section: str
+    row_key: str
+    message: str
+
+
+class ArApPreviewTotalRead(BaseModel):
+    role: str
+    account_code: str
+    counterparty_code: str
+    opening_amount: Decimal
+    item_amount: Decimal
+
+
+class ArApPreviewRead(BaseModel):
+    session_version: int
+    source_digest: str
+    as_of_date: date | None
+    ready: bool
+    issues: list[ArApPreviewIssueRead]
+    totals: list[ArApPreviewTotalRead]
+
+
+@router.get("/opening-balances/ar-ap-preview", response_model=ArApPreviewRead)
+def opening_ar_ap_preview(
+    expected_version: int,
+    actor: Actor,
+    company_id: CompanyScope,
+    container: Container,
+) -> ArApPreviewRead:
+    if container.opening_balances is None:
+        raise DatabaseUnavailable()
+    result: ArApPreview = container.opening_balances.ar_ap_preview(
+        actor, company_id, expected_version
+    )
+    return ArApPreviewRead.model_validate(asdict(result))
 
 
 @router.post(

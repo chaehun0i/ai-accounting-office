@@ -40,6 +40,8 @@ POSTED Journal Lines만 조회한다. 원장은 시작일 이전 잔액을 포�
 
 Cutover 첫 보강에서는 온보딩 session 행을 잠근 상태에서 예상 버전과 Opening_Balances 셀의 안정 digest를 확인한다. 회사명 등 다른 온보딩 항목만 바뀐 경우 새 `Idempotency-Key` 요청도 기존 OPENING 전표를 반환한다. 이미 전표로 고정한 기초잔액 셀을 바꾼 요청은 `OPENING_SOURCE_CONFLICT`(409)로 거부하며 기존 전표와 장부를 변경하지 않는다. 과거 버전 번호를 포함해 저장된 digest도 동일 원천이면 재사용한다. AR/AP Open Item과 Asset/Inventory Opening을 함께 승격하는 전체 Cutover Run은 후속 단계다.
 
+`GET /opening-balances/ar-ap-preview?expected_version=N`은 현재 온보딩의 `AR_Opening`·`AP_Opening` 행을 명시적 AR/AP 역할 계정과 대조한다. 기초 전표 입력의 같은 역할 계정·거래처별 금액과 미결 항목 원금 합계, 단일 기준일, 거래처 존재 여부, 분개 방향을 확인한다. 응답의 `ready`는 **AR/AP 입력 대조만** 뜻하며 승격 또는 장부 반영을 수행하지 않는다. 원천 digest는 관련 입력 셀로만 계산한다. 실제 AR/AP Open Item 생성과 Opening Journal의 승인·전기 연결은 다음 Cutover 작업에서 처리한다.
+
 ## 재시도와 회사 경계
 
 전표 생성·상태 명령·기초 전표 생성은 `Idempotency-Key`를 받는다. 회사+사용자+명령+키와 fingerprint를 저장하고 같은 요청은 연결된 전표를 재조회한다. 다른 fingerprint는 conflict다. 전체 응답 JSON은 저장하지 않는다. Replay는 현재 resource 상태를 반환하므로 최초 응답의 불변 복사본은 아니다.

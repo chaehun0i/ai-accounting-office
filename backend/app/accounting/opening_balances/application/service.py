@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from app.accounting.journals.application.service import validate_journal
 from app.accounting.journals.domain.entities import Journal, JournalLine
 from app.accounting.journals.domain.errors import AccountingError
+from app.accounting.opening_balances.application.ar_ap_preview import ArApPreview, preview_ar_ap
 from app.approvals.application.contracts import AccountingUnitOfWork
 from app.companies.application.service import require_company
 from app.contracts.access_errors import InvalidInput, ResourceNotFound, VersionConflict
@@ -47,6 +48,28 @@ class OpeningUnitOfWork(AccountingUnitOfWork, Protocol):
 class OpeningService:
     def __init__(self, factory: Callable[[], OpeningUnitOfWork]) -> None:
         self.factory = factory
+
+    def ar_ap_preview(self, actor: Principal, company: UUID, expected_version: int) -> ArApPreview:
+        with self.factory() as uow:
+            require_company(uow, actor, company, "onboarding.read")
+            draft = uow.onboarding.get(company_id=company)
+            if draft is None:
+                raise ResourceNotFound()
+            if draft.version != expected_version:
+                raise VersionConflict()
+            accounts = {account.id: account.account_code for account in uow.accounts.list(company)}
+            mappings = {
+                role: accounts[mapping.account_id]
+                for role in ("AR", "AP")
+                if (mapping := uow.control_accounts.mapping(company, role)) is not None
+                and mapping.account_id in accounts
+            }
+            counterparties = {
+                cp.counterparty_code
+                for cp in uow.counterparties.list(company)
+                if cp.status == "ACTIVE" and cp.counterparty_code is not None
+            }
+            return preview_ar_ap(draft.cells, draft.version, mappings, counterparties)
 
     def create(self, actor: Principal, company: UUID, expected_version: int, key: str) -> Journal:
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):

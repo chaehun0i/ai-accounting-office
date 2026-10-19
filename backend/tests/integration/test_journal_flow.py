@@ -216,3 +216,62 @@ def test_opening_draft_snapshot(api_client, auth_service):
         assert response.status_code == 200, response.text
         journal = response.json()
     assert journal["status"] == "POSTED"
+
+
+def test_ar_ap_cutover_preview_requires_current_company_draft(api_client, auth_service):
+    from tests.integration.test_onboarding import save
+
+    owner, writer, _, _ = prepare(api_client, auth_service)
+    workspace = api_client.get("/onboarding", headers=writer).json()
+    response = api_client.get(
+        "/opening-balances/ar-ap-preview",
+        headers=writer,
+        params={"expected_version": workspace["version"]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["session_version"] == workspace["version"]
+    assert response.json()["ready"] is True
+    assert response.json()["totals"] == []
+    assert api_client.get(
+        "/opening-balances/ar-ap-preview",
+        headers={**writer, "X-Company-ID": str(uuid4())},
+        params={"expected_version": workspace["version"]},
+    ).status_code in (403, 404)
+    assert (
+        api_client.get(
+            "/opening-balances/ar-ap-preview",
+            headers=writer,
+            params={"expected_version": workspace["version"] + 1},
+        ).status_code
+        == 409
+    )
+    mapping = next(
+        value
+        for value in api_client.get("/control-account-roles", headers=writer).json()
+        if value["role"] == "AR"
+    )
+    account = next(
+        value
+        for value in api_client.get("/accounts", headers=writer).json()
+        if value["id"] == mapping["account_id"]
+    )
+    workspace = save(
+        api_client,
+        writer,
+        workspace,
+        [
+            ("AR_Opening.counterparty_code", "MISSING|INV-1", "MISSING"),
+            ("AR_Opening.reference_code", "MISSING|INV-1", "INV-1"),
+            ("AR_Opening.original_amount", "MISSING|INV-1", "100"),
+            ("AR_Opening.due_date", "MISSING|INV-1", "2026-02-01"),
+            ("AR_Opening.account_code", "MISSING|INV-1", account["account_code"]),
+        ],
+    )
+    response = api_client.get(
+        "/opening-balances/ar-ap-preview",
+        headers=writer,
+        params={"expected_version": workspace["version"]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["ready"] is False
+    assert "UNKNOWN_COUNTERPARTY" in {item["code"] for item in response.json()["issues"]}
