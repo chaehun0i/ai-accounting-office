@@ -209,7 +209,7 @@ def test_stale_apply_and_cross_company(api_client):
     )
 
 
-def test_opening_data_stale_recalculation_and_future_promotion_block(api_client):
+def test_opening_data_stale_recalculation_and_unbalanced_source_block(api_client):
     headers, current = setup(api_client)
     imported = upload(api_client, headers, amount="123.4500")
     draft = preview(api_client, headers, current, imported)
@@ -221,7 +221,9 @@ def test_opening_data_stale_recalculation_and_future_promotion_block(api_client)
         "/onboarding/validate", headers=headers, json={"expected_version": current["version"]}
     )
     assert response.status_code == 200, response.text
-    assert any(i["validation_code"] == "PENDING_DOMAIN_SUPPORT" for i in response.json()["issues"])
+    codes = {i["validation_code"] for i in response.json()["issues"]}
+    assert "PENDING_DOMAIN_SUPPORT" not in codes
+    assert "OPENING_NOT_BALANCED" in codes
     assert (
         next(
             c
@@ -261,6 +263,11 @@ def test_complete_atomic_and_idempotent(api_client, auth_service):
         == response.json()
     )
     assert auth_service[1].scalar(select(func.count()).select_from(PromotionReceiptModel)) == 1
+    cutover = api_client.get("/opening-balances/cutover-status", headers=headers)
+    assert cutover.status_code == 200, cutover.text
+    assert cutover.json()["no_opening_balance"] is True
+    assert cutover.json()["opening_required"] is False
+    assert cutover.json()["journal_id"] is None
 
 
 def test_complete_rolls_back_company_change(api_client, auth_service, monkeypatch):

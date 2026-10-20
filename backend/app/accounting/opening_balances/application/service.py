@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
@@ -11,7 +12,12 @@ from app.accounting.journals.application.posted_facts import posted_journal
 from app.accounting.journals.application.service import validate_journal
 from app.accounting.journals.domain.entities import Journal, JournalLine
 from app.accounting.journals.domain.errors import AccountingError
-from app.accounting.opening_balances.application.ar_ap_preview import ArApPreview, preview_ar_ap
+from app.accounting.opening_balances.application.ar_ap_preview import (
+    ArApPreview,
+    PreviewIssue,
+    PreviewTotal,
+    preview_ar_ap,
+)
 from app.approvals.application.contracts import AccountingUnitOfWork
 from app.companies.application.service import require_company
 from app.contracts.access_errors import InvalidInput, ResourceNotFound, VersionConflict
@@ -79,6 +85,24 @@ class OpeningObligations(Protocol):
     ) -> UUID: ...
 
 
+@dataclass(frozen=True)
+class CutoverStatus:
+    session_version: int
+    onboarding_status: str
+    opening_required: bool
+    no_opening_balance: bool
+    journal_id: UUID | None
+    journal_status: str | None
+    ar_ap_source_present: bool
+    ar_ap_preview_ready: bool
+    ar_ap_source_digest: str | None
+    ar_ap_issues: tuple[PreviewIssue, ...]
+    ar_ap_totals: tuple[PreviewTotal, ...]
+    ar_ap_promoted: bool
+    receivable_count: int
+    payable_count: int
+
+
 def active_source_counterparties(
     uow: OpeningUnitOfWork, draft: Workspace, company: UUID
 ) -> dict[str, UUID]:
@@ -99,6 +123,67 @@ def active_source_counterparties(
 class OpeningService:
     def __init__(self, factory: Callable[[], OpeningUnitOfWork]) -> None:
         self.factory = factory
+
+    def cutover_status(self, actor: Principal, company: UUID) -> CutoverStatus:
+        with self.factory() as uow:
+            require_company(uow, actor, company, "onboarding.read")
+            draft = uow.onboarding.get(company_id=company)
+            if draft is None:
+                raise ResourceNotFound()
+            no_opening = any(
+                cell.field_code == "Company.no_opening_balance" and cell.value is True
+                for cell in draft.cells
+            )
+            opening_required = any(
+                cell.field_code == "Opening_Balances.account_code" for cell in draft.cells
+            )
+            source_present = any(
+                cell.field_code.startswith(("AR_Opening.", "AP_Opening."))
+                and cell.source_type != "DERIVED"
+                for cell in draft.cells
+            )
+            opening = uow.openings.for_promotion(company, draft.id)
+            journal = uow.journals.get(company, opening.journal_id) if opening else None
+            accounts = {account.id: account.account_code for account in uow.accounts.list(company)}
+            mappings = {
+                role: accounts[mapping.account_id]
+                for role in ("AR", "AP")
+                if (mapping := uow.control_accounts.mapping(company, role)) is not None
+                and mapping.account_id in accounts
+            }
+            counterparties = active_source_counterparties(uow, draft, company)
+            preview = (
+                preview_ar_ap(draft.cells, draft.version, mappings, set(counterparties))
+                if source_present and draft.status == "COMPLETED"
+                else None
+            )
+            promoted = opening is not None and opening.ar_ap_digest is not None
+            receivables = (
+                uow.obligations("AR").opening_items(company, opening.id)
+                if promoted and opening
+                else []
+            )
+            payables = (
+                uow.obligations("AP").opening_items(company, opening.id)
+                if promoted and opening
+                else []
+            )
+            return CutoverStatus(
+                draft.version,
+                draft.status,
+                opening_required,
+                no_opening,
+                journal.id if journal else None,
+                journal.status if journal else None,
+                source_present,
+                preview.ready if preview else False,
+                preview.source_digest if preview else None,
+                preview.issues if preview else (),
+                preview.totals if preview else (),
+                promoted,
+                len(receivables),
+                len(payables),
+            )
 
     def ar_ap_preview(self, actor: Principal, company: UUID, expected_version: int) -> ArApPreview:
         with self.factory() as uow:

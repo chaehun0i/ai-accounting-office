@@ -7,6 +7,211 @@ from sqlalchemy.orm import Session
 from tests.integration.test_journal_flow import command, prepare
 
 
+def test_opening_only_completes_before_journal_creation(api_client, auth_service):
+    from tests.integration.test_onboarding import save
+
+    owner, writer, payload, _ = prepare(api_client, auth_service)
+    codes = {a["id"]: a["account_code"] for a in api_client.get("/accounts", headers=writer).json()}
+    updates = [
+        (f"Opening_Balances.{field}", f"2026-01-01|{codes[line['account_id']]}|", value)
+        for line in payload["lines"]
+        for field, value in (
+            ("as_of_date", "2026-01-01"),
+            ("account_code", codes[line["account_id"]]),
+            ("debit_amount", line.get("debit_amount", "0")),
+            ("credit_amount", line.get("credit_amount", "0")),
+        )
+    ]
+    workspace = save(
+        api_client, writer, api_client.get("/onboarding", headers=writer).json(), updates
+    )
+    checked = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
+    )
+    assert checked.status_code == 200, checked.text
+    assert checked.json()["issues"] == []
+    workspace = checked.json()["workspace"]
+    completed = api_client.post(
+        "/onboarding/complete",
+        headers={**owner, "Idempotency-Key": "opening-only-complete"},
+        json={"expected_version": workspace["version"]},
+    )
+    assert completed.status_code == 200, completed.text
+    status = api_client.get("/opening-balances/cutover-status", headers=writer).json()
+    assert status["opening_required"] is True
+    assert status["ar_ap_source_present"] is False
+    assert status["journal_id"] is None
+    created = api_client.post(
+        "/opening-balances/imports",
+        headers={**writer, "Idempotency-Key": "opening-only-journal"},
+        json={"expected_version": status["session_version"]},
+    )
+    assert created.status_code == 201, created.text
+    assert (
+        api_client.get("/opening-balances/cutover-status", headers=writer).json()["journal_id"]
+        == created.json()["id"]
+    )
+
+
+def test_onboarding_cutover_preflight_uses_draft_counterparty_and_freezes_source(
+    api_client, auth_service
+):
+    from tests.integration.test_onboarding import save
+
+    owner, writer, _, _ = prepare(api_client, auth_service)
+    accounts = api_client.get("/accounts", headers=writer).json()
+    by_id = {account["id"]: account["account_code"] for account in accounts}
+    ar_mapping = next(
+        item
+        for item in api_client.get("/control-account-roles", headers=writer).json()
+        if item["role"] == "AR"
+    )
+    ar_code = by_id[ar_mapping["account_id"]]
+    offset = next(
+        account["account_code"]
+        for account in accounts
+        if account["posting_allowed"]
+        and account["id"] != ar_mapping["account_id"]
+        and account["account_type"] in ("LIABILITY", "EQUITY", "REVENUE")
+    )
+    day = "2026-01-01"
+    rows = [(ar_code, "CUT-CUSTOMER", "100", "0"), (offset, "", "0", "100")]
+    counterparty_values = [
+        ("Counterparties.counterparty_code", "CUT-CUSTOMER", "CUT-CUSTOMER"),
+        ("Counterparties.legal_name", "CUT-CUSTOMER", "Cutover Customer"),
+        ("Counterparties.counterparty_type", "CUT-CUSTOMER", "BUSINESS"),
+    ]
+    values = []
+    for code, cp, debit, credit in rows:
+        row = f"{day}|{code}|{cp}"
+        values.extend(
+            (f"Opening_Balances.{field}", row, value)
+            for field, value in (
+                ("as_of_date", day),
+                ("account_code", code),
+                ("debit_amount", debit),
+                ("credit_amount", credit),
+            )
+        )
+        if cp:
+            values.append(("Opening_Balances.counterparty_code", row, cp))
+    row = "CUT-CUSTOMER|INV-1"
+    values.extend(
+        (f"AR_Opening.{field}", row, value)
+        for field, value in (
+            ("counterparty_code", "CUT-CUSTOMER"),
+            ("reference_code", "INV-1"),
+            ("original_amount", "90"),
+            ("due_date", "2026-02-01"),
+            ("account_code", ar_code),
+        )
+    )
+    workspace = save(
+        api_client, writer, api_client.get("/onboarding", headers=writer).json(), values
+    )
+    response = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
+    )
+    assert response.status_code == 200, response.text
+    assert "UNKNOWN_COUNTERPARTY" in {
+        issue["validation_code"] for issue in response.json()["issues"]
+    }
+    workspace = save(api_client, writer, response.json()["workspace"], counterparty_values)
+    response = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
+    )
+    assert response.status_code == 200, response.text
+    assert "OPEN_ITEM_TOTAL_MISMATCH" in {
+        issue["validation_code"] for issue in response.json()["issues"]
+    }
+    assert (
+        api_client.post(
+            "/onboarding/complete",
+            headers={**owner, "Idempotency-Key": "invalid-cutover"},
+            json={"expected_version": response.json()["workspace"]["version"]},
+        ).status_code
+        == 409
+    )
+    workspace = save(
+        api_client,
+        writer,
+        response.json()["workspace"],
+        [("AR_Opening.original_amount", row, "100")],
+    )
+    mismatched = save(api_client, writer, workspace, [("AR_Opening.account_code", row, offset)])
+    response = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": mismatched["version"]}
+    )
+    assert "CONTROL_ACCOUNT_MISMATCH" in {
+        issue["validation_code"] for issue in response.json()["issues"]
+    }
+    workspace = save(
+        api_client,
+        writer,
+        response.json()["workspace"],
+        [("AR_Opening.account_code", row, ar_code)],
+    )
+    response = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["issues"] == []
+    workspace = response.json()["workspace"]
+    response = api_client.post(
+        "/onboarding/complete",
+        headers={**owner, "Idempotency-Key": "valid-cutover"},
+        json={"expected_version": workspace["version"]},
+    )
+    assert response.status_code == 200, response.text
+    status = api_client.get("/opening-balances/cutover-status", headers=writer)
+    assert status.status_code == 200, status.text
+    assert status.json()["opening_required"] is True
+    assert status.json()["ar_ap_preview_ready"] is True
+    assert status.json()["journal_id"] is None
+    assert (
+        api_client.patch(
+            "/onboarding/values",
+            headers=writer,
+            json={
+                "expected_version": workspace["version"],
+                "values": [
+                    {"field_code": "AR_Opening.original_amount", "row_key": row, "value": "99"}
+                ],
+            },
+        ).status_code
+        == 409
+    )
+    response = api_client.post(
+        "/opening-balances/imports",
+        headers={**writer, "Idempotency-Key": "completed-opening"},
+        json={"expected_version": status.json()["session_version"]},
+    )
+    assert response.status_code == 201, response.text
+    journal = response.json()
+    for actor, action in (
+        (writer, "submit"),
+        (writer, "request-review"),
+        (owner, "approve"),
+        (owner, "post"),
+    ):
+        response = command(api_client, actor, journal, action)
+        assert response.status_code == 200, response.text
+        journal = response.json()
+    status = api_client.get("/opening-balances/cutover-status", headers=writer).json()
+    assert status["journal_status"] == "POSTED"
+    response = api_client.post(
+        "/opening-balances/ar-ap-promotion",
+        headers=writer,
+        json={
+            "expected_version": status["session_version"],
+            "expected_digest": status["ar_ap_source_digest"],
+        },
+    )
+    assert response.status_code == 200, response.text
+    status = api_client.get("/opening-balances/cutover-status", headers=writer).json()
+    assert status["ar_ap_promoted"] is True and status["receivable_count"] == 1
+
+
 def test_opening_draft_snapshot(api_client, auth_service):
     from tests.integration.test_onboarding import save
 

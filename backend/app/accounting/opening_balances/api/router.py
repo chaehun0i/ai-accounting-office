@@ -13,6 +13,7 @@ from app.accounting.api.router import Actor, CompanyScope, Container
 from app.accounting.journals.api.router import read
 from app.accounting.journals.api.schemas import JournalRead
 from app.accounting.opening_balances.application.ar_ap_preview import ArApPreview
+from app.accounting.opening_balances.application.service import CutoverStatus
 from app.contracts.errors import DatabaseUnavailable
 from app.finance.settlements.api.schemas import ObligationRead
 from app.identity.auth.api.dependencies import csrf
@@ -58,6 +59,33 @@ class ArApPromotionRead(BaseModel):
     journal_id: UUID
     receivables: list[ObligationRead]
     payables: list[ObligationRead]
+
+
+class CutoverStatusRead(BaseModel):
+    session_version: int
+    onboarding_status: str
+    opening_required: bool
+    no_opening_balance: bool
+    journal_id: UUID | None
+    journal_status: str | None
+    ar_ap_source_present: bool
+    ar_ap_preview_ready: bool
+    ar_ap_source_digest: str | None
+    ar_ap_issues: list[ArApPreviewIssueRead]
+    ar_ap_totals: list[ArApPreviewTotalRead]
+    ar_ap_promoted: bool
+    receivable_count: int
+    payable_count: int
+
+
+@router.get("/opening-balances/cutover-status", response_model=CutoverStatusRead)
+def cutover_status(
+    actor: Actor, company_id: CompanyScope, container: Container
+) -> CutoverStatusRead:
+    if container.opening_balances is None:
+        raise DatabaseUnavailable()
+    result: CutoverStatus = container.opening_balances.cutover_status(actor, company_id)
+    return CutoverStatusRead.model_validate(asdict(result))
 
 
 @router.get("/opening-balances/ar-ap-preview", response_model=ArApPreviewRead)
