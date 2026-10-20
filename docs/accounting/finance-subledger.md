@@ -13,7 +13,15 @@
 5. 채권·채무 화면에서 수금·지급 내역을 등록하고 대상을 배분한 뒤 명시적으로 확정합니다.
 6. 기준일의 잔액·연체·만기 예정액과 원장 대사를 확인합니다. 원장 불일치를 자동 보정하지 않습니다.
 
-로컬 계정 준비는 기존 `python scripts/bootstrap_local.py`를 사용합니다. 비밀번호는 Git에서 제외된 `.local/development-accounts.ini`에 있습니다. 회계 담당자 계정으로 채권·채무를 테스트하세요. 회사 관리자인 OWNER는 Permission Matrix에 따라 재무 조회·수금·지급 기록 권한을 자동으로 얻지 않습니다. 관리자 권한 우회 계정은 없습니다.
+로컬 계정 준비는 기존 `python scripts/bootstrap_local.py`를 사용합니다. 비밀번호는 Git에서 제외된 `.local/development-accounts.ini`에 있습니다. 회계 담당자 계정으로 채권·채무를 테스트하세요. OWNER는 자기 회사의 등록된 permission을 사용할 수 있지만 본인 전표 승인은 할 수 없습니다.
+
+## 기초 채권·채무 미결 항목 승격
+
+`021_opening_ar_ap_promotion`은 한 기초 분개에 여러 미결 항목을 연결합니다. 거래처에는 고유 `counterparty_code`가 필요하며 `POST /counterparties`에서 생성할 때 지정할 수 있습니다. 온보딩 초안에 `Opening_Balances`, `AR_Opening`, `AP_Opening`을 입력하고 `GET /opening-balances/ar-ap-preview?expected_version=...`로 계정·거래처·금액을 대조합니다.
+
+기초잔액 전표를 생성한 뒤 독립 승인자를 거쳐 POSTED로 확정합니다. 그 다음 `POST /opening-balances/ar-ap-promotion`에 `expected_version`과 preview의 `source_digest`를 보냅니다. 명령은 확정 전표와 미결 항목의 계정·거래처별 합계를 다시 대조한 뒤 AR/AP 보조부에 행별로 등록합니다. 요청은 CSRF와 회사 권한을 검사합니다. 동일 원천의 반복 실행은 기존 항목을 반환하고, 원천 변경은 충돌로 거부합니다. 일반 `/receivables/from-journals`, `/payables/from-journals` 경로는 OPENING 전표를 받지 않습니다.
+
+보조부의 각 항목은 `opening_balance_import_id`, `opening_source_row_key`, `opening_reference_code`, `origin_journal_id`로 원천을 관계형으로 추적합니다. `origin_line_no`를 억지로 배정하지 않으며 원장을 중복 기표하지 않습니다. 조회·Aging·원장 대사에는 승격된 항목이 포함됩니다.
 
 ## 관계형 저장과 책임
 
@@ -43,7 +51,7 @@ Application/UoW만 트랜잭션을 소유합니다. Finance Repository의 commit
 
 한 헤더에 여러 대상(1:N), 한 대상에 여러 헤더(N:1)를 지원합니다. 합계는 헤더 총액과 각 대상 잔액을 초과할 수 없습니다. 미배분액은 UNAPPLIED로 남습니다. 확정 후 미배분액의 추가 배분·취소·조정 워크플로는 후속 범위입니다. 확정 헤더와 배분은 DB trigger에서도 수정·삭제를 거부합니다.
 
-현재 기능통화는 KRW입니다. 원장 통제계정은 서버의 고정 계정과목 이름 매출채권, 매입채무, 미지급금으로 식별합니다. 사용자 지정 통제계정 매핑과 외화는 후속 확장이 필요합니다.
+현재 기능통화는 KRW입니다. AR/AP 통제계정은 회사별 명시적 Control Account Role Mapping을 사용합니다. 계정명 추정은 사용하지 않습니다. 외화는 후속 확장이 필요합니다.
 
 ## 정산 확정과 동시성
 

@@ -155,7 +155,7 @@ Complete는 하나의 Onboarding UoW 안에서 Company, Accounting, Master Data�
 승격 대상 Domain의 기존 permission도 통과해야 합니다. onboarding.complete만으로 다른 권한을 우회하지 않습니다.
 중간 실패 시 회사 변경을 포함해 전체 rollback하며 receipt를 만들지 않습니다.
 
-은행/카드, 기초잔액, 고정자산, 재고, AR/AP 데이터는 Draft+Validation까지만 보존합니다.
+은행/카드, 고정자산, 재고 데이터는 이 온보딩 완료 명령에서는 Draft+Validation까지만 보존합니다. 기초잔액은 별도의 Opening 전표 명령으로, AR/AP 미결 항목은 그 전표가 POSTED된 뒤 별도 승격 명령으로 처리합니다. [채권·채무 정산과 원장 대사](../accounting/finance-subledger.md#기초-채권채무-미결-항목-승격)를 참고하세요. AR/AP 행이 있는 초안은 여전히 일반 온보딩 완료 명령에서 차단됩니다.
 하나라도 입력되면 PENDING_DOMAIN_SUPPORT로 완료를 BLOCK합니다. 지원된 부분만 조용히 승격하지 않습니다.
 기초잔액 없음 확인은 0원 가짜 row를 생성하지 않습니다.
 Opening Balance는 향후 validated import → DRAFT/SUBMITTED → 별도 승인/Post Command로 연결해야 합니다.

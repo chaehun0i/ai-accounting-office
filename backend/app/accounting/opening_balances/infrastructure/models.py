@@ -23,6 +23,8 @@ class OpeningImportModel(UUIDPrimaryKey, Base):
         ForeignKey("users.id", ondelete="RESTRICT"), index=True
     )
     created_at: Mapped[datetime]
+    ar_ap_digest: Mapped[str | None] = mapped_column(String(64))
+    ar_ap_promoted_at: Mapped[datetime | None]
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
         UniqueConstraint("company_id", "onboarding_session_id", "source_version"),

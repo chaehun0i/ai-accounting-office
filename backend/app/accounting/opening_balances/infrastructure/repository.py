@@ -28,6 +28,16 @@ class OpeningRepository:
         ).one_or_none()
         return (row.journal_id, row.source_version, row.source_digest) if row else None
 
+    def for_promotion(self, company: UUID, session_id: UUID) -> OpeningImportModel | None:
+        return self.session.scalar(
+            select(OpeningImportModel)
+            .where(
+                OpeningImportModel.company_id == company,
+                OpeningImportModel.onboarding_session_id == session_id,
+            )
+            .with_for_update()
+        )
+
     def add(
         self,
         journal: Journal,

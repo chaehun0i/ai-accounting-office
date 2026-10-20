@@ -167,7 +167,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         JournalService(lambda: JournalSQLAlchemyUnitOfWork(factory)),
         JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
         AccountingReports(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
-        OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(factory)),
+        OpeningService(lambda: FinanceSQLAlchemyUnitOfWork(factory)),
         FinanceService(lambda: FinanceSQLAlchemyUnitOfWork(factory)),
         FinanceReports(lambda: FinanceSQLAlchemyUnitOfWork(factory)),
     )

@@ -4,6 +4,7 @@ from dataclasses import asdict
 from datetime import date
 from decimal import Decimal
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,6 +14,7 @@ from app.accounting.journals.api.router import read
 from app.accounting.journals.api.schemas import JournalRead
 from app.accounting.opening_balances.application.ar_ap_preview import ArApPreview
 from app.contracts.errors import DatabaseUnavailable
+from app.finance.settlements.api.schemas import ObligationRead
 from app.identity.auth.api.dependencies import csrf
 
 router = APIRouter(tags=["기초잔액 Cutover"])
@@ -48,6 +50,16 @@ class ArApPreviewRead(BaseModel):
     totals: list[ArApPreviewTotalRead]
 
 
+class ArApPromoteCommand(OpeningCommand):
+    expected_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ArApPromotionRead(BaseModel):
+    journal_id: UUID
+    receivables: list[ObligationRead]
+    payables: list[ObligationRead]
+
+
 @router.get("/opening-balances/ar-ap-preview", response_model=ArApPreviewRead)
 def opening_ar_ap_preview(
     expected_version: int,
@@ -61,6 +73,26 @@ def opening_ar_ap_preview(
         actor, company_id, expected_version
     )
     return ArApPreviewRead.model_validate(asdict(result))
+
+
+@router.post(
+    "/opening-balances/ar-ap-promotion",
+    response_model=ArApPromotionRead,
+    dependencies=[Depends(csrf)],
+)
+def promote_ar_ap(
+    payload: ArApPromoteCommand, actor: Actor, company_id: CompanyScope, container: Container
+) -> ArApPromotionRead:
+    if container.opening_balances is None:
+        raise DatabaseUnavailable()
+    journal, receivables, payables = container.opening_balances.promote_ar_ap(
+        actor, company_id, payload.expected_version, payload.expected_digest
+    )
+    return ArApPromotionRead(
+        journal_id=journal,
+        receivables=[ObligationRead.model_validate(asdict(value)) for value in receivables],
+        payables=[ObligationRead.model_validate(asdict(value)) for value in payables],
+    )
 
 
 @router.post(

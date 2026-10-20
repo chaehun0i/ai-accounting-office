@@ -173,6 +173,9 @@ class BankReferenceRead(BaseModel):
 
 
 class CounterpartyCreate(Command):
+    counterparty_code: str | None = Field(
+        default=None, min_length=1, max_length=80, pattern=r"^[^|\s]+$"
+    )
     display_name: str = Field(min_length=1, max_length=200)
     legal_name: str = Field(min_length=1, max_length=200)
     business_number: str | None = Field(default=None, max_length=30)
@@ -204,6 +207,7 @@ class CounterpartyStatusCommand(Command):
 class CounterpartyRead(BaseModel):
     id: UUID
     company_id: UUID
+    counterparty_code: str | None
     display_name: str
     legal_name: str
     business_number: str | None

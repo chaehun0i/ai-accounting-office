@@ -140,7 +140,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
         JournalService(lambda: JournalSQLAlchemyUnitOfWork(sessions)),
         JournalCommands(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
         AccountingReports(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
-        OpeningService(lambda: AccountingSQLAlchemyUnitOfWork(sessions)),
+        OpeningService(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
         FinanceService(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
         FinanceReports(lambda: FinanceSQLAlchemyUnitOfWork(sessions)),
     )

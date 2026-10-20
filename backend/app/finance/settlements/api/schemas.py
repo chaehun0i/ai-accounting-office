@@ -70,6 +70,7 @@ class ObligationRead(BaseModel):
     import_id: UUID | None
     evidence_ids: list[UUID]
     source_invoice_id: UUID | None = None
+    opening_reference_code: str | None = None
 
 
 class SettlementRead(BaseModel):
