@@ -36,11 +36,11 @@ POSTED Journal Lines만 조회한다. 원장은 시작일 이전 잔액을 포�
 
 온보딩의 저장된 Opening_Balances를 회사의 기존 계정·거래처 코드와 정확히 연결한다. 단일 기준일과 차대변 균형을 검사하고 입력 버전·행 키·금액·계정의 관계형 스냅샷과 OPENING 전표 초안을 같은 UoW에서 만든다. 원천 typed cell digest와 Import Evidence 출처를 보존한다.
 
-잔액 컬럼을 직접 UPDATE하거나 즉시 POSTED 전표를 생성하지 않는다. 생성된 기초 전표도 사람의 제출·승인·확정 흐름을 거쳐야 한다. 회계 Master가 아직 준비되지 않았다면 먼저 기존 회계 Master Application 명령으로 준비한다. 미지원 Asset/Inventory/AR/AP 온보딩 승격 차단은 유지한다.
+잔액 컬럼을 직접 UPDATE하거나 즉시 POSTED 전표를 생성하지 않는다. 생성된 기초 전표도 사람의 제출·승인·확정 흐름을 거쳐야 한다. 회계 Master가 아직 준비되지 않았다면 먼저 기존 회계 Master Application 명령으로 준비한다. AR/AP 입력은 온보딩 완료 전 대조하되 미결 항목 승격은 전표 POSTED 뒤에만 수행한다. Asset/Inventory 온보딩 승격은 여전히 지원하지 않는다.
 
-Cutover 첫 보강에서는 온보딩 session 행을 잠근 상태에서 예상 버전과 Opening_Balances 셀의 안정 digest를 확인한다. 회사명 등 다른 온보딩 항목만 바뀐 경우 새 `Idempotency-Key` 요청도 기존 OPENING 전표를 반환한다. 이미 전표로 고정한 기초잔액 셀을 바꾼 요청은 `OPENING_SOURCE_CONFLICT`(409)로 거부하며 기존 전표와 장부를 변경하지 않는다. 과거 버전 번호를 포함해 저장된 digest도 동일 원천이면 재사용한다. AR/AP Open Item과 Asset/Inventory Opening을 함께 승격하는 전체 Cutover Run은 후속 단계다.
+기초 전표 생성에서는 온보딩 session 행을 잠근 상태에서 예상 버전과 Opening_Balances 셀의 안정 digest를 확인한다. 회사명 등 다른 온보딩 항목만 바뀐 경우 새 `Idempotency-Key` 요청도 기존 OPENING 전표를 반환한다. 이미 전표로 고정한 기초잔액 셀을 바꾼 요청은 `OPENING_SOURCE_CONFLICT`(409)로 거부하며 기존 전표와 장부를 변경하지 않는다. 과거 버전 번호를 포함해 저장된 digest도 동일 원천이면 재사용한다. Cutover 진행 상태는 별도 테이블 없이 기존 관계형 사실에서 조회한다.
 
-`GET /opening-balances/ar-ap-preview?expected_version=N`은 현재 온보딩의 `AR_Opening`·`AP_Opening` 행을 명시적 AR/AP 역할 계정과 대조한다. 기초 전표 입력의 같은 역할 계정·거래처별 금액과 미결 항목 원금 합계, 단일 기준일, 거래처 존재 여부, 분개 방향, 거래처·참조 행 키를 확인한다. 응답의 `ready`는 **AR/AP 입력 대조만** 뜻하며 승격 또는 장부 반영을 수행하지 않는다. 원천 digest는 관련 입력 셀로만 계산한다. 실제 AR/AP Open Item 생성과 Opening Journal의 승인·전기 연결은 다음 Cutover 작업에서 처리한다.
+`GET /opening-balances/ar-ap-preview?expected_version=N`은 현재 온보딩의 `AR_Opening`·`AP_Opening` 행을 명시적 AR/AP 역할 계정과 대조한다. 기초 전표 입력의 같은 역할 계정·거래처별 금액과 미결 항목 원금 합계, 단일 기준일, 거래처 존재 여부, 분개 방향, 거래처·참조 행 키를 확인한다. 응답의 `ready`는 **AR/AP 입력 대조만** 뜻하며 승격 또는 장부 반영을 수행하지 않는다. 원천 digest는 관련 입력 셀로만 계산한다. Opening Journal은 기존 독립 승인·POST 절차를 거치고 그 뒤 별도 AR/AP 승격 명령으로 미결 항목을 생성한다. 이 명령은 GL을 중복 기표하지 않는다.
 
 ## 재시도와 회사 경계
 
