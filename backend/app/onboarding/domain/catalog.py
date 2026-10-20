@@ -57,7 +57,13 @@ KEYS: dict[str, tuple[str, ...]] = {
     "AR_Opening": ("counterparty_code", "reference_code"),
     "AP_Opening": ("counterparty_code", "reference_code"),
 }
-FUTURE_SECTIONS = frozenset(KEYS) - {"COA", "Counterparties"}
+FUTURE_SECTIONS = frozenset(KEYS) - {
+    "COA",
+    "Counterparties",
+    "Opening_Balances",
+    "AR_Opening",
+    "AP_Opening",
+}
 REQUIRED_SECTIONS = frozenset({"Company", "Accounting_Settings", "COA", "Opening_Balances"})
 
 

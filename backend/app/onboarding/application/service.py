@@ -8,6 +8,7 @@ from app.companies.application.service import require_company
 from app.contracts.access_errors import StateConflict
 from app.identity.users.domain.entities import Principal
 from app.onboarding.application.contracts import OnboardingUnitOfWork
+from app.onboarding.application.cutover import cutover_issues
 from app.onboarding.domain.catalog import BY_CODE, KEYS
 from app.onboarding.domain.entities import Workspace
 from app.onboarding.domain.errors import InvalidValue, StaleDraft
@@ -152,7 +153,7 @@ class OnboardingService:
             current = self.workspace(uow, actor, company, "onboarding.edit")
             self.writable(current, expected_version)
             cells = recalculate(current.cells)
-            issues = validate(cells)
+            issues = [*validate(cells), *cutover_issues(uow, company, cells, current.version)]
             status = "REVIEW_REQUIRED" if issues else "READY_TO_COMPLETE"
             result = uow.onboarding.save(current, cells, actor.user_id, uow.now(), status=status)
             uow.onboarding.validation(result, issues, uow.now())

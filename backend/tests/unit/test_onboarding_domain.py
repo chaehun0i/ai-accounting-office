@@ -36,4 +36,8 @@ def test_derived_invalidation_and_progress_exclusion() -> None:
     stale = invalidate(cells, {"Opening_Balances"})
     assert all(c.status == "STALE" for c in stale if c.source_type == "DERIVED")
     assert progress(cells, "Opening_Balances")[1] == 6
-    assert any(i.validation_code == "PENDING_DOMAIN_SUPPORT" for i in validate(cells))
+    assert not any(i.validation_code == "PENDING_DOMAIN_SUPPORT" for i in validate(cells))
+    assert any(
+        i.validation_code == "PENDING_DOMAIN_SUPPORT"
+        for i in validate([Cell("Fixed_Assets.asset_code", "A1", "A1")])
+    )

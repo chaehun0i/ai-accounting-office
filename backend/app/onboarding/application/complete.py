@@ -19,6 +19,7 @@ from app.master_data.application.onboarding import (
     promote_counterparty_roles,
 )
 from app.master_data.counterparties.domain.entities import Counterparty
+from app.onboarding.application.cutover import cutover_issues
 from app.onboarding.application.service import OnboardingService
 from app.onboarding.domain.entities import Receipt
 from app.onboarding.domain.errors import InvalidValue, NotReady
@@ -48,7 +49,7 @@ class CompleteOnboarding:
                 return replay
             self.workspace.writable(current, expected_version)
             cells = recalculate(current.cells)
-            if validate(cells):
+            if validate(cells) or cutover_issues(uow, company, cells, current.version):
                 raise NotReady()
             profile = require_company(uow, actor, company, "company.read").company
             values = {(c.field_code, c.row_key): c.value for c in cells}
