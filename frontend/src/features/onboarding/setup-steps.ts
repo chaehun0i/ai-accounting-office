@@ -4,6 +4,8 @@ export const setupSteps = [
   { section: "Accounting_Settings", label: "회계 기준", description: "장부에 사용할 통화와 회계연도 기준을 확인해 주세요." },
   { section: "Counterparties", label: "거래처", description: "거래처가 있다면 추가해 주세요. 지금 없다면 다음으로 넘어가도 됩니다." },
   { section: "Opening_Balances", label: "기초잔액", description: "기존 장부가 있는지 확인하고 시작 잔액을 준비해 주세요." },
+  { section: "AR_Opening", label: "기초 매출채권", description: "미결 매출채권이 있다면 입력해 주세요. 없다면 넘어갈 수 있습니다." },
+  { section: "AP_Opening", label: "기초 매입채무", description: "미결 매입채무가 있다면 입력해 주세요. 없다면 넘어갈 수 있습니다." },
   { section: "Review", label: "최종 확인", description: "입력 내용을 확인한 뒤 회계 준비를 완료해 주세요." },
 ] as const;
 
