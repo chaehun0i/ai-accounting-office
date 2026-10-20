@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
@@ -11,10 +10,11 @@ import { AccountCatalog } from "@/features/accounting/account-catalog";
 import { setupSteps, savedStep, stepForSection, missingStepValues } from "./setup-steps";
 import { ConfirmationDialog, OfficeDialog } from "@/shared/ui/dialog";
 import { ExcelImportDialog } from "./excel-import-dialog";
+import { CutoverPanel } from "./cutover-panel";
 import { cellKey, isEditable, isVisible, mergeKey, sourceLabels, stateLabels, type Issue, type Workspace } from "./model";
 
 export function OnboardingWorkspace({ company, initialWorkspace, onCompleted }: { company: Company; initialWorkspace?: Workspace; onCompleted?: (workspace: Workspace) => void }) {
-  const [workspace, setWorkspace] = useState<Workspace | undefined>(initialWorkspace);
+  const [workspace, setWorkspace] = useState<Workspace | undefined>(initialWorkspace?.company_id === company.id ? initialWorkspace : undefined);
   const [stepIndex, setStepIndex] = useState(0);
   const [section, setSection] = useState("Company");
   const [editingRow, setEditingRow] = useState<string | null>(null);
@@ -27,8 +27,11 @@ export function OnboardingWorkspace({ company, initialWorkspace, onCompleted }: 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [denied, setDenied] = useState(false);
-  const [openingJournalId, setOpeningJournalId] = useState("");
   const dirty = Object.keys(pending).length > 0;
+  useEffect(() => {
+    setWorkspace(initialWorkspace?.company_id === company.id ? initialWorkspace : undefined);
+    setPending({}); setNewRows({}); setIssues([]); setError(""); setNotice("");
+  }, [company.id, initialWorkspace]);
   useEffect(() => {
     if (!dirty) return;
     function beforeUnload(event: BeforeUnloadEvent) { event.preventDefault(); }
@@ -56,7 +59,7 @@ export function OnboardingWorkspace({ company, initialWorkspace, onCompleted }: 
       const index = savedStep(window.localStorage.getItem(`office:setup-step:${company.id}`));
       setStepIndex(index); setSection(setupSteps[index].section);
     } catch { /* 브라우저 저장소가 꺼져 있으면 첫 단계부터 안내합니다. */ }
-    if (initialWorkspace) return;
+    if (initialWorkspace?.company_id === company.id) return;
     let active = true;
     authenticatedRequest<Workspace>("/onboarding", { headers: { "X-Company-ID": company.id } })
       .then(value => { if (active) setWorkspace(value); })
@@ -67,13 +70,6 @@ export function OnboardingWorkspace({ company, initialWorkspace, onCompleted }: 
     setBusy(true); setError(""); setNotice("");
     try { await action(); return true; } catch (e) { setError(e instanceof Error ? e.message : "처리하지 못했습니다. 다시 시도해 주세요."); return false; }
     finally { setBusy(false); }
-  }
-  async function openingJournal() {
-    if (!workspace) return;
-    await perform(async () => {
-      const result=await authenticatedRequest<{id:string}>("/opening-balances/imports",{method:"POST",headers:{...headers,"Idempotency-Key":crypto.randomUUID()},body:JSON.stringify({expected_version:workspace.version})});
-      setOpeningJournalId(result.id); setNotice("기초 전표를 만들었습니다. 전표를 확인한 뒤 제출해 주세요. 승인 후 장부에 반영할 수 있습니다.");
-    });
   }
   async function save() {
     if (!workspace) return false;
@@ -137,7 +133,8 @@ export function OnboardingWorkspace({ company, initialWorkspace, onCompleted }: 
     moveStep(Math.min(stepIndex + 1, setupSteps.length - 1));
   }
   const activeSection = workspace?.sections.find(item => item.code === section);
-  if (workspace?.status === "COMPLETED") return <section className="panel setup-complete"><h2>회계 준비를 마쳤습니다</h2><p>초기 설정을 다시 진행할 필요가 없습니다. 변경할 내용은 설정에서 관리하세요.</p><div className="workspace-buttons"><Link className="button-link" href="/">업무 홈으로</Link><Link href="/accounting">설정 관리</Link></div></section>;
+  if (workspace && workspace.company_id !== company.id) return <section className="panel" role="status">회사 정보를 불러오고 있습니다…</section>;
+  if (workspace?.status === "COMPLETED") return <CutoverPanel key={company.id} company={company} />;
   return <section className="panel setup-wizard" aria-labelledby="onboarding-heading">
     <div className="session-bar"><div><span className="eyebrow">처음 한 번, 회사별 설정</span><h2 id="onboarding-heading">회계 시작 준비</h2></div>
       <button onClick={() => setModal(true)} disabled={!workspace || busy || dirty || workspace.status === "COMPLETED" || !company.permissions.includes("onboarding.import")}>Excel 업로드</button>
@@ -148,9 +145,9 @@ export function OnboardingWorkspace({ company, initialWorkspace, onCompleted }: 
     {workspace && <>
       <ol className="setup-stepper" aria-label="초기 설정 단계">{setupSteps.map((step, index) => <li key={step.section} aria-current={stepIndex === index ? "step" : undefined}><button disabled={busy || index > stepIndex} onClick={() => moveStep(index)}><span>{index + 1}</span>{step.label}</button></li>)}</ol>
       <div className="setup-step-heading"><span className="eyebrow">{stepIndex + 1} / {setupSteps.length} 단계</span><h3>{setupSteps[stepIndex].label}</h3><p>{setupSteps[stepIndex].description}</p></div>
-      {notice && <p role="status">{notice}{openingJournalId && <> <Link href={`/journals#journal-${openingJournalId}`}>기초 전표 확인하기 →</Link></>}</p>}
+      {notice && <p role="status">{notice}</p>}
       <div className="onboarding-editor">
-      {stepIndex === setupSteps.length - 1 && <section aria-label="입력 요약"><div className="setup-review">{setupSteps.slice(0, -1).map((step, index) => <div key={step.section}><strong>{step.label}</strong><span>{step.section === "Counterparties" ? `${new Set(workspace.cells.filter(cell => cell.field_code.startsWith("Counterparties.")).map(cell => cell.row_key)).size}개 거래처` : step.section === "Opening_Balances" ? workspace.cells.some(cell => cell.field_code === "Company.no_opening_balance" && cell.value === true) ? "신규 회사 · 기초잔액 없음" : "기초잔액 확인 필요" : step.section === "Company" ? String(workspace.cells.find(cell => cell.field_code === "Company.company_name")?.value ?? "입력 전") : "저장한 회계 기준 확인"}</span><button onClick={() => moveStep(index)}>수정</button></div>)}</div><details><summary>기본 계정과목 확인</summary><AccountCatalog companyId={company.id} /></details><p className="muted">추가 자료는 Excel로 가져올 수 있습니다. 아직 지원하지 않는 항목이 있으면 완료 전에 안내하며, 입력 자료는 보관합니다.</p></section>}
+      {stepIndex === setupSteps.length - 1 && <section aria-label="입력 요약"><div className="setup-review">{setupSteps.slice(0, -1).map((step, index) => <div key={step.section}><strong>{step.label}</strong><span>{step.section === "Counterparties" ? `${new Set(workspace.cells.filter(cell => cell.field_code.startsWith("Counterparties.")).map(cell => cell.row_key)).size}개 거래처` : step.section === "Opening_Balances" ? workspace.cells.some(cell => cell.field_code === "Company.no_opening_balance" && cell.value === true) ? "신규 회사 · 기초잔액 없음" : workspace.cells.some(cell => cell.field_code === "Opening_Balances.account_code") ? "기초잔액 입력됨" : "기초잔액 확인 필요" : step.section === "AR_Opening" || step.section === "AP_Opening" ? `${new Set(workspace.cells.filter(cell => cell.field_code === `${step.section}.reference_code`).map(cell => cell.row_key)).size}건` : step.section === "Company" ? String(workspace.cells.find(cell => cell.field_code === "Company.company_name")?.value ?? "입력 전") : "저장한 회계 기준 확인"}</span><button onClick={() => moveStep(index)}>수정</button></div>)}</div><details><summary>기본 계정과목 확인</summary><AccountCatalog companyId={company.id} /></details><p className="muted">추가 자료는 Excel로 가져올 수 있습니다. 아직 지원하지 않는 항목이 있으면 완료 전에 안내하며, 입력 자료는 보관합니다.</p></section>}
       {section !== "Review" && <>
       <div className="section-toolbar"><div><h3>{activeSection?.label}</h3></div><span className="status-chip">{dirty ? "저장 필요" : "저장된 내용"}</span></div>
       <p className="muted">{section === "Company" ? "사업자 유형에 따라 필요한 정보가 달라집니다. 회사 정보를 확인해 주세요." : section === "Accounting_Settings" ? "기능통화와 회계연도 시작 월 등 장부의 기본 기준을 확인해 주세요." : section === "Opening_Balances" ? "기존 장부의 잔액을 입력해 주세요. 신규 회사라 잔액이 없다면 아래에서 ‘예’를 선택해 주세요." : section === "COA" ? "미리 준비된 계정목록입니다. 별도로 입력하지 않아도 됩니다." : "필요한 항목을 추가하고 저장해 주세요."}</p>
@@ -181,7 +178,6 @@ export function OnboardingWorkspace({ company, initialWorkspace, onCompleted }: 
       </div></div>
       {stepIndex === setupSteps.length - 1 && workspace.status !== "READY_TO_COMPLETE" && <p className="muted">‘입력 내용 확인’을 통과하면 완료할 수 있습니다. 최종 완료는 회사 관리자 권한이 필요합니다.</p>}
       {issues.length > 0 && <section aria-label="검증 결과"><h3>확인할 내용</h3>{issues.map((issue, i) => { const code = issue.field_code?.split(".")[0] ?? issue.row_key; return <div key={i} className="validation-item"><p className="error">{workspace.fields.find(f => f.field_code === issue.field_code)?.label ?? "입력 내용"}: {issue.message}</p>{workspace.sections.some(item => item.code === code) && <button onClick={() => { moveStep(stepForSection(code)); setSection(code); if (issue.row_key !== "singleton") setEditingRow(issue.row_key); }}>해당 항목 확인</button>}</div>; })}</section>}
-      {section === "Opening_Balances" && company.permissions.includes("journal.propose") && <button disabled={busy || Object.keys(pending).length > 0} onClick={openingJournal}>저장된 기초잔액으로 전표 작성</button>}
       {completeOpen && <ConfirmationDialog open onClose={() => setCompleteOpen(false)} onConfirm={() => void complete()} busy={busy} title="회계 준비 완료" description="검증한 초안을 회사 회계정보에 반영합니다. 아직 확인하지 않은 항목이 있으면 먼저 보완하도록 안내합니다." confirmLabel="확인 후 회계정보 반영"><p>대상 회사: {company.company_name}</p><p>기초잔액은 여기서 장부에 확정되지 않습니다. 별도 전표 작성과 승인 절차가 필요합니다.</p>{error && <p role="alert">{error}</p>}</ConfirmationDialog>}
       {modal && <ExcelImportDialog workspace={workspace} onApplied={async () => { await reload(); }} onClose={() => setModal(false)} />}
       </div>

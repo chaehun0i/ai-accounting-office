@@ -9,6 +9,14 @@ export type Issue = { field_code: string | null; row_key: string; validation_cod
 export type Preview = { import_id: string; session_version: number; digest: string; expires_at: string;
   items: { incoming: Cell; current: Cell | null; classification: string }[]; errors: Issue[]; counts: Record<string, number> };
 export type Receipt = { id: string; new_count: number; changed_count: number; unchanged_count: number; conflict_count: number; error_count: number };
+export type CutoverStatus = {
+  session_version: number; onboarding_status: string; opening_required: boolean; no_opening_balance: boolean;
+  journal_id: string | null; journal_status: string | null; ar_ap_source_present: boolean;
+  ar_ap_preview_ready: boolean; ar_ap_source_digest: string | null;
+  ar_ap_issues: { code: string; section: string; row_key: string; message: string }[];
+  ar_ap_totals: { role: string; account_code: string; counterparty_code: string; opening_amount: string; item_amount: string }[];
+  ar_ap_promoted: boolean; receivable_count: number; payable_count: number;
+};
 
 export function cellKey(field: string, row: string) { return `${field}::${row}`; }
 export function conflictKey(cell: Cell) { return `${cell.field_code}:${cell.row_key}`; }
