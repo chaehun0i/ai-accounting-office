@@ -7,6 +7,52 @@ from sqlalchemy.orm import Session
 from tests.integration.test_journal_flow import command, prepare
 
 
+def test_opening_only_completes_before_journal_creation(api_client, auth_service):
+    from tests.integration.test_onboarding import save
+
+    owner, writer, payload, _ = prepare(api_client, auth_service)
+    codes = {a["id"]: a["account_code"] for a in api_client.get("/accounts", headers=writer).json()}
+    updates = [
+        (f"Opening_Balances.{field}", f"2026-01-01|{codes[line['account_id']]}|", value)
+        for line in payload["lines"]
+        for field, value in (
+            ("as_of_date", "2026-01-01"),
+            ("account_code", codes[line["account_id"]]),
+            ("debit_amount", line.get("debit_amount", "0")),
+            ("credit_amount", line.get("credit_amount", "0")),
+        )
+    ]
+    workspace = save(
+        api_client, writer, api_client.get("/onboarding", headers=writer).json(), updates
+    )
+    checked = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
+    )
+    assert checked.status_code == 200, checked.text
+    assert checked.json()["issues"] == []
+    workspace = checked.json()["workspace"]
+    completed = api_client.post(
+        "/onboarding/complete",
+        headers={**owner, "Idempotency-Key": "opening-only-complete"},
+        json={"expected_version": workspace["version"]},
+    )
+    assert completed.status_code == 200, completed.text
+    status = api_client.get("/opening-balances/cutover-status", headers=writer).json()
+    assert status["opening_required"] is True
+    assert status["ar_ap_source_present"] is False
+    assert status["journal_id"] is None
+    created = api_client.post(
+        "/opening-balances/imports",
+        headers={**writer, "Idempotency-Key": "opening-only-journal"},
+        json={"expected_version": status["session_version"]},
+    )
+    assert created.status_code == 201, created.text
+    assert (
+        api_client.get("/opening-balances/cutover-status", headers=writer).json()["journal_id"]
+        == created.json()["id"]
+    )
+
+
 def test_onboarding_cutover_preflight_uses_draft_counterparty_and_freezes_source(
     api_client, auth_service
 ):
@@ -30,11 +76,12 @@ def test_onboarding_cutover_preflight_uses_draft_counterparty_and_freezes_source
     )
     day = "2026-01-01"
     rows = [(ar_code, "CUT-CUSTOMER", "100", "0"), (offset, "", "0", "100")]
-    values = [
+    counterparty_values = [
         ("Counterparties.counterparty_code", "CUT-CUSTOMER", "CUT-CUSTOMER"),
         ("Counterparties.legal_name", "CUT-CUSTOMER", "Cutover Customer"),
         ("Counterparties.counterparty_type", "CUT-CUSTOMER", "BUSINESS"),
     ]
+    values = []
     for code, cp, debit, credit in rows:
         row = f"{day}|{code}|{cp}"
         values.extend(
@@ -66,6 +113,14 @@ def test_onboarding_cutover_preflight_uses_draft_counterparty_and_freezes_source
         "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
     )
     assert response.status_code == 200, response.text
+    assert "UNKNOWN_COUNTERPARTY" in {
+        issue["validation_code"] for issue in response.json()["issues"]
+    }
+    workspace = save(api_client, writer, response.json()["workspace"], counterparty_values)
+    response = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
+    )
+    assert response.status_code == 200, response.text
     assert "OPEN_ITEM_TOTAL_MISMATCH" in {
         issue["validation_code"] for issue in response.json()["issues"]
     }
@@ -82,6 +137,19 @@ def test_onboarding_cutover_preflight_uses_draft_counterparty_and_freezes_source
         writer,
         response.json()["workspace"],
         [("AR_Opening.original_amount", row, "100")],
+    )
+    mismatched = save(api_client, writer, workspace, [("AR_Opening.account_code", row, offset)])
+    response = api_client.post(
+        "/onboarding/validate", headers=writer, json={"expected_version": mismatched["version"]}
+    )
+    assert "CONTROL_ACCOUNT_MISMATCH" in {
+        issue["validation_code"] for issue in response.json()["issues"]
+    }
+    workspace = save(
+        api_client,
+        writer,
+        response.json()["workspace"],
+        [("AR_Opening.account_code", row, ar_code)],
     )
     response = api_client.post(
         "/onboarding/validate", headers=writer, json={"expected_version": workspace["version"]}
