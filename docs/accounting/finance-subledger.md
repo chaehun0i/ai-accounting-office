@@ -19,7 +19,11 @@
 
 `021_opening_ar_ap_promotion`은 한 기초 분개에 여러 미결 항목을 연결합니다. 거래처에는 고유 `counterparty_code`가 필요하며 `POST /counterparties`에서 생성할 때 지정할 수 있습니다. 온보딩 초안에 `Opening_Balances`, `AR_Opening`, `AP_Opening`을 입력하고 `GET /opening-balances/ar-ap-preview?expected_version=...`로 계정·거래처·금액을 대조합니다.
 
+온보딩 검증과 완료는 같은 대조 규칙을 재사용합니다. 완료 전에는 아직 정본으로 승격되지 않은 거래처도 있으므로 초안의 거래처 코드를 검사하고, 완료 뒤 실제 승격은 정본 거래처와 다시 대조합니다. 합계·역할 계정·행 필수값이 맞지 않으면 온보딩 완료를 차단합니다. `/onboarding`의 Review는 AR/AP 건수와 오류가 난 입력 단계를 표시합니다.
+
 기초잔액 전표를 생성한 뒤 독립 승인자를 거쳐 POSTED로 확정합니다. 그 다음 `POST /opening-balances/ar-ap-promotion`에 `expected_version`과 preview의 `source_digest`를 보냅니다. 명령은 확정 전표와 미결 항목의 계정·거래처별 합계를 다시 대조한 뒤 AR/AP 보조부에 행별로 등록합니다. 요청은 CSRF와 회사 권한을 검사합니다. 동일 원천의 반복 실행은 기존 항목을 반환하고, 원천 변경은 충돌로 거부합니다. 일반 `/receivables/from-journals`, `/payables/from-journals` 경로는 OPENING 전표를 받지 않습니다.
+
+완료 화면은 `GET /opening-balances/cutover-status`로 전표·사전 대조·승격의 현재 상태를 조회합니다. 전표가 없으면 만들기를, 승인 대기 중이면 `/journals` 이동을, POSTED 뒤에는 대조와 승격을 안내합니다. AR/AP 원천이 없다면 전표 POSTED로 이관이 끝납니다. 기초잔액이 없는 회사는 전표를 만들 필요가 없습니다. 승격 뒤 `/receivables`·`/payables`에서 채권·채무 잔액과 GL 대사 결과를 확인합니다.
 
 보조부의 각 항목은 `opening_balance_import_id`, `opening_source_row_key`, `opening_reference_code`, `origin_journal_id`로 원천을 관계형으로 추적합니다. `origin_line_no`를 억지로 배정하지 않으며 원장을 중복 기표하지 않습니다. 조회·Aging·원장 대사에는 승격된 항목이 포함됩니다.
 

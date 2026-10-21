@@ -155,11 +155,21 @@ Complete는 하나의 Onboarding UoW 안에서 Company, Accounting, Master Data�
 승격 대상 Domain의 기존 permission도 통과해야 합니다. onboarding.complete만으로 다른 권한을 우회하지 않습니다.
 중간 실패 시 회사 변경을 포함해 전체 rollback하며 receipt를 만들지 않습니다.
 
-은행/카드, 고정자산, 재고 데이터는 이 온보딩 완료 명령에서는 Draft+Validation까지만 보존합니다. 기초잔액은 별도의 Opening 전표 명령으로, AR/AP 미결 항목은 그 전표가 POSTED된 뒤 별도 승격 명령으로 처리합니다. [채권·채무 정산과 원장 대사](../accounting/finance-subledger.md#기초-채권채무-미결-항목-승격)를 참고하세요. AR/AP 행이 있는 초안은 여전히 일반 온보딩 완료 명령에서 차단됩니다.
-하나라도 입력되면 PENDING_DOMAIN_SUPPORT로 완료를 BLOCK합니다. 지원된 부분만 조용히 승격하지 않습니다.
-기초잔액 없음 확인은 0원 가짜 row를 생성하지 않습니다.
-Opening Balance는 향후 validated import → DRAFT/SUBMITTED → 별도 승인/Post Command로 연결해야 합니다.
-이번 코드는 account balance UPDATE나 POSTED Journal을 생성하지 않습니다.
+`Opening_Balances`, `AR_Opening`, `AP_Opening`은 완료 전 검증을 통과하면 온보딩 초안에 포함할 수 있습니다. 완료 명령은 Master만 정본으로 승격하고 초안을 고정합니다. 이 단계에서 기초잔액을 원장에 기표하거나 AR/AP 미결 항목을 생성하지 않습니다. 완료 뒤 고정된 초안이 별도 Cutover 명령의 원천입니다.
+
+완료 전 검증은 단일 기초 기준일, 차대변 균형, KRW 금액, 계정의 존재·활성·기표 가능 여부와 Control Account 역할·방향을 확인합니다. AR/AP 행은 필수값·안정적인 행 키·양수 원금·만기일, 초안에 입력된 거래처 코드와 기초잔액의 거래처·역할 계정별 합계를 대조합니다. 검증과 완료 시 같은 대조 규칙을 사용하며 완료 명령은 같은 UoW 안에서 다시 검사합니다. 오류가 있으면 완료 상태로 고정하지 않고 해당 입력 단계에서 수정합니다.
+
+`Bank_Accounts`, `Card_Accounts`, `Fixed_Assets`, `Inventory_Items`, `Opening_Inventory`는 여전히 미지원입니다. 입력하면 `PENDING_DOMAIN_SUPPORT`로 완료를 차단합니다. 지원된 부분만 조용히 승격하지 않습니다. `no_opening_balance`를 확인한 신규 회사는 기초 전표 없이 완료하며 0원 가짜 행을 만들지 않습니다.
+
+### 완료 후 기초자료 이관
+
+1. `/onboarding`에서 회사·회계 설정·거래처·기초잔액을 입력하고, 필요하면 기초 매출채권과 기초 매입채무를 입력합니다. Review에서 입력 건수와 검증 오류를 확인한 뒤 온보딩을 완료합니다.
+2. 완료 화면의 **기초자료 이관** 패널은 `GET /opening-balances/cutover-status`의 읽기 전용 상태를 표시합니다. 온보딩 버전, 기초잔액 필요 여부, Opening Journal ID·상태, AR/AP 원천·사전 대조·승격 상태를 기존 관계형 사실에서 계산합니다.
+3. 전표가 없으면 `journal.propose` 권한으로 `POST /opening-balances/imports`를 실행합니다. `expected_version`과 `Idempotency-Key`를 사용하며 같은 원천의 재시도는 전표를 중복 생성하지 않습니다. 이미 만든 전표는 `/journals`에서 확인합니다.
+4. 기존 전표 절차에 따라 제출하고 **별도 사용자**가 승인·POSTED 처리합니다. 온보딩 화면은 이 승인 경계를 우회하지 않으며 POSTED 전표를 변경하지 않습니다.
+5. AR/AP 원천이 있으면 POSTED 뒤 `GET /opening-balances/ar-ap-preview`로 차단 사유·합계를 확인합니다. 준비된 경우 `POST /opening-balances/ar-ap-promotion`으로 미결 항목을 승격한 뒤 `/receivables`와 `/payables`에서 원장 대사를 확인합니다. 승격은 GL을 다시 기표하지 않습니다. 원천이 없으면 전표 POSTED가 Cutover 완료입니다.
+
+상태 조회와 대조의 세부 계약은 [기초 채권·채무 미결 항목 승격](../accounting/finance-subledger.md#기초-채권채무-미결-항목-승격)을 참고합니다. 버튼 표시와 별개로 API는 회사 경계·CSRF·권한·버전·멱등성을 검사합니다.
 
 ## 2025 synthetic fixture
 
