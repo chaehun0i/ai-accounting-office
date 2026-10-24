@@ -199,7 +199,9 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
             lambda: ClosingSQLAlchemyUnitOfWork(factory), app.state.services.journal_commands
         ),
         statements=StatementService(lambda: ReportingSQLAlchemyUnitOfWork(factory)),
-        report_center=ReportCenterService(lambda: ReportCenterUnitOfWork(factory)),
+        report_center=ReportCenterService(
+            lambda: ReportCenterUnitOfWork(factory), LocalObjectStorage(tmp_path)
+        ),
         documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(factory)),
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
         promotion=PromotionService(
