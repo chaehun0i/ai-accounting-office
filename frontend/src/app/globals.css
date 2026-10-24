@@ -182,6 +182,13 @@ main.auth-form { align-self:center; width:min(480px,100%); margin:0 auto; paddin
 .catalog-notice{padding:16px;border-radius:8px;background:#f0f7f2;color:#315440}.table-scroll{max-width:100%;overflow:auto}.table-scroll table{min-width:560px}.table-scroll small{display:block;color:#718077;margin-top:5px}
 .control-role-manager{margin-top:32px;padding-top:24px;border-top:1px solid var(--line)}
 .office-content .control-role-manager table{display:table;width:100%;min-width:380px}
+.report-center-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px;max-width:900px}
+.report-center-form>.report-period-result,.report-center-form>p,.report-center-form>button{grid-column:1/-1}
+.report-period-result{padding:14px 16px;border:1px solid #d5e8db;border-radius:8px;background:#f5faf7;line-height:1.7}
+.report-period-result strong{display:block;color:var(--accent-dark)}
+.report-center .table-scroll td,.report-center .table-scroll th{vertical-align:top}
+.report-center .table-scroll small{overflow-wrap:anywhere}
+@media(max-width:700px){.report-center-form{grid-template-columns:1fr}}
 .control-role-manager article{margin-top:16px;padding:20px;border:1px solid var(--line);border-radius:10px;background:#fbfdfb}
 .control-role-manager article h5{margin:0 0 10px}
 .accounting-home-grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,1.7fr);gap:22px}.accounting-project{border-top:3px solid #168451}.accounting-period-picker{display:flex;align-items:center;gap:14px;background:#f6f9f7;padding:18px;border-radius:10px}.accounting-period-picker label{flex:1;margin:0}.accounting-period-picker select{max-width:100%}
