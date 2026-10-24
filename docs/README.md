@@ -4,7 +4,7 @@
 
 현재 구현 상태는 [루트 README](../README.md)와 [아키텍처](architecture.md)를 기준으로 확인합니다. 설계 SSOT는 Google Drive의 `AI_Accounting_Office_v0.2.6_통합설계_정본`이며, GitHub main은 구현 사실의 기준입니다. 과거 PR의 SHA·테스트 수치가 적힌 검증 문서는 당시 실행 기록이므로 최신 구현 범위로 읽지 않습니다.
 
-현재 사용자 경로: [업무 메뉴](guides/page-navigation.md), [온보딩과 기초자료 이관](onboarding/onboarding-data-exchange.md#완료-후-기초자료-이관), [AI Agent Runtime](platform/agent-runtime.md), [월마감](accounting/period-closing.md), [재무제표](accounting/financial-statements.md). `AI 회계팀`은 기간 선택 → 질문 → 읽기 전용 Closing/BS·IS Tool → 답변·금액·근거 확인을 제공합니다.
+현재 사용자 경로: [업무 메뉴](guides/page-navigation.md), [온보딩과 기초자료 이관](onboarding/onboarding-data-exchange.md#완료-후-기초자료-이관), [AI Agent Runtime](platform/agent-runtime.md), [월마감](accounting/period-closing.md), [재무제표](accounting/financial-statements.md), [Report Center](accounting/report-periods.md#report-center-v1-사용자-경로). `AI 회계팀`은 기간 선택 → 질문 → 읽기 전용 Closing/BS·IS Tool → 답변·금액·근거 확인을 제공합니다.
 
 회계·재무 계약: [회계 마스터](accounting/accounting-master.md), [관리차원](accounting/accounting-dimensions.md), [거래·전표·원장](accounting/transaction-journal-ledger.md), [채권·채무](accounting/finance-subledger.md), [업무문서](accounting/business-documents.md), [은행·카드 대사](accounting/bank-card-reconciliation.md).
 
