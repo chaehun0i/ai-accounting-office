@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict
 
 from app.accounting.api.router import Actor, CompanyScope, Container
@@ -81,6 +82,19 @@ class ReportRunRead(BaseModel):
     version: int
 
 
+class ReportArtifactRead(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    company_id: UUID
+    run_id: UUID
+    file_name: str
+    file_sha256: str
+    size_bytes: int
+    content_type: str
+    created_at: datetime
+
+
 @router.get("/catalog", response_model=list[ReportCatalogRead])
 def catalog(actor: Actor, company_id: CompanyScope, service: Service) -> list[ReportCatalogRead]:
     return [ReportCatalogRead.model_validate(item) for item in service.catalog(actor, company_id)]
@@ -92,9 +106,8 @@ def catalog(actor: Actor, company_id: CompanyScope, service: Service) -> list[Re
 def request(
     payload: ReportRequest, actor: Actor, company_id: CompanyScope, service: Service, key: Key
 ) -> ReportRunRead:
-    return ReportRunRead.model_validate(
-        asdict(service.request(actor, company_id, key=key, **payload.model_dump()))
-    )
+    run = service.request(actor, company_id, key=key, **payload.model_dump())
+    return ReportRunRead.model_validate(asdict(service.generate(actor, company_id, run.id)))
 
 
 @router.get("/generations", response_model=list[ReportRunRead])
@@ -107,3 +120,48 @@ def history(actor: Actor, company_id: CompanyScope, service: Service) -> list[Re
 @router.get("/generations/{run_id}", response_model=ReportRunRead)
 def detail(run_id: UUID, actor: Actor, company_id: CompanyScope, service: Service) -> ReportRunRead:
     return ReportRunRead.model_validate(asdict(service.get(actor, company_id, run_id)))
+
+
+@router.post(
+    "/generations/{run_id}/execute",
+    response_model=ReportRunRead,
+    dependencies=[Depends(csrf)],
+)
+def execute(
+    run_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> ReportRunRead:
+    return ReportRunRead.model_validate(asdict(service.generate(actor, company_id, run_id)))
+
+
+@router.post(
+    "/generations/{run_id}/retry",
+    response_model=ReportRunRead,
+    status_code=201,
+    dependencies=[Depends(csrf)],
+)
+def retry(
+    run_id: UUID, actor: Actor, company_id: CompanyScope, service: Service, key: Key
+) -> ReportRunRead:
+    return ReportRunRead.model_validate(asdict(service.retry(actor, company_id, run_id, key)))
+
+
+@router.get("/generations/{run_id}/artifact", response_model=ReportArtifactRead)
+def artifact(
+    run_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> ReportArtifactRead:
+    value = asdict(service.artifact(actor, company_id, run_id))
+    value.pop("storage_key")
+    return ReportArtifactRead.model_validate(value)
+
+
+@router.get("/generations/{run_id}/download")
+def download(run_id: UUID, actor: Actor, company_id: CompanyScope, service: Service) -> Response:
+    content, artifact = service.download(actor, company_id, run_id)
+    return Response(
+        content,
+        media_type=artifact.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{artifact.file_name}"',
+            "X-Content-SHA256": artifact.file_sha256,
+        },
+    )

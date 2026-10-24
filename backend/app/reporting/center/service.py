@@ -2,17 +2,21 @@
 
 import re
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import date
+from hashlib import sha256
 from uuid import UUID, uuid4
 
 from app.companies.application.service import require_company
-from app.contracts.access_errors import InvalidInput, ResourceNotFound
+from app.contracts.access_errors import InvalidInput, ResourceNotFound, StateConflict
 from app.core.digests import digest
 from app.identity.users.domain.entities import Principal
-from app.reporting.center.repository import ReportRun
+from app.reporting.center.render import ReportDocument, render
+from app.reporting.center.repository import ReportArtifact, ReportRun
 from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
-from app.reporting.financial_metrics.rules import FORMULAS
+from app.reporting.financial_metrics.rules import FORMULAS, calculate
 from app.reporting.periods.rules import Preset, resolve
+from app.storage.domain.contracts import ObjectStorage, StorageUnavailable
 
 REPORTS = (
     ("BALANCE_SHEET", "재무상태표", "AS_OF"),
@@ -23,8 +27,11 @@ FORMATS = ("PDF", "XLSX", "CSV")
 
 
 class ReportCenterService:
-    def __init__(self, factory: Callable[[], ReportCenterUnitOfWork]) -> None:
+    def __init__(
+        self, factory: Callable[[], ReportCenterUnitOfWork], storage: ObjectStorage
+    ) -> None:
         self.factory = factory
+        self.storage = storage
 
     def catalog(self, actor: Principal, company: UUID) -> tuple[dict[str, object], ...]:
         with self.factory() as uow:
@@ -172,3 +179,200 @@ class ReportCenterService:
         with self.factory() as uow:
             require_company(uow, actor, company, "report.download_history")
             return uow.report_runs.list(company)
+
+    def artifact(self, actor: Principal, company: UUID, run_id: UUID) -> ReportArtifact:
+        with self.factory() as uow:
+            require_company(uow, actor, company, "report.download_history")
+            run = uow.report_runs.get(company, run_id)
+            if run is None or run.status != "COMPLETED":
+                raise ResourceNotFound()
+            artifact = uow.report_runs.artifact(company, run_id)
+            if artifact is None:
+                raise ResourceNotFound()
+            return artifact
+
+    def download(
+        self, actor: Principal, company: UUID, run_id: UUID
+    ) -> tuple[bytes, ReportArtifact]:
+        with self.factory() as uow:
+            require_company(uow, actor, company, "report.read")
+            require_company(uow, actor, company, "report.download_history")
+            run = uow.report_runs.get(company, run_id)
+            if run is None or run.status != "COMPLETED":
+                raise ResourceNotFound()
+            artifact = uow.report_runs.artifact(company, run_id)
+            if artifact is None:
+                raise ResourceNotFound()
+            content = self.storage.read(company, artifact.storage_key)
+            if (
+                len(content) != artifact.size_bytes
+                or sha256(content).hexdigest() != artifact.file_sha256
+            ):
+                raise StorageUnavailable()
+            return content, artifact
+
+    def generate(self, actor: Principal, company: UUID, run_id: UUID) -> ReportRun:
+        storage_key: str | None = None
+        failure: str | None = None
+        try:
+            with self.factory() as uow:
+                access = require_company(uow, actor, company, "report.generate")
+                require_company(uow, actor, company, "report.export")
+                run = uow.report_runs.get(company, run_id, lock=True)
+                if run is None:
+                    raise ResourceNotFound()
+                if run.status == "COMPLETED":
+                    return run
+                if run.status != "REQUESTED":
+                    raise StateConflict()
+                uow.report_runs.mark_started(company, run_id, uow.now())
+                try:
+                    document = self._document(uow, run, access.company.company_name)
+                    content, content_type, extension = render(document, run.format)
+                    file_name = f"{run.report_code.lower()}_{run.id.hex}.{extension}"
+                    storage_key = self.storage.put(company, content)
+                except (ResourceNotFound, StateConflict):
+                    failure = "REPORT_SOURCE_STALE"
+                    raise _GenerationFailed() from None
+                except StorageUnavailable:
+                    failure = "STORAGE_UNAVAILABLE"
+                    raise _GenerationFailed() from None
+                except Exception:
+                    failure = "EXPORT_GENERATION_FAILED"
+                    raise _GenerationFailed() from None
+                uow.report_runs.complete(
+                    run,
+                    storage_key=storage_key,
+                    file_name=file_name,
+                    file_sha256=sha256(content).hexdigest(),
+                    size_bytes=len(content),
+                    content_type=content_type,
+                    now=uow.now(),
+                )
+        except _GenerationFailed:
+            with self.factory() as uow:
+                uow.report_runs.fail(
+                    company, run_id, failure or "EXPORT_GENERATION_FAILED", uow.now()
+                )
+        except Exception:
+            if storage_key is not None:
+                self.storage.delete(company, storage_key)
+            raise
+        return self.get(actor, company, run_id)
+
+    def retry(self, actor: Principal, company: UUID, run_id: UUID, key: str) -> ReportRun:
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
+            raise InvalidInput()
+        fingerprint = digest(("report.retry", str(run_id)))
+        with self.factory() as uow:
+            require_company(uow, actor, company, "report.generate")
+            require_company(uow, actor, company, "report.export")
+            uow.lock_command(company, actor.user_id, "report.generate", key)
+            replay = uow.report_runs.replay(company, actor.user_id, key, fingerprint)
+            if replay is not None:
+                return replay
+            old = uow.report_runs.get(company, run_id)
+            if old is None:
+                raise ResourceNotFound()
+            if old.status != "FAILED":
+                raise StateConflict()
+            fresh = replace(
+                old,
+                id=uuid4(),
+                status="REQUESTED",
+                requested_by=actor.user_id,
+                requested_at=uow.now(),
+                started_at=None,
+                completed_at=None,
+                error_code=None,
+                retry_of_run_id=old.id,
+                version=1,
+            )
+            uow.report_runs.add(fresh, key, fingerprint)
+            return fresh
+
+    @staticmethod
+    def _document(uow: ReportCenterUnitOfWork, run: ReportRun, company_name: str) -> ReportDocument:
+        statement_set = uow.statements.set(run.company_id, run.statement_set_id)
+        if (
+            statement_set is None
+            or statement_set.close_version != run.close_version
+            or statement_set.trial_balance_digest != run.trial_balance_digest
+            or statement_set.mapping_digest != run.mapping_digest
+            or statement_set.taxonomy_version != run.taxonomy_version
+        ):
+            raise StateConflict()
+        balance = uow.statements.statement(run.company_id, statement_set.id, "BALANCE_SHEET")
+        income = uow.statements.statement(run.company_id, statement_set.id, "INCOME_STATEMENT")
+        if (
+            balance is None
+            or income is None
+            or balance.snapshot_digest != run.balance_sheet_digest
+            or income.snapshot_digest != run.income_statement_digest
+        ):
+            raise StateConflict()
+        formula_version = max(formula.version for formula in FORMULAS)
+        source = digest(
+            (
+                str(statement_set.id),
+                statement_set.close_version,
+                statement_set.trial_balance_digest,
+                statement_set.mapping_digest,
+                statement_set.taxonomy_version,
+                balance.snapshot_digest,
+                income.snapshot_digest,
+                formula_version if run.report_code == "FINANCIAL_METRICS" else None,
+            )
+        )
+        if source != run.source_digest:
+            raise StateConflict()
+        metadata = (
+            ("company", company_name),
+            ("report", run.report_code),
+            ("period", str(run.as_of or f"{run.date_from}/{run.date_to}")),
+            ("generated_at", run.requested_at.isoformat()),
+            ("statement_set_id", str(statement_set.id)),
+            ("snapshot_version", str(run.close_version)),
+            ("source_digest", run.source_digest),
+        )
+        if run.report_code == "FINANCIAL_METRICS":
+            values = {
+                line.line_code: line.current_amount
+                for view in (balance, income)
+                for line in view.lines
+            }
+            rows: tuple[tuple[str, ...], ...] = tuple(
+                (
+                    item.metric_code,
+                    str(item.formula_version),
+                    item.numerator_line_code,
+                    format(item.numerator, "f"),
+                    item.denominator_line_code,
+                    format(item.denominator, "f"),
+                    format(item.value, "f") if item.value is not None else "",
+                    item.status,
+                )
+                for item in calculate(values)
+            )
+            columns: tuple[str, ...] = (
+                "metric_code",
+                "formula_version",
+                "numerator_code",
+                "numerator",
+                "denominator_code",
+                "denominator",
+                "value",
+                "status",
+            )
+        else:
+            view = balance if run.report_code == "BALANCE_SHEET" else income
+            columns = ("line_code", "label", "amount")
+            rows = tuple(
+                (line.line_code, line.label, format(line.current_amount, "f"))
+                for line in view.lines
+            )
+        return ReportDocument(metadata, columns, rows)
+
+
+class _GenerationFailed(Exception):
+    """Failure code is recorded on the run after rolling back the generating transaction."""
