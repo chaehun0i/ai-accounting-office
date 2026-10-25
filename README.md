@@ -233,7 +233,7 @@ python -m pytest --require-postgres
 
 Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개, 기간별 월마감·BS/IS 읽기 질의를 지원합니다. Tax 정본, 자율 승인·Posting, 대화방/장기 메모리 UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
 
-확정 가져오기 승격, 매출·매입 업무문서 → 거래·채권채무 연결, 은행·카드 대사와 Closing V1을 제공합니다. CLOSED 기간 BS/IS 스냅샷을 제공합니다. 비교재무제표·CF/SCE·주석·보고서 파일 Export는 후속 범위입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
+확정 가져오기 승격, 매출·매입 업무문서 → 거래·채권채무 연결, 은행·카드 대사와 Closing V1을 제공합니다. CLOSED 기간 BS/IS 스냅샷과 이를 사용하는 [Report Center V1](docs/accounting/report-periods.md#report-center-v1-사용자-경로)을 제공합니다. 재무상태표·손익계산서·재무비율을 PDF/XLSX/CSV로 생성하고 이력에서 내려받을 수 있습니다. 비교재무제표·CF/SCE·주석은 후속 범위입니다. 후속 작업 시작 시 최신 main과 Drive를 다시 대조합니다.
 
 ## 거래 기반 회계 제안 실행
 
