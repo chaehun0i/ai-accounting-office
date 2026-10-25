@@ -4,6 +4,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
@@ -87,4 +88,33 @@ class ReportRunModel(UUIDPrimaryKey, Base):
             "AND template_version >= 1 AND version >= 1",
             name="version",
         ),
+    )
+
+
+class ReportArtifactModel(UUIDPrimaryKey, Base):
+    __tablename__ = "report_generation_artifacts"
+
+    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    run_id: Mapped[UUID]
+    storage_object_id: Mapped[UUID]
+    file_name: Mapped[str] = mapped_column(String(180))
+    file_sha256: Mapped[str] = mapped_column(String(64))
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime]
+    expires_at: Mapped[datetime | None]
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "id"),
+        UniqueConstraint("company_id", "run_id"),
+        ForeignKeyConstraint(
+            ["company_id", "run_id"],
+            ["report_generation_runs.company_id", "report_generation_runs.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "storage_object_id", "file_sha256"],
+            ["storage_objects.company_id", "storage_objects.id", "storage_objects.sha256"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("size_bytes > 0 AND size_bytes <= 2000000", name="size"),
     )

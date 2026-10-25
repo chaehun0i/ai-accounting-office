@@ -156,7 +156,10 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
             lambda: ClosingSQLAlchemyUnitOfWork(sessions), container.journal_commands
         ),
         statements=StatementService(lambda: ReportingSQLAlchemyUnitOfWork(sessions)),
-        report_center=ReportCenterService(lambda: ReportCenterUnitOfWork(sessions)),
+        report_center=ReportCenterService(
+            lambda: ReportCenterUnitOfWork(sessions),
+            LocalObjectStorage(Path(settings.storage_root)),
+        ),
     )
     assert container.accounting and container.transactions and container.accounting_reports
     assert (
