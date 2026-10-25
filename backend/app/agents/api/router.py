@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.accounting.api.router import Actor, CompanyScope, Container
 from app.agents.graphs.bookkeeping import HumanDecision
-from app.agents.runtime.service import AgentRuntime
+from app.agents.runtime.service import AgentProposalPreview, AgentRuntime
 from app.contracts.errors import DatabaseUnavailable
 from app.identity.auth.api.dependencies import csrf
 from app.jobs.domain.runtime import EventRead, RunRead, StepRead
@@ -59,6 +59,13 @@ def ask(
 @router.get("/agent/runs/{run_id}", response_model=RunRead)
 def get(run_id: UUID, actor: Actor, company_id: CompanyScope, service: Service) -> RunRead:
     return service.audit.get(actor, company_id, run_id)
+
+
+@router.get("/agent/runs/{run_id}/proposal", response_model=AgentProposalPreview)
+def proposal(
+    run_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> AgentProposalPreview:
+    return service.preview(actor, company_id, run_id)
 
 
 @router.get("/agent/runs/{run_id}/steps", response_model=list[StepRead])

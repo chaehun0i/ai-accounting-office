@@ -1,6 +1,7 @@
 """실제 PostgreSQL 체크포인트와 API, Application Tool을 끝까지 실행합니다."""
 
 from dataclasses import replace
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -83,6 +84,33 @@ def test_postgres_interrupt_reconstructed_resume(api_client, agent_environment):
     assert run["controller_verdict"] == "REVIEW"
     assert run["pending_action"] == "REVIEW_PROPOSAL"
     assert start(api_client, writer, source, key)["id"] == run["id"]
+    preview_response = api_client.get(f"/agent/runs/{run['id']}/proposal", headers=writer)
+    assert preview_response.status_code == 200, preview_response.text
+    preview = preview_response.json()
+    assert preview["transaction_id"] == source["id"]
+    assert preview["source_version"] == source["version"]
+    assert preview["run_version"] == run["version"]
+    assert preview["evidence_count"] == 0
+    assert {line["account_code"] for line in preview["lines"]}
+    assert sum(Decimal(line["debit_amount"]) for line in preview["lines"]) == Decimal("100")
+    assert sum(Decimal(line["credit_amount"]) for line in preview["lines"]) == Decimal("100")
+    assert set(preview) == {
+        "run_id",
+        "transaction_id",
+        "run_version",
+        "source_version",
+        "entry_date",
+        "description",
+        "lines",
+        "evidence_count",
+        "controller_verdict",
+    }
+    assert api_client.get(f"/agent/runs/{run['id']}/proposal", headers=owner).status_code == 403
+    other_company = {**writer, "X-Company-ID": str(uuid4())}
+    assert (
+        api_client.get(f"/agent/runs/{run['id']}/proposal", headers=other_company).status_code
+        == 404
+    )
     with checkpoints.open(run["graph_thread_id"]) as saver:
         assert saver.get_tuple({"configurable": {"thread_id": run["graph_thread_id"]}})
     import os
@@ -134,6 +162,7 @@ def test_postgres_interrupt_reconstructed_resume(api_client, agent_environment):
     assert response.status_code == 200, response.text
     final = response.json()
     assert final["status"] == "COMPLETED", final
+    assert api_client.get(f"/agent/runs/{run['id']}/proposal", headers=writer).status_code == 409
     journal = api_client.get("/journals/" + final["result_journal_id"], headers=writer).json()
     assert journal["status"] == "DRAFT"
     assert journal["approved_at"] is None and journal["posted_at"] is None
