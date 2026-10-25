@@ -19,6 +19,7 @@
 | `/trial-balance` | 기간별 합계잔액시산표 |
 | `/closing` | 기간별 결산 검사·조정·마감 이력 |
 | `/financial-statements` | CLOSED 기간 BS/IS 생성·조회·출처 확인 |
+| `/reports` | CLOSED 기간 BS/IS·재무비율 PDF/XLSX/CSV 생성·이력·권한 있는 다운로드 |
 | `/ai-team` | 회사·기간 기준 마감·재무제표 읽기 질의 |
 | `/accounting` | 회계 설정·계정과목·회계기간 |
 
