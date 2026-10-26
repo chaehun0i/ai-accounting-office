@@ -59,6 +59,8 @@ from app.onboarding.application.merge import OnboardingImportService
 from app.onboarding.application.service import OnboardingService
 from app.onboarding.infrastructure.template import parse_onboarding
 from app.onboarding.infrastructure.unit_of_work import OnboardingSQLAlchemyUnitOfWork
+from app.reporting.cash_flow.service import CashFlowService
+from app.reporting.cash_flow.unit_of_work import CashFlowUnitOfWork
 from app.reporting.center.service import ReportCenterService
 from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
 from app.reporting.financial_statements.application.service import StatementService
@@ -99,6 +101,7 @@ class Services:
     closing: ClosingService | None = None
     statements: StatementService | None = None
     report_center: ReportCenterService | None = None
+    cash_flow: CashFlowService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -160,6 +163,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
             lambda: ReportCenterUnitOfWork(sessions),
             LocalObjectStorage(Path(settings.storage_root)),
         ),
+        cash_flow=CashFlowService(lambda: CashFlowUnitOfWork(sessions)),
     )
     assert container.accounting and container.transactions and container.accounting_reports
     assert (

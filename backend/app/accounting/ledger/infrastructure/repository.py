@@ -92,6 +92,7 @@ class LedgerRepository:
                 credit_amount=line.credit_amount,
                 source_transaction_id=j.source_transaction_id,
                 import_id=import_id,
+                source_type=j.source_type,
             )
             for j, line, a, import_id, counterparty_name in self.session.execute(query)
         ]
