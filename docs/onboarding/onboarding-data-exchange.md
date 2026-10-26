@@ -1,8 +1,10 @@
 # 회계 온보딩과 데이터 병합
 
+이 문서의 시작 SHA, migration `005`, v0.2.5 설계 참조와 초기 검증 수치는 **온보딩 데이터 병합을 처음 구현한 당시의 기록**입니다. 현재 구현 범위는 [문서 안내](../README.md)와 최신 `main`을 기준으로 확인하세요. 현재 사용자가 온보딩 완료 후 기초잔액·채권채무를 처리하는 순서는 아래 [완료 후 기초자료 이관](#완료-후-기초자료-이관)에 정리되어 있습니다. 활성 Design SSOT는 로컬 v0.2.6 정본이며 이 기록의 v0.2.5 참조를 현재 설계 버전으로 읽지 않습니다.
+
 시작 main: `85e23b1bd2e94c7d4d22bd5447222964bf5f863c`. 브랜치: `feat/onboarding-data-exchange`.
 원격 main을 fetch/fast-forward pull하고 기존 Alembic head `004_storage_evidence_intake`를 확인했습니다.
-단일 기준선은 [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf)입니다. 활성 문서만 확인했으며 과거 버전 fallback은 사용하지 않았습니다.
+당시 확인한 설계 기준선은 [AI_Accounting_Office_v0.2.5_통합설계_정본](https://drive.google.com/drive/folders/14f9qJtr7eKzC12n8GpdHcNc3Ff2nyYpf)이었습니다. 이 문단은 현재 활성 버전을 뜻하지 않습니다.
 
 ## 설계 추적
 
