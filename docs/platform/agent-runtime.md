@@ -55,12 +55,19 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 | POST /agent/runs/bookkeeper | `{transaction_id}`, Idempotency-Key 필수 |
 | POST /agent/queries/bookkeeper | `{period_id, question}`, Idempotency-Key 필수. 마감 상태 또는 CLOSED 기간 BS/IS 조회 |
 | GET /agent/runs/{id} | status/version/pending_action/controller_verdict/result_journal_id |
+| GET /agent/runs/{id}/proposal | 검토 대기 중인 거래 기반 Run의 검증된 분개일·차대 계정·Decimal 금액·원천 version만 조회 |
 | GET /agent/runs/{id}/steps | 노드 실행과 안전한 오류 코드 |
 | GET /agent/runs/{id}/events?after_seq=0 | 저장된 이벤트 순서 조회, 최대 1,000개 |
 | GET /agent/runs/{id}/stream?after_seq=0 | 같은 DB 이벤트를 SSE 형식으로 replay |
 | POST /agent/runs/{id}/resume | `{expected_version, decision: CONTINUE 또는 REJECT}` |
 
 다른 회사 run/transaction은 404이며 실행 작성자만 resume할 수 있습니다. stale version은 409입니다. 클라이언트는 이전 event_seq 이후를 조회하여 복구합니다. SSE 전송 실패는 이미 저장된 Run에 영향을 주지 않습니다.
+
+### 거래 화면에서 전표 제안 검토
+
+`/transactions`에서 거래를 선택하면 필요한 거래·계정 조회와 전표 작성 권한이 있는 사용자에게 **AI 전표 제안**이 표시됩니다. 사용자가 제안 요청을 시작하면 기존 Bookkeeper Run을 실행하고, `WAITING_FOR_INPUT` 상태에서 제안의 분개일, 차변·대변 계정과 Decimal 금액, 증빙 건수, 원천 거래 version을 확인할 수 있습니다. 이 조회는 현재 회사·권한·실행 작성자를 다시 확인하며 Graph checkpoint 원문이나 모델 입력은 반환하지 않습니다.
+
+원천 거래가 바뀌었으면 화면에서 진행을 막고, 서버도 재개 시 version을 다시 검사합니다. 사용자는 **제안 거절** 또는 **검토 후 전표 초안 만들기**를 선택합니다. CONTINUE가 만든 결과는 DRAFT 전표이며 `/journals`에서 따로 제출·독립 승인·장부 반영해야 합니다. 회사나 거래를 바꾸면 화면의 선택 상태가 분리되고, 재진입 시 같은 회사·거래의 Run 상태를 다시 조회합니다. 완료·실패·차단 상태는 성공한 전표로 표시하지 않습니다.
 
 기간 질의는 `closing.readiness`와 `financial_statement.read` 두 읽기 Tool만 사용합니다. 전자는 Closing Application의 검사·차단 사유를 그대로 반환하며 `period.read` 권한을 요구합니다. 후자는 CLOSED 기간의 최신 BS/IS 스냅샷과 요청 항목의 계정·전표 출처를 Reporting Application에서 읽으며 `financial_statement.read` 권한을 요구합니다. Tool Registry가 회사 범위와 사용자 권한을 재검증하고 Controller가 답변의 금액·문구·resource·출처가 Tool 결과와 정확히 일치하는지 확인합니다. 마감·기표·승인 명령은 Agent에 노출하지 않습니다.
 
