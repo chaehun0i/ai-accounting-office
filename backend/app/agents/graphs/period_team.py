@@ -194,9 +194,10 @@ def build_period_team(
         graph.add_node(name, cast(Any, traced(name, fn)))
     graph.add_edge(START, "accounting_lead")
     graph.add_edge("accounting_lead", "closing_agent")
+    # 회계 조회 UoW와 제품 Run 감사를 같은 기간에서 순서대로 실행합니다.
     graph.add_edge("closing_agent", "ar_agent")
-    graph.add_edge("closing_agent", "ap_agent")
-    graph.add_edge(["ar_agent", "ap_agent"], "compose_team_answer")
+    graph.add_edge("ar_agent", "ap_agent")
+    graph.add_edge("ap_agent", "compose_team_answer")
     graph.add_edge("compose_team_answer", "controller_agent")
     graph.add_edge("controller_agent", END)
     return graph.compile()

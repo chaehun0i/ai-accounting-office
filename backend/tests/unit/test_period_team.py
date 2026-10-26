@@ -79,7 +79,7 @@ def test_team_returns_review_for_actual_reconciliation_difference_and_closing_bl
     assert team_verdict(source, compose_team_answer(source)) == "REVIEW"
 
 
-def test_team_graph_fans_out_existing_tools_and_fans_in_controller():
+def test_team_graph_runs_specialists_in_order_and_rechecks_with_controller():
     source = state()
 
     class Response(BaseModel):
@@ -131,4 +131,7 @@ def test_team_graph_fans_out_existing_tools_and_fans_in_controller():
         "ap_agent",
         "controller_agent",
     }.issubset(audit.started)
+    assert audit.started.index("closing_agent") < audit.started.index("ar_agent")
+    assert audit.started.index("ar_agent") < audit.started.index("ap_agent")
+    assert audit.started.index("ap_agent") < audit.started.index("controller_agent")
     assert len(audit.finished) == len(audit.started)

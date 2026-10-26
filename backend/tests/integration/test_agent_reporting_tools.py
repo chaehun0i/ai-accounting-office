@@ -193,7 +193,10 @@ def test_accounting_team_reviews_closed_period_with_separate_roles(
     )
     assert response.status_code == 200, response.text
     run = response.json()
-    assert run["status"] == "COMPLETED", run
+    assert run["status"] == "COMPLETED", {
+        "run": run,
+        "steps": api_client.get(f"/agent/runs/{run['id']}/steps", headers=writer).json(),
+    }
     assert run["graph_name"] == "accounting_team_period_review"
     assert run["controller_verdict"] in ("PASS", "REVIEW")
     assert "Closing Agent" in run["answer_text"]
