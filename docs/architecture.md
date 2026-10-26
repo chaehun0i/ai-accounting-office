@@ -4,9 +4,9 @@
 
 ## 실제 구현
 
-Identity/Company/RBAC, 회계 Master, Storage/Evidence/Intake, Onboarding/Data Exchange, Transaction/Journal/Approval/Posting/Reversal/GL/TB, Governance, Finance Subledger, Business Document, Bank/Card Reconciliation, Closing V1 및 CLOSED 기간 BS/IS 관계형 스냅샷이 구현되어 있습니다. Finance는 채권·채무·수금·지급·배분·Aging·GL 대사를 소유합니다. 실제 은행 이체·Tax·Asset/Inventory는 구현하지 않았습니다.
+Identity/Company/RBAC, 회계 Master, Storage/Evidence/Intake, Onboarding/Data Exchange, Transaction/Journal/Approval/Posting/Reversal/GL/TB, Governance, Finance Subledger, Business Document, Bank/Card Reconciliation, Closing V1 및 CLOSED 기간 BS/IS 관계형 스냅샷이 구현되어 있습니다. 온보딩 Cutover는 Opening Journal의 기존 독립 승인·POST와 기초 AR/AP 승격까지 이어지고, Report Center V1은 BS/IS/재무비율의 PDF·XLSX·CSV 생성·이력·권한 다운로드를 제공합니다. 현금흐름표는 명시적 현금 범위·활동 분류와 CLOSED 장부 사전 점검까지만 구현됐습니다. Finance는 채권·채무·수금·지급·배분·Aging·GL 대사를 소유합니다. 실제 은행 이체·Tax·Asset/Inventory와 완성된 현금흐름표는 구현하지 않았습니다.
 
-P0 Runtime은 기존 거래에서 Tool 조회 → 구조화 계정 제안 → 결정론적 검증 → 사람 응답 대기 → 전표 **초안** 전달을 수행합니다. 별도의 읽기 전용 기간 질의는 Closing readiness와 CLOSED 기간 BS/IS 스냅샷을 기존 Tool Registry와 Application Service로 조회하며, `AI 회계팀` 화면에서 사용합니다. 실제 Gemini 호출은 선택 사항이며 기본 공급자는 Fake입니다. 대화방/장기 메모리와 자율 회계 승인은 제공하지 않습니다.
+P0 Runtime은 기존 거래에서 Tool 조회 → 구조화 계정 제안 → 결정론적 검증 → 사람 응답 대기 → 전표 **초안** 전달을 수행합니다. 별도의 읽기 전용 기간 질의는 Closing readiness와 CLOSED 기간 BS/IS 스냅샷을 기존 Tool Registry와 Application Service로 조회하며, `AI 회계팀` 화면에서 사용합니다. 동일 Registry의 인증된 로컬 stdio MCP는 외부 호스트에 허용된 회계 Tool을 제공하지만, 내부 Graph가 자기 MCP 서버를 호출하지는 않습니다. 원격 HTTP/OAuth MCP는 제공하지 않습니다. 실제 Gemini 호출은 선택 사항이며 기본 공급자는 Fake입니다. 대화방/장기 메모리와 자율 회계 승인은 제공하지 않습니다.
 
 기본 의존 방향은 `API → Application → Domain`입니다. Infrastructure가 계약을 구현하고 UoW가 transaction을 소유합니다. Repository는 commit하지 않습니다. Domain/Application은 ORM·FastAPI·Provider SDK에 의존하지 않습니다.
 
@@ -30,7 +30,7 @@ Human Interrupt의 CONTINUE는 Graph 진행 허용입니다. Accounting APPROVED
 
 ## 데이터베이스
 
-기존 `db_foundation → 001_identity → … → 009_finance_subledger` 이력을 수정하지 않고 `010_agent_runtime_foundation`을 추가했습니다. 설계 migration map의 target 순서와 이미 배포된 번호는 구분하며, 이번 다음 사용 가능한 forward revision을 사용했습니다.
+기존 `db_foundation → 001_identity → … → 009_finance_subledger` 이력을 수정하지 않고 `010_agent_runtime_foundation`을 추가했습니다. 이 단락의 010~014 수치와 설명은 각 PR 시점의 기록입니다. 현재 Alembic head는 `024_cash_flow_foundation`이며, 이후 migration도 기존 배포 이력을 수정하지 않는 순방향 revision입니다.
 
 제품 실행 정본은 `jobs`, `agent_runs`, `agent_steps`, `tool_executions`, `job_events`입니다. 업무 스키마는 JSON/JSONB 0을 유지합니다. 실행 이력에는 digest·오류 코드·상태·resource FK를 기록하며 prompt·provider response·전체 Tool payload는 저장하지 않습니다. Tool Execution과 Job Event는 DB trigger로 append-only입니다.
 
@@ -58,7 +58,7 @@ AST guard가 Domain/Application의 프레임워크 의존, SDK 위치, Agent DB 
 
 `import_promotion_rows`는 원본 행을 복제하지 않고 locator·digest·거래 FK·review를 보존합니다. `import_promotion_commands`는 company/actor/command/key/fingerprint와 Receipt 참조만 저장합니다. 요청·Import·원천 identity 잠금과 기존 Transaction UNIQUE가 동시 재시도를 보호합니다. 회사·Receipt/Transaction composite FK가 다른 회사 참조를 차단합니다. Agent mutation Tool과 framework checkpoint 예외는 변경하지 않았습니다. API·상태·재사용·실측 검증은 [승격 계약](onboarding/import-transaction-promotion.md)을 따릅니다.
 
-012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011·012 수치는 각 revision 당시 기록이며 현재 head는 `017_accounting_agent_queries`입니다.
+012 적용 후 전용 PostgreSQL 실측은 업무 테이블 **72**, 업무 FK **176**, orphan **0**, 업무 JSON **0**·JSONB **0**입니다. 위 011·012 수치는 각 revision 당시 기록이며 현재 head 수치는 이 문서의 데이터베이스 첫 단락을 따릅니다.
 
 
 ## 매출·매입 업무문서
