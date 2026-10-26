@@ -76,7 +76,7 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 
 ### AI 회계팀 기간 공동 검토
 
-`/ai-team`의 **공동 검토**는 Accounting Lead가 `closing.readiness`, `finance.get_ar_reconciliation`, `finance.get_ap_reconciliation` 세 READ capability의 typed 실행 계획을 만들고 권한을 확인합니다. Closing Agent가 선택 기간의 마감 검사와 기준일을 읽은 뒤 AR Agent와 AP Agent가 같은 기준일의 채권·채무 ↔ GL 대사를 병렬로 조회합니다. Controller는 역할별 금액·상태·기준일·차단 건수와 답변 문구를 검증하고 같은 Tool을 다시 조회해 실행 중 원천이 바뀌었으면 결과를 차단합니다. 이 역할들은 독립 회계 엔진이나 별도 모델이 아니라 기존 Application Service를 호출하는 명시적 LangGraph 단계입니다. 각 단계와 Tool 호출은 기존 Run/Step 감사에 기록합니다.
+`/ai-team`의 **공동 검토**는 Accounting Lead가 `closing.readiness`, `finance.get_ar_reconciliation`, `finance.get_ap_reconciliation` 세 READ capability의 typed 실행 계획을 만들고 권한을 확인합니다. Closing Agent가 선택 기간의 마감 검사와 기준일을 읽은 뒤 AR Agent와 AP Agent가 같은 기준일의 채권·채무 ↔ GL 대사를 순서대로 조회합니다. 각 역할은 짧은 회계 조회 UoW와 Run 감사를 마친 뒤 다음 역할로 넘깁니다. Controller는 역할별 금액·상태·기준일·차단 건수와 답변 문구를 검증하고 같은 Tool을 다시 조회해 실행 중 원천이 바뀌었으면 결과를 차단합니다. 이 역할들은 독립 회계 엔진이나 별도 모델이 아니라 기존 Application Service를 호출하는 명시적 LangGraph 단계입니다. 각 단계와 Tool 호출은 기존 Run/Step 감사에 기록합니다.
 
 공동 검토에는 `period.read`, `receivable.read`, `payable.read`가 모두 필요하며 완료된 Run·단계·이벤트를 다시 읽을 때도 현재 권한과 회사를 확인합니다. 권한이 없으면 화면에서 공동 검토를 비활성화하고 기간별 질문은 유지합니다. 마감 차단 항목·AR/AP 차이가 있으면 `REVIEW`와 **사람 검토 필요**를 표시합니다. 역할 결과 또는 최신 원천이 서로 맞지 않으면 `TEAM_SOURCE_CONFLICT`로 차단합니다. 이 흐름은 전표·채권·채무·마감 상태를 변경하지 않고, 승인·기표를 실행하지 않습니다. 동일 Idempotency-Key의 완료 재요청은 기존 Run을 반환합니다.
 
