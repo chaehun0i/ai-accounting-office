@@ -3,12 +3,15 @@
 import re
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from datetime import date
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.agents.graphs.accounting_question import AccountingQuestionState, build_accounting_question
 from app.agents.graphs.bookkeeping import BookkeeperState, HumanDecision, build_bookkeeper
@@ -21,6 +24,49 @@ from app.jobs.domain.runtime import RunRead
 from app.llm.gateway import LLMGateway
 from app.tools.contracts import ToolContext
 from app.tools.registry import ToolRegistry
+
+
+class AgentProposalLine(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    account_id: UUID
+    account_code: str
+    account_name: str
+    debit_amount: Decimal
+    credit_amount: Decimal
+
+
+class AgentProposalPreview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: UUID
+    transaction_id: UUID
+    run_version: int
+    source_version: int
+    entry_date: date
+    description: str
+    lines: tuple[AgentProposalLine, ...]
+    evidence_count: int
+    controller_verdict: str
+
+
+class _CandidateLine(BaseModel):
+    account_id: UUID
+    debit_amount: Decimal
+    credit_amount: Decimal
+
+
+class _CandidateJournal(BaseModel):
+    entry_date: date
+    description: str
+    lines: tuple[_CandidateLine, ...]
+    evidence_ids: tuple[UUID, ...]
+
+
+class _CandidateAccount(BaseModel):
+    id: UUID
+    account_code: str
+    account_name: str
 
 
 class AgentRuntime:
@@ -59,6 +105,55 @@ class AgentRuntime:
         if not self.audit.claim(actor, company, run.id):
             return self.audit.get(actor, company, run.id)
         return self._drive(actor, company, run)
+
+    def preview(self, actor: Principal, company: UUID, run_id: UUID) -> AgentProposalPreview:
+        """Expose only the validated proposal fields, never the raw Graph checkpoint."""
+        run = self.audit.reviewable(actor, company, run_id)
+        assert run.transaction_id is not None
+        with self.checkpoints(run.graph_thread_id) as saver:
+            saved = saver.get_tuple({"configurable": {"thread_id": run.graph_thread_id}})
+        if saved is None:
+            raise StateConflict()
+        try:
+            values = saved.checkpoint["channel_values"]
+            if values["transaction_id"] != str(run.transaction_id) or values["company_id"] != str(
+                company
+            ):
+                raise StateConflict()
+            journal = _CandidateJournal.model_validate(values["proposed_journal"])
+            accounts = {
+                account.id: account
+                for item in values["account_candidates"]
+                for account in (_CandidateAccount.model_validate(item),)
+            }
+            source_version = int(values["source"]["version"])
+            lines = tuple(
+                AgentProposalLine(
+                    account_id=line.account_id,
+                    account_code=accounts[line.account_id].account_code,
+                    account_name=accounts[line.account_id].account_name,
+                    debit_amount=line.debit_amount,
+                    credit_amount=line.credit_amount,
+                )
+                for line in journal.lines
+            )
+        except (KeyError, TypeError, ValueError, ValidationError):
+            raise StateConflict() from None
+        if len(lines) < 2 or sum((line.debit_amount for line in lines), Decimal(0)) != sum(
+            (line.credit_amount for line in lines), Decimal(0)
+        ):
+            raise StateConflict()
+        return AgentProposalPreview(
+            run_id=run.id,
+            transaction_id=run.transaction_id,
+            run_version=run.version,
+            source_version=source_version,
+            entry_date=journal.entry_date,
+            description=journal.description,
+            lines=lines,
+            evidence_count=len(journal.evidence_ids),
+            controller_verdict=run.controller_verdict or "REVIEW",
+        )
 
     def ask(
         self, actor: Principal, company: UUID, period_id: UUID, question: str, key: str

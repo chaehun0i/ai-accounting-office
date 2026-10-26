@@ -5,7 +5,12 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.companies.application.service import require_company
-from app.contracts.access_errors import AuthorizationDenied, ResourceNotFound, VersionConflict
+from app.contracts.access_errors import (
+    AuthorizationDenied,
+    ResourceNotFound,
+    StateConflict,
+    VersionConflict,
+)
 from app.identity.users.domain.entities import Principal
 from app.jobs.application.contracts import RuntimeUnitOfWork
 from app.jobs.domain.runtime import EventRead, RunRead, StepRead
@@ -70,6 +75,29 @@ class RuntimeAudit:
                 company,
                 "period.read" if value.period_id is not None else "journal.read",
             )
+            return value
+
+    def reviewable(self, actor: Principal, company: UUID, run: UUID) -> RunRead:
+        """Only the requester with current proposal permissions may inspect a pending candidate."""
+        with self.factory() as uow:
+            for permission in (
+                "journal.read",
+                "journal.propose",
+                "account.read",
+                "transaction.read",
+            ):
+                require_company(uow, actor, company, permission)
+            value = uow.runtime.get(company, run)
+            if value is None:
+                raise ResourceNotFound()
+            if value.requested_by != actor.user_id:
+                raise AuthorizationDenied()
+            if (
+                value.transaction_id is None
+                or value.status != "WAITING_FOR_INPUT"
+                or value.pending_action != "REVIEW_PROPOSAL"
+            ):
+                raise StateConflict()
             return value
 
     def claim(
