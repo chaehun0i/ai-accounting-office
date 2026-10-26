@@ -87,6 +87,10 @@ Compose `exec`의 초기 Alembic 호출은 호스트용 주소로 접속해 실�
 
 ## 연간 공식 정본
 
+### 연속 월말 대사 검증 추가
+
+`test_finance_full_year.py`는 기존 native-2025-v1 청구서와 유효 정산 행을 수정하지 않고, 2025년 **12개 월말 각각**의 AR·AP 기대 미결액을 청구일·정산일과 Decimal 금액으로 독립 계산합니다. 각 월말의 Subledger 금액과 GL 통제계정 금액이 그 기대값에 정확히 일치하고 대사 상태가 `MATCHED`인지 검사합니다. 연말 한 시점만 맞고 중간 월에서 차이가 나는 회귀를 잡기 위한 검사입니다. 실제 Legacy ERP TB나 은행 원천을 입력한 Shadow Accounting Pilot 결과는 아니며, 그 완료를 주장하지 않습니다.
+
 공식 native Sheet `AI_Accounting_Office_SAMPLE_COMPANY_2025`에서 SYN_MFG_001의 매출 청구서 240건·매입 74건·거래처 20개와 정산 행을 읽었습니다. 상세 행 486/148의 합계를 공급가액과 Decimal로 비교했습니다. 입력 snapshot의 hash와 원본 XLSX hash는 [fixture 기록](../../backend/tests/fixtures/finance/native-2025-v1/README.md)에 있습니다.
 
 발생일보다 앞선 COLL_MULTI_001/PAY_MULTI_001 전체 batch를 명시적으로 거부합니다. 유효한 정산만 반영한 2025-12-31 AR은 **445,109,940**, AP는 **94,178,810**이며 각각 GL과 일치합니다. 원본 유효 행은 AR PARTIAL 171/OPEN 69, AP PARTIAL 55/OPEN 19입니다. 완납은 원본 금액을 이용한 별도 파생 시나리오에서 검증하며 원본의 부분 정산 값을 바꾸지 않습니다.
