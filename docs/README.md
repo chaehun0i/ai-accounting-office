@@ -6,7 +6,9 @@
 
 [잔여 제품 로드맵 Issue #83](https://github.com/chaehun0i/ai-accounting-office/issues/83)은 구현 순서와 미완료 범위를 추적합니다. Issue에 적힌 목표는 병합된 기능으로 간주하지 않으며, 각 단계의 실제 상태는 해당 PR과 최신 `main`을 확인합니다.
 
-현재 사용자 경로: [업무 메뉴](guides/page-navigation.md), [온보딩과 기초자료 이관](onboarding/onboarding-data-exchange.md#완료-후-기초자료-이관), [AI Agent Runtime](platform/agent-runtime.md), [월마감](accounting/period-closing.md), [재무제표](accounting/financial-statements.md), [Report Center](accounting/report-periods.md#report-center-v1-사용자-경로). `AI 회계팀`은 기간 선택 → 질문 → 읽기 전용 Closing/BS·IS Tool → 답변·금액·근거 확인을 제공합니다.
+현재 사용자 경로: [업무 메뉴와 화면별 다음 작업](guides/page-navigation.md), [온보딩과 기초자료 이관](onboarding/onboarding-data-exchange.md#완료-후-기초자료-이관), [거래의 AI 전표 제안](guides/page-navigation.md#거래의-ai-전표-제안), [월마감](accounting/period-closing.md), [재무제표](accounting/financial-statements.md), [Report Center](accounting/report-periods.md#report-center-v1-사용자-경로). `AI 회계팀` 화면은 현재 기간 선택 → 질문 → 읽기 전용 Closing/BS·IS Tool → 답변·금액·근거 확인을 제공합니다. 거래 화면의 AI 전표 제안은 별도 사람 검토를 거쳐 전표 **초안**까지만 만듭니다.
+
+MCP는 회계 Agent 자체가 아니라 동일한 허용 Tool Registry를 외부 AI 호스트에 제공하는 연결 규격입니다. 현재 구현된 연결은 인증된 **로컬 stdio MCP**이며, 실행 방법과 권한 경계는 [Agent Runtime](platform/agent-runtime.md#로컬-mcp)을 확인하세요. 원격 HTTP 연결과 역할별 AI 협업은 병합된 기능으로 표시하지 않습니다.
 
 회계·재무 계약: [회계 마스터](accounting/accounting-master.md), [관리차원](accounting/accounting-dimensions.md), [거래·전표·원장](accounting/transaction-journal-ledger.md), [채권·채무](accounting/finance-subledger.md), [업무문서](accounting/business-documents.md), [은행·카드 대사](accounting/bank-card-reconciliation.md).
 
