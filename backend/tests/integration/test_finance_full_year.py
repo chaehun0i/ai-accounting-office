@@ -148,6 +148,7 @@ def test_syn_mfg_001_full_year(api_client, auth_service):
             groups[row[header_column]].append(row)
         rejected = []
         applied = defaultdict(lambda: Decimal(0))
+        accepted_allocations = []
         for identifier, lines in groups.items():
             # 정본에 실제로 존재하는 선행일자 오류를 명시적으로 보고하고 전체 batch를 거부합니다.
             # 원본 날짜를 고치거나 유효한 일부 행만 몰래 승격하지 않습니다.
@@ -188,6 +189,9 @@ def test_syn_mfg_001_full_year(api_client, auth_service):
             )
             response = confirm(api_client, writer, path, record)
             assert response.status_code == 200, response.text
+            accepted_allocations.extend(
+                (day, row["invoice_no"], amount(row["allocated_amount"])) for row in lines
+            )
             if day <= "2025-12-31":
                 for row in lines:
                     applied[row["invoice_no"]] += amount(row["allocated_amount"])
@@ -200,11 +204,24 @@ def test_syn_mfg_001_full_year(api_client, auth_service):
         assert len(result) == len(invoices)
         assert sum(Decimal(row["outstanding_amount"]) for row in result) == expected
         assert {row["status"] for row in result} >= {"OPEN", "PARTIAL"}
-        report = api_client.get(
-            f"/{targets}/reconciliation?as_of=2025-12-31", headers=writer
-        ).json()
-        assert report["status"] == "MATCHED"
-        assert Decimal(report["subledger_amount"]) == Decimal(report["gl_amount"]) == expected
+        for month in range(1, 13):
+            as_of = date(2025, month, monthrange(2025, month)[1]).isoformat()
+            month_expected = sum(
+                (amount(row["total_amount"]) for row in invoices if row["invoice_date"] <= as_of),
+                Decimal(0),
+            ) - sum(
+                (allocated for day, _, allocated in accepted_allocations if day <= as_of),
+                Decimal(0),
+            )
+            renew_access()
+            report = api_client.get(
+                f"/{targets}/reconciliation?as_of={as_of}", headers=writer
+            ).json()
+            assert report["status"] == "MATCHED", (kind, as_of, report)
+            assert Decimal(report["subledger_amount"]) == month_expected, (kind, as_of)
+            assert Decimal(report["gl_amount"]) == month_expected, (kind, as_of)
+            if month == 12:
+                assert month_expected == expected
         aging = api_client.get(f"/{targets}/aging?as_of=2025-12-31", headers=writer).json()
         assert Decimal(aging["total_outstanding"]) == expected
         assert sum(Decimal(value) for value in aging["buckets"].values()) == expected
