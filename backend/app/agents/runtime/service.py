@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.agents.graphs.accounting_question import AccountingQuestionState, build_accounting_question
 from app.agents.graphs.bookkeeping import BookkeeperState, HumanDecision, build_bookkeeper
+from app.agents.graphs.period_team import PeriodTeamState, build_period_team
 from app.agents.runtime.controller import AccountingAnswer
 from app.contracts.access_errors import InvalidInput, StateConflict
 from app.core.digests import digest
@@ -198,6 +199,56 @@ class AgentRuntime:
                     "PASS",
                     answer_text=answer.text,
                     answer_amount=answer.amount,
+                    answer_resource_id=answer.resource_id,
+                    answer_source_digest=answer.source_digest,
+                )
+        except Exception as error:
+            self.audit.finish(
+                context, "FAILED", "FAILED", error=getattr(error, "code", "AGENT_RUNTIME_FAILED")
+            )
+        return self.audit.get(actor, company, run.id)
+
+    def review_period(self, actor: Principal, company: UUID, period_id: UUID, key: str) -> RunRead:
+        """Closing·AR·AP 읽기를 분리해 실행하고 Controller가 출처를 검증합니다."""
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
+            raise InvalidInput()
+        scope = ToolContext(actor, company)
+        for permission in ("period.read", "receivable.read", "payable.read"):
+            self.registry.authorize(scope, permission)
+        # 다른 회사 기간은 Run을 생성하기 전에 거부합니다.
+        self.registry.execute("closing.readiness", {"period_id": period_id}, scope)
+        run = self.audit.create_query(
+            actor,
+            company,
+            period_id,
+            "기간 공동 검토",
+            self.gateway.provider.code,
+            self.gateway.provider.model,
+            key,
+            digest({"period_id": str(period_id), "graph_version": "team-1"}),
+            graph_name="accounting_team_period_review",
+        )
+        if run.status in ("COMPLETED", "BLOCKED"):
+            return run
+        if not self.audit.claim(actor, company, run.id):
+            return self.audit.get(actor, company, run.id)
+        context = ToolContext(actor, company, run.id)
+        try:
+            graph = build_period_team(self.registry, context, self.audit)
+            result = graph.invoke(PeriodTeamState(period_id=str(period_id)))
+            verdict = result["controller_verdict"]
+            if verdict == "BLOCK":
+                self.audit.finish(
+                    context, "BLOCKED", "FINALIZING", verdict, error="TEAM_SOURCE_CONFLICT"
+                )
+            else:
+                answer = AccountingAnswer.model_validate(result["answer"])
+                self.audit.finish(
+                    context,
+                    "COMPLETED",
+                    "FINALIZING",
+                    verdict,
+                    answer_text=answer.text,
                     answer_resource_id=answer.resource_id,
                     answer_source_digest=answer.source_digest,
                 )

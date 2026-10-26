@@ -2,15 +2,17 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "@/shared/api";
-import { askBookkeeper, getQueryRun, listPeriods } from "./api";
+import { askBookkeeper, getQueryRun, getQuerySteps, listPeriods, reviewPeriod } from "./api";
 import { questionDraft, selectContextPeriod, type AskContext } from "./context";
-import { isFinal, type Period, type QueryRun } from "./model";
+import { isFinal, type Period, type QueryRun, type QueryStep } from "./model";
 
 export function useAccountingQuery(companyId: string, context: AskContext | null) {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [periodId, setPeriodId] = useState("");
   const [question, setQuestion] = useState("");
   const [run, setRun] = useState<QueryRun | null>(null);
+  const [steps, setSteps] = useState<QueryStep[]>([]);
+  const [mode, setMode] = useState<"question" | "team">("question");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -31,6 +33,8 @@ export function useAccountingQuery(companyId: string, context: AskContext | null
     setPeriodId("");
     setQuestion(questionDraft(context));
     setRun(null);
+    setSteps([]);
+    setMode("question");
     setShowSource(false);
     retry.current = null;
     listPeriods(companyId).then(values => {
@@ -51,6 +55,7 @@ export function useAccountingQuery(companyId: string, context: AskContext | null
     requestVersion.current += 1;
     retry.current = null;
     setRun(null);
+    setSteps([]);
     setShowSource(false);
     setError("");
   }
@@ -58,16 +63,18 @@ export function useAccountingQuery(companyId: string, context: AskContext | null
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = question.trim();
-    if (busy || !periodId || !text) return;
+    if (busy || !periodId || (mode === "question" && !text)) return;
     const version = ++requestVersion.current;
-    const signature = JSON.stringify([companyId, periodId, text]);
+    const signature = JSON.stringify([companyId, periodId, mode, mode === "question" ? text : ""]);
     if (retry.current?.signature !== signature) retry.current = { signature, key: crypto.randomUUID() };
     const key = retry.current.key;
     setBusy(true);
     setError("");
     setRun(null);
     try {
-      let result = await askBookkeeper(companyId, periodId, text, key);
+      let result = mode === "team"
+        ? await reviewPeriod(companyId, periodId, key)
+        : await askBookkeeper(companyId, periodId, text, key);
       for (let attempt = 0; !isFinal(result.status) && attempt < 15; attempt += 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         if (!active.current || requestVersion.current !== version) return;
@@ -75,6 +82,11 @@ export function useAccountingQuery(companyId: string, context: AskContext | null
       }
       if (!active.current || requestVersion.current !== version) return;
       setRun(result);
+      if (mode === "team") {
+        const values = await getQuerySteps(companyId, result.id);
+        if (!active.current || requestVersion.current !== version) return;
+        setSteps(values);
+      }
       if (isFinal(result.status)) retry.current = null;
     } catch (reason) {
       if (active.current && requestVersion.current === version) setError(errorMessage(reason));
@@ -84,8 +96,8 @@ export function useAccountingQuery(companyId: string, context: AskContext | null
   }
 
   return {
-    periods, periodId, question, run, loading, busy, error, contextNotice, showSource,
-    setPeriodId, setQuestion, setShowSource, clearResult, submit,
+    periods, periodId, question, run, steps, mode, loading, busy, error, contextNotice, showSource,
+    setPeriodId, setQuestion, setMode, setShowSource, clearResult, submit,
     reloadPeriods: () => setPeriodRevision(value => value + 1),
   };
 }

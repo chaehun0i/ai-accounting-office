@@ -45,6 +45,7 @@ class RuntimeRepository:
         now: datetime,
         period_id: UUID | None = None,
         question_text: str | None = None,
+        graph_name: str = "bookkeeper",
     ) -> RunRead:
         # 회사 행을 잠가 같은 회사/사용자/키의 최초 생성 경쟁을 직렬화합니다.
         from app.companies.infrastructure.models import CompanyModel
@@ -90,9 +91,17 @@ class RuntimeRepository:
             period_id=period_id,
             question_text=question_text,
             principal_session_id=actor.session_id,
-            graph_name="bookkeeper",
-            graph_version="2" if question_text is not None else "1",
-            agent_type="BOOKKEEPER",
+            graph_name=graph_name,
+            graph_version=(
+                "1"
+                if graph_name == "accounting_team_period_review"
+                else "2"
+                if question_text
+                else "1"
+            ),
+            agent_type=(
+                "ACCOUNTING_LEAD" if graph_name == "accounting_team_period_review" else "BOOKKEEPER"
+            ),
             prompt_version="1",
             tool_registry_version="1",
             provider_code=provider,
