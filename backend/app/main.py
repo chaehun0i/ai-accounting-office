@@ -29,6 +29,7 @@ from app.identity.auth.api.router import router as auth_router
 from app.identity.invitations.api.router import router as invitations_router
 from app.intake.api.router import router as intake_router
 from app.onboarding.api.router import router as onboarding_router
+from app.reporting.cash_flow.api import router as cash_flow_router
 from app.reporting.center.api import router as report_center_router
 from app.reporting.financial_metrics.api import router as metric_router
 from app.reporting.financial_statements.api.router import router as statement_router
@@ -124,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(statement_router)
     app.include_router(report_period_router)
     app.include_router(report_center_router)
+    app.include_router(cash_flow_router)
     app.include_router(metric_router)
     app.include_router(health_router)
     app.include_router(auth_router)

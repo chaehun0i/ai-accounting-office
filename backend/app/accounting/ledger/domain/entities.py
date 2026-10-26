@@ -25,6 +25,7 @@ class LedgerFact:
     source_transaction_id: UUID | None
     import_id: UUID | None
     counterparty_name: str | None = None
+    source_type: str = ""
 
 
 @dataclass(frozen=True, kw_only=True)
