@@ -28,6 +28,11 @@ class AskAccounting(BaseModel):
     question: str = Field(min_length=1, max_length=500)
 
 
+class ReviewPeriod(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    period_id: UUID
+
+
 class ResumeRun(HumanDecision):
     expected_version: int = Field(ge=1)
 
@@ -54,6 +59,13 @@ def ask(
     payload: AskAccounting, actor: Actor, company_id: CompanyScope, key: Key, service: Service
 ) -> RunRead:
     return service.ask(actor, company_id, payload.period_id, payload.question, key)
+
+
+@router.post("/agent/queries/accounting-team", response_model=RunRead, dependencies=[Depends(csrf)])
+def review_period(
+    payload: ReviewPeriod, actor: Actor, company_id: CompanyScope, key: Key, service: Service
+) -> RunRead:
+    return service.review_period(actor, company_id, payload.period_id, key)
 
 
 @router.get("/agent/runs/{run_id}", response_model=RunRead)

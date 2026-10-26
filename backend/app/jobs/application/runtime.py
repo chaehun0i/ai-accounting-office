@@ -47,6 +47,7 @@ class RuntimeAudit:
         model: str,
         key: str,
         fingerprint: str,
+        graph_name: str = "bookkeeper",
     ) -> RunRead:
         with self.factory() as uow:
             require_company(uow, actor, company, "company.read")
@@ -61,6 +62,7 @@ class RuntimeAudit:
                 uow.now(),
                 period_id,
                 question,
+                graph_name,
             )
 
     def get(self, actor: Principal, company: UUID, run: UUID) -> RunRead:
@@ -75,6 +77,9 @@ class RuntimeAudit:
                 company,
                 "period.read" if value.period_id is not None else "journal.read",
             )
+            if value.graph_name == "accounting_team_period_review":
+                require_company(uow, actor, company, "receivable.read")
+                require_company(uow, actor, company, "payable.read")
             return value
 
     def reviewable(self, actor: Principal, company: UUID, run: UUID) -> RunRead:
