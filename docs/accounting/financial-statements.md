@@ -18,6 +18,8 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 이 단계의 `ready`는 **현금 이동 사전 점검 결과**입니다. 간접법 영업활동 bridge, 복합분개 배분, Cash Flow 관계형 이벤트·스냅샷, 사용자 화면과 Report Center Export는 아직 구현되지 않았습니다. 따라서 `ready=true`만으로 현금흐름표가 완성됐거나 공식 제출 가능한 상태라고 표시하지 않습니다. 전체 현금흐름표 완료조건은 [후속 Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
 
+PostgreSQL API 회귀 검증은 현금 범위가 없는 CLOSED 기간의 차단, 현금 범위와 활동 분류 등록 후의 재점검, 비자산 계정 거부, 회사 간 접근 차단을 확인합니다. 이 검증은 실제 API와 서비스 구성을 통해 수행합니다.
+
 Bookkeeper의 `financial_statement.read`는 기존 읽기 Application Service와 `financial_statement.read` 사용자 권한을 재사용합니다. `AI 회계팀` 화면은 CLOSED 기간의 기존 스냅샷 금액·버전·digest를 표시하며 재무제표를 새로 생성하거나 승인하지 않습니다.
 
 BS/IS 각 항목의 **계정·전표 보기**는 원장 출처 조회이며, **AI에게 묻기**는 해당 기간·제표 종류·항목 코드만 `/ai-team` 질문 초안으로 전달합니다. 회사 ID와 금액은 URL에 넣지 않습니다. AI 회계팀은 현재 회사의 기간 목록을 다시 확인하고 사용자가 질문을 제출한 뒤에만 기존 `financial_statement.read`를 호출합니다. 항목 코드는 기존 taxonomy에서 검증하며, 답변 금액과 출처는 Reporting Application의 스냅샷이 정본입니다.
