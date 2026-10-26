@@ -54,6 +54,7 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 | --- | --- |
 | POST /agent/runs/bookkeeper | `{transaction_id}`, Idempotency-Key 필수 |
 | POST /agent/queries/bookkeeper | `{period_id, question}`, Idempotency-Key 필수. 마감 상태 또는 CLOSED 기간 BS/IS 조회 |
+| POST /agent/queries/accounting-team | `{period_id}`, Idempotency-Key 필수. Closing·AR·AP 역할의 기간 공동 검토 |
 | GET /agent/runs/{id} | status/version/pending_action/controller_verdict/result_journal_id |
 | GET /agent/runs/{id}/proposal | 검토 대기 중인 거래 기반 Run의 검증된 분개일·차대 계정·Decimal 금액·원천 version만 조회 |
 | GET /agent/runs/{id}/steps | 노드 실행과 안전한 오류 코드 |
@@ -73,11 +74,19 @@ CONTINUE에서도 원천 version·권한·기간을 다시 확인한 뒤 기존 
 
 `/ai-team`은 회사와 회계기간을 선택해 위 기간 질의를 실행하는 최소 Workspace입니다. 차단 검사는 건수와 검사 코드·영향 금액을 Tool 결과 그대로 답변하며, Controller는 건수와 검사 목록의 불일치도 차단합니다. UI는 답변·Decimal 문자열 금액·검증 상태·resource/digest를 구분합니다. 회사 전환 시 이전 입력·응답을 폐기하며 대화 이력과 토큰 스트리밍은 저장·제공하지 않습니다.
 
+### AI 회계팀 기간 공동 검토
+
+`/ai-team`의 **공동 검토**는 Accounting Lead가 `closing.readiness`, `finance.get_ar_reconciliation`, `finance.get_ap_reconciliation` 세 READ capability의 typed 실행 계획을 만들고 권한을 확인합니다. Closing Agent가 선택 기간의 마감 검사와 기준일을 읽은 뒤 AR Agent와 AP Agent가 같은 기준일의 채권·채무 ↔ GL 대사를 병렬로 조회합니다. Controller는 역할별 금액·상태·기준일·차단 건수와 답변 문구를 검증하고 같은 Tool을 다시 조회해 실행 중 원천이 바뀌었으면 결과를 차단합니다. 이 역할들은 독립 회계 엔진이나 별도 모델이 아니라 기존 Application Service를 호출하는 명시적 LangGraph 단계입니다. 각 단계와 Tool 호출은 기존 Run/Step 감사에 기록합니다.
+
+공동 검토에는 `period.read`, `receivable.read`, `payable.read`가 모두 필요하며 완료된 Run·단계·이벤트를 다시 읽을 때도 현재 권한과 회사를 확인합니다. 권한이 없으면 화면에서 공동 검토를 비활성화하고 기간별 질문은 유지합니다. 마감 차단 항목·AR/AP 차이가 있으면 `REVIEW`와 **사람 검토 필요**를 표시합니다. 역할 결과 또는 최신 원천이 서로 맞지 않으면 `TEAM_SOURCE_CONFLICT`로 차단합니다. 이 흐름은 전표·채권·채무·마감 상태를 변경하지 않고, 승인·기표를 실행하지 않습니다. 동일 Idempotency-Key의 완료 재요청은 기존 Run을 반환합니다.
+
+내부 Graph는 Canonical Tool Registry를 직접 사용합니다. 로컬 stdio MCP도 **같은 세 Tool 계약**을 권한에 따라 노출하며, Graph가 자기 MCP 서버를 HTTP로 호출하지 않습니다. 팀 전체 Run을 별도 MCP Tool로 노출하지는 않습니다. Frontend는 완료 후 실제 서버 Step 이력을 역할별로 표시하고 회사 전환 시 이전 결과를 지웁니다.
+
 월마감 화면의 문맥 링크는 기간 UUID와 허용된 `closing` context만 전달합니다. AI 회계팀은 현재 회사의 기간 목록에서 해당 UUID를 다시 확인한 뒤 질문 초안을 표시하며, 페이지 이동만으로 Agent Run을 만들지 않습니다. 실제 제출에는 기존 권한·Idempotency-Key·Tool Registry 경계를 그대로 적용합니다.
 
 재무제표 항목도 `financial_statement` context로 같은 화면에 연결됩니다. URL은 기간 UUID·BS/IS 종류·taxonomy 항목 코드만 전달하고 금액은 전달하지 않습니다. 기존 Closing 문맥과 동일하게 현재 회사 기간을 확인한 후 수정 가능한 질문 초안을 표시합니다. 질문에 포함된 유효한 taxonomy 항목 코드는 기존 기간 질의 Graph에서 해당 BS/IS 읽기 Tool로 결정론적으로 연결하고, Tool이 반환한 금액·전표 출처를 Controller가 검증합니다. 새 Tool, DB 테이블, 자동 질의 실행은 없습니다.
 
-거래 전표 제안 그래프는 `agents/graphs/bookkeeping.py`, 기간 질의 그래프는 `agents/graphs/accounting_question.py`에 둡니다. 두 그래프는 같은 Tool Registry와 Runtime 감사 경계를 사용합니다. 화면의 기간 조회·질의 재시도·run 조회 상태는 `ai-team/use-accounting-query.ts`가 소유하고 Workspace 컴포넌트는 결과 표시만 담당합니다.
+거래 전표 제안 그래프는 `agents/graphs/bookkeeping.py`, 기간 질의 그래프는 `agents/graphs/accounting_question.py`, 역할별 기간 공동 검토 그래프는 `agents/graphs/period_team.py`에 둡니다. 세 그래프는 같은 Tool Registry와 Runtime 감사 경계를 사용합니다. 화면의 기간 조회·질의 재시도·run 조회 상태는 `ai-team/use-accounting-query.ts`가 소유하고 Workspace 컴포넌트는 결과 표시만 담당합니다.
 
 ## 영속성·복구
 
@@ -105,6 +114,6 @@ Internal Graph는 MCP 서버를 HTTP로 호출하지 않고 Registry를 직접 �
 
 실행은 동기 API 요청 기반이며 상시 queue worker, 취소, 주기적 복구 scheduler, live fanout은 없습니다. 네트워크가 끊기면 REST 상태와 저장 이벤트를 조회하세요. Tool timeout metadata는 완료 후 예산 초과를 검사하며 실행 중인 Python 함수를 강제 중단하지 않습니다. Gemini SDK에는 실제 HTTP timeout과 전체 재시도 예산을 적용합니다.
 
-실 Gemini 네트워크 테스트는 키·모델을 제공한 별도 opt-in으로만 수행합니다. 일반 CI는 Fake이며 키가 없어도 Core/health가 동작합니다. Remote MCP OAuth/host별 서비스 인증, checkpoint retention/운영 role 분리, Chat UI, Closing/Tax/multi-agent/RAG/자율 Posting은 이번 범위가 아닙니다. 정적 import guard는 Python sandbox가 아닙니다.
+실 Gemini 네트워크 테스트는 키·모델을 제공한 별도 opt-in으로만 수행합니다. 일반 CI는 Fake이며 키가 없어도 Core/health가 동작합니다. Remote MCP OAuth/host별 서비스 인증, checkpoint retention/운영 role 분리, 장기 대화형 Chat UI, 다른 Domain의 Agent 협업·Tax/RAG/자율 Posting은 이번 범위가 아닙니다. 정적 import guard는 Python sandbox가 아닙니다.
 
 실 Gemini 검증 명령은 `RUN_GEMINI_INTEGRATION=1`과 `GEMINI_API_KEY`, `GEMINI_MODEL`을 OS 환경에 지정한 후 `python -m pytest -m gemini tests/integration/test_gemini_live.py`입니다. 일반 실행은 skip하며 이번 검증에서 실 호출은 하지 않았습니다.
