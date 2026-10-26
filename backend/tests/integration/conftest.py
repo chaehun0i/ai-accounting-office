@@ -182,6 +182,8 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     from app.finance.reconciliation.application.bank_service import BankReconciliationService
     from app.intake.promotion.application.service import PromotionService
     from app.intake.promotion.infrastructure.unit_of_work import PromotionSQLAlchemyUnitOfWork
+    from app.reporting.cash_flow.service import CashFlowService
+    from app.reporting.cash_flow.unit_of_work import CashFlowUnitOfWork
     from app.reporting.center.service import ReportCenterService
     from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
     from app.reporting.financial_statements.application.service import StatementService
@@ -202,6 +204,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
         report_center=ReportCenterService(
             lambda: ReportCenterUnitOfWork(factory), LocalObjectStorage(tmp_path)
         ),
+        cash_flow=CashFlowService(lambda: CashFlowUnitOfWork(factory)),
         documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(factory)),
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
         promotion=PromotionService(
