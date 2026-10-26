@@ -11,7 +11,7 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Repository Skeleton + DB Foundation + Identity/Company + Accounting Master + Storage/Evidence/Intake + Onboarding/Data Exchange + Transaction/Journal/Ledger + Finance Subledger + Business Document + Bank/Card Reconciliation + Closing V1 + BS/IS Snapshot + Bookkeeper Agent 기간 질의와 AI 회계팀 화면**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격을 제공합니다. [온보딩 구조](docs/onboarding/onboarding-data-exchange.md), [검증 기록](docs/verification/onboarding-verification.md), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/onboarding/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting/accounting-master.md), [인증·회사 구조](docs/platform/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Identity/Company + 회계 마스터·관리차원·Control Account 역할 + Onboarding/Cutover + Transaction/Journal/Ledger + AR/AP·은행/카드 대사 + Closing V1 + BS/IS Snapshot·재무비율 + Report Center V1 + Bookkeeper Agent 읽기·제안 경로**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격과 Opening Journal 승인/POST 후 AR/AP Opening 승격을 제공합니다. [온보딩 구조와 기초자료 이관](docs/onboarding/onboarding-data-exchange.md#완료-후-기초자료-이관), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/onboarding/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting/accounting-master.md), [인증·회사 구조](docs/platform/identity-company.md)를 참고하세요.
 
 **채권·채무** 메뉴에서 확정 전표 연결 → 수금·지급 등록 → 배분 → 확정 → 기준일 잔액·기한 분석·원장 대사를 사용할 수 있습니다. 수금·지급은 먼저 사람 승인과 장부 반영을 마친 회계 전표를 참조합니다. 실제 은행 이체 기능은 아닙니다. [재무 보조부 사용법과 경계](docs/accounting/finance-subledger.md), [검증 결과](docs/verification/finance-verification.md)를 참고하세요.
 
@@ -230,6 +230,8 @@ python -m pytest --require-postgres
 `--require-postgres`는 설정 누락을 실패로 처리합니다. 테스트는 전용 DB의 migration 상태를 초기화하고 복구하므로 공유·개발·운영 DB를 지정하지 마세요. 예상하지 않은 테이블이나 알려진 업무 테이블의 데이터가 있으면 삭제하지 않고 중단합니다. seed는 테스트 fixture 내부 transaction에서 실행하므로 통합 검사 전 테스트 DB에 영구 seed를 실행하지 마세요. [DB 구조와 정책](docs/platform/database-foundation.md)에 lifecycle, 타입, 오류 및 schema guard를 설명합니다.
 
 ## 제외 범위와 다음 구현
+
+설계 정본의 잔여 제품 마일스톤은 [상위 추적 Issue #83](https://github.com/chaehun0i/ai-accounting-office/issues/83)에 묶었습니다. 현금흐름표와 자본변동표·주석, 자산·재고·원가·세무, Agent 업무 흐름과 Release Gate는 각 단계의 실제 구현·CI·사용자 경로가 닫힐 때만 완료로 표시합니다. 이 문서의 현재 구현 범위는 병합된 `main`을 기준으로 읽으세요.
 
 Transaction/Journal/사람 승인/Posting/Reversal/원장/시산표, Governance와 Finance Subledger는 구현되어 있습니다. Agent Runtime은 거래 기반 조회·검증·전표 초안과 사람 검토 대기/재개, 기간별 월마감·BS/IS 읽기 질의를 지원합니다. Tax 정본, 자율 승인·Posting, 대화방/장기 메모리 UI, 상시 queue worker, 인증 이메일 검증·비밀번호 복구·초대 이메일 발송은 별도 범위입니다. Kafka/vector DB/pgvector는 포함하지 않습니다.
 
