@@ -75,6 +75,41 @@ class PreflightRead(BaseModel):
     ready: bool
 
 
+class AllocationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    journal_id: UUID
+    cash_line_id: UUID
+    counterpart_line_id: UUID
+    evidence_id: UUID
+    amount: Decimal
+
+
+class AllocationRead(AllocationCreate):
+    id: UUID
+    version: int
+    replaces_id: UUID | None
+
+
+class AllocationRevision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    amount: Decimal
+    evidence_id: UUID
+
+
+class CashEventRead(BaseModel):
+    journal_id: UUID
+    cash_line_id: UUID
+    cash_account_id: UUID
+    counterpart_line_id: UUID
+    counterpart_account_id: UUID
+    activity_type: str
+    line_code: str
+    cash_inflow: Decimal
+    cash_outflow: Decimal
+    classification_id: UUID
+    evidence_id: UUID | None
+
+
 @router.get("/cash-scope", response_model=list[CashScopeRead])
 def scopes(actor: Actor, company_id: CompanyScope, service: Service) -> list[CashScopeRead]:
     return [
@@ -122,3 +157,51 @@ def preflight(
     period_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
 ) -> PreflightRead:
     return PreflightRead.model_validate(asdict(service.preflight(actor, company_id, period_id)))
+
+
+@router.post(
+    "/allocations", response_model=AllocationRead, status_code=201, dependencies=[Depends(csrf)]
+)
+def allocate(
+    payload: AllocationCreate, actor: Actor, company_id: CompanyScope, service: Service
+) -> AllocationRead:
+    return AllocationRead.model_validate(
+        asdict(service.allocate(actor, company_id, **payload.model_dump()))
+    )
+
+
+@router.put(
+    "/allocations/{allocation_id}",
+    response_model=AllocationRead,
+    dependencies=[Depends(csrf)],
+)
+def revise_allocation(
+    allocation_id: UUID,
+    payload: AllocationRevision,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Service,
+) -> AllocationRead:
+    return AllocationRead.model_validate(
+        asdict(service.revise_allocation(actor, company_id, allocation_id, **payload.model_dump()))
+    )
+
+
+@router.get("/allocations", response_model=list[AllocationRead])
+def allocation_history(
+    journal_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> list[AllocationRead]:
+    return [
+        AllocationRead.model_validate(asdict(item))
+        for item in service.allocation_history(actor, company_id, journal_id)
+    ]
+
+
+@router.get("/events", response_model=list[CashEventRead])
+def events(
+    period_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> list[CashEventRead]:
+    return [
+        CashEventRead.model_validate(asdict(item))
+        for item in service.events(actor, company_id, period_id)
+    ]

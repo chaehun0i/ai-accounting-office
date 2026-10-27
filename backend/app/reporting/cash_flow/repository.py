@@ -1,18 +1,123 @@
 """현금흐름표 선행 매핑을 회사 범위로 저장합니다."""
 
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.reporting.cash_flow.entities import CashClassification, CashScope
-from app.reporting.cash_flow.models import CashFlowClassificationModel, CashScopeMappingModel
+from app.accounting.journals.infrastructure.models import JournalEvidenceModel, JournalModel
+from app.reporting.cash_flow.entities import CashAllocation, CashClassification, CashScope
+from app.reporting.cash_flow.models import (
+    CashFlowAllocationModel,
+    CashFlowClassificationModel,
+    CashScopeMappingModel,
+)
 
 
 class CashFlowRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def lock_journal(self, company: UUID, journal_id: UUID) -> JournalModel | None:
+        return self.session.scalar(
+            select(JournalModel)
+            .where(JournalModel.company_id == company, JournalModel.id == journal_id)
+            .with_for_update()
+        )
+
+    def evidence_linked(self, company: UUID, journal_id: UUID, evidence_id: UUID) -> bool:
+        return (
+            self.session.scalar(
+                select(JournalEvidenceModel.id).where(
+                    JournalEvidenceModel.company_id == company,
+                    JournalEvidenceModel.journal_entry_id == journal_id,
+                    JournalEvidenceModel.evidence_id == evidence_id,
+                )
+            )
+            is not None
+        )
+
+    def allocation_history(
+        self, company: UUID, journal_id: UUID | None = None
+    ) -> tuple[CashAllocation, ...]:
+        query = select(CashFlowAllocationModel).where(CashFlowAllocationModel.company_id == company)
+        if journal_id is not None:
+            query = query.where(CashFlowAllocationModel.journal_id == journal_id)
+        rows = self.session.scalars(
+            query.order_by(
+                CashFlowAllocationModel.journal_id,
+                CashFlowAllocationModel.cash_line_id,
+                CashFlowAllocationModel.counterpart_line_id,
+                CashFlowAllocationModel.version,
+            )
+        )
+        return tuple(
+            CashAllocation(
+                row.id,
+                row.journal_id,
+                row.cash_line_id,
+                row.counterpart_line_id,
+                row.evidence_id,
+                row.amount,
+                row.version,
+                row.replaces_id,
+            )
+            for row in rows
+        )
+
+    def allocations(
+        self, company: UUID, journal_id: UUID | None = None
+    ) -> tuple[CashAllocation, ...]:
+        current: dict[tuple[UUID, UUID, UUID], CashAllocation] = {}
+        for row in self.allocation_history(company, journal_id):
+            current[(row.journal_id, row.cash_line_id, row.counterpart_line_id)] = row
+        return tuple(row for row in current.values() if row.amount > 0)
+
+    def allocation(self, company: UUID, allocation_id: UUID) -> CashAllocation | None:
+        return next(
+            (row for row in self.allocation_history(company) if row.id == allocation_id), None
+        )
+
+    def add_allocation(
+        self,
+        company: UUID,
+        journal_id: UUID,
+        cash_line_id: UUID,
+        counterpart_line_id: UUID,
+        evidence_id: UUID,
+        amount: Decimal,
+        actor: UUID,
+        now: datetime,
+        version: int = 1,
+        replaces_id: UUID | None = None,
+    ) -> CashAllocation:
+        row = CashFlowAllocationModel(
+            id=uuid4(),
+            company_id=company,
+            journal_id=journal_id,
+            cash_line_id=cash_line_id,
+            counterpart_line_id=counterpart_line_id,
+            evidence_id=evidence_id,
+            amount=amount,
+            version=version,
+            replaces_id=replaces_id,
+            created_by=actor,
+            created_at=now,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return CashAllocation(
+            row.id,
+            row.journal_id,
+            row.cash_line_id,
+            row.counterpart_line_id,
+            row.evidence_id,
+            row.amount,
+            row.version,
+            row.replaces_id,
+        )
 
     def scopes(self, company: UUID) -> tuple[CashScope, ...]:
         rows = self.session.scalars(

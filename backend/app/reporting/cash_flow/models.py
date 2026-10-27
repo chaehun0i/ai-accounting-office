@@ -1,12 +1,14 @@
 """현금 범위와 거래상대 계정의 활동 분류를 관계형으로 보존합니다."""
 
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    Numeric,
     String,
     UniqueConstraint,
     text,
@@ -74,4 +76,57 @@ class CashFlowClassificationModel(UUIDPrimaryKey, Base):
         CheckConstraint("status IN ('ACTIVE','INACTIVE')", name="status"),
         CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="dates"),
         CheckConstraint("version >= 1", name="version"),
+    )
+
+
+class CashFlowAllocationModel(UUIDPrimaryKey, Base):
+    """Evidence-backed pairing for a cash leg in a complex posted journal."""
+
+    __tablename__ = "cash_flow_allocations"
+
+    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    journal_id: Mapped[UUID]
+    cash_line_id: Mapped[UUID]
+    counterpart_line_id: Mapped[UUID]
+    evidence_id: Mapped[UUID]
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    version: Mapped[int]
+    replaces_id: Mapped[UUID | None]
+    created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime]
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "id"),
+        UniqueConstraint(
+            "company_id", "journal_id", "cash_line_id", "counterpart_line_id", "version"
+        ),
+        UniqueConstraint("company_id", "replaces_id"),
+        ForeignKeyConstraint(
+            ["company_id", "journal_id"],
+            ["journal_entries.company_id", "journal_entries.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "journal_id", "cash_line_id"],
+            ["journal_lines.company_id", "journal_lines.journal_entry_id", "journal_lines.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "journal_id", "counterpart_line_id"],
+            ["journal_lines.company_id", "journal_lines.journal_entry_id", "journal_lines.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "evidence_id"],
+            ["evidences.company_id", "evidences.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "replaces_id"],
+            ["cash_flow_allocations.company_id", "cash_flow_allocations.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("amount >= 0", name="amount_nonnegative"),
+        CheckConstraint("version >= 1", name="version_positive"),
+        CheckConstraint("cash_line_id <> counterpart_line_id", name="distinct_lines"),
     )

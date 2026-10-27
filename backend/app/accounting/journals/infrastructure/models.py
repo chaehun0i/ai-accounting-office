@@ -113,6 +113,7 @@ class JournalLineModel(UUIDPrimaryKey, Base):
     memo: Mapped[str] = mapped_column(Text)
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
+        UniqueConstraint("company_id", "journal_entry_id", "id"),
         UniqueConstraint("journal_entry_id", "line_no"),
         ForeignKeyConstraint(
             ["company_id", "journal_entry_id"],
