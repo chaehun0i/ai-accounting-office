@@ -10,6 +10,8 @@ from app.accounting.api.router import Actor, CompanyScope, Container
 from app.contracts.errors import DatabaseUnavailable
 from app.finance.settlements.api.router import Key
 from app.identity.auth.api.dependencies import csrf
+from app.reporting.cash_flow.api import Service as CashService
+from app.reporting.cash_flow.snapshot import CashStatement
 from app.reporting.financial_statements.api.schemas import (
     Generate,
     MappingCreate,
@@ -31,6 +33,16 @@ def reporting(container: Container) -> StatementService:
 
 Service = Annotated[StatementService, Depends(reporting)]
 Kind = Literal["BALANCE_SHEET", "INCOME_STATEMENT"]
+
+
+@router.get("/cash-flow", response_model=CashStatement)
+def cash_flow_statement(
+    period_id: UUID,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: CashService,
+) -> CashStatement:
+    return service.current_snapshot(actor, company_id, period_id)
 
 
 @router.post("/mappings", response_model=MappingRead, status_code=201, dependencies=[Depends(csrf)])
