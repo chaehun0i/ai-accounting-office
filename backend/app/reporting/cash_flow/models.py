@@ -19,6 +19,55 @@ from app.core.database.base import Base
 from app.core.database.mixins import UUIDPrimaryKey
 
 
+class CashFlowAdjustmentRuleModel(UUIDPrimaryKey, Base):
+    __tablename__ = "cash_flow_adjustment_rules"
+
+    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    account_id: Mapped[UUID]
+    adjustment_code: Mapped[str] = mapped_column(String(30))
+    source_mapping_type: Mapped[str] = mapped_column(String(30))
+    related_account_id: Mapped[UUID | None]
+    effective_from: Mapped[date]
+    effective_to: Mapped[date | None]
+    version: Mapped[int]
+    policy_code: Mapped[str] = mapped_column(String(40))
+    policy_version: Mapped[int]
+    created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime]
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "id"),
+        UniqueConstraint("company_id", "account_id"),
+        ForeignKeyConstraint(
+            ["company_id", "account_id"],
+            ["chart_of_accounts.company_id", "chart_of_accounts.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "related_account_id"],
+            ["chart_of_accounts.company_id", "chart_of_accounts.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("version >= 1 AND policy_version >= 1", name="versions"),
+        CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="dates"),
+        CheckConstraint(
+            "adjustment_code IN ('OPERATING_RESULT','NONCASH_PAIR',"
+            "'WORKING_CAPITAL','EXCLUDED_BALANCE')",
+            name="adjustment_code",
+        ),
+        CheckConstraint(
+            "source_mapping_type IN ('ACCOUNT_LEDGER','ASSET_REGISTER','INVENTORY_SUBLEDGER')",
+            name="source_mapping_type",
+        ),
+        CheckConstraint(
+            "(adjustment_code = 'NONCASH_PAIR' AND related_account_id IS NOT NULL "
+            "AND related_account_id <> account_id) OR "
+            "(adjustment_code <> 'NONCASH_PAIR' AND related_account_id IS NULL)",
+            name="related_account",
+        ),
+    )
+
+
 class CashScopeMappingModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_scope_mappings"
 

@@ -9,16 +9,73 @@ from sqlalchemy.orm import Session
 
 from app.accounting.journals.infrastructure.models import JournalEvidenceModel, JournalModel
 from app.reporting.cash_flow.entities import CashAllocation, CashClassification, CashScope
+from app.reporting.cash_flow.indirect import AdjustmentRule
 from app.reporting.cash_flow.models import (
+    CashFlowAdjustmentRuleModel,
     CashFlowAllocationModel,
     CashFlowClassificationModel,
     CashScopeMappingModel,
+)
+from app.reporting.financial_statements.infrastructure.models import (
+    StatementLineModel,
+    StatementModel,
+    StatementSnapshotModel,
 )
 
 
 class CashFlowRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def statement_snapshot_sources(
+        self,
+        company: UUID,
+        set_id: UUID,
+    ) -> tuple[tuple[str, str, str, int, str, str], ...]:
+        rows = self.session.execute(
+            select(StatementSnapshotModel, StatementModel.statement_type)
+            .join(StatementModel, StatementModel.id == StatementSnapshotModel.statement_id)
+            .where(
+                StatementSnapshotModel.company_id == company,
+                StatementModel.company_id == company,
+                StatementModel.statement_set_id == set_id,
+            )
+            .order_by(StatementModel.statement_type)
+        )
+        return tuple(
+            (
+                str(row.id),
+                str(row.statement_id),
+                kind,
+                row.statement_version,
+                row.source_digest,
+                row.mapping_digest,
+            )
+            for row, kind in rows
+        )
+
+    def statement_line_sources_valid(
+        self,
+        company: UUID,
+        set_id: UUID,
+        source_digest: str,
+    ) -> bool:
+        invalid = self.session.scalar(
+            select(StatementLineModel.id)
+            .join(
+                StatementSnapshotModel, StatementSnapshotModel.id == StatementLineModel.snapshot_id
+            )
+            .join(StatementModel, StatementModel.id == StatementSnapshotModel.statement_id)
+            .where(
+                StatementLineModel.company_id == company,
+                StatementSnapshotModel.company_id == company,
+                StatementModel.company_id == company,
+                StatementModel.statement_set_id == set_id,
+                StatementLineModel.source_digest != source_digest,
+            )
+            .limit(1)
+        )
+        return invalid is None
 
     def lock_journal(self, company: UUID, journal_id: UUID) -> JournalModel | None:
         return self.session.scalar(
@@ -228,3 +285,45 @@ class CashFlowRepository:
             row.effective_to,
             row.version,
         )
+
+    def adjustment_rules(self, company: UUID) -> tuple[AdjustmentRule, ...]:
+        rows = self.session.scalars(
+            select(CashFlowAdjustmentRuleModel)
+            .where(CashFlowAdjustmentRuleModel.company_id == company)
+            .order_by(CashFlowAdjustmentRuleModel.account_id)
+        )
+        return tuple(
+            AdjustmentRule(
+                row.id,
+                row.account_id,
+                row.adjustment_code,
+                row.source_mapping_type,
+                row.related_account_id,
+                row.effective_from,
+                row.effective_to,
+                row.version,
+                row.policy_code,
+                row.policy_version,
+            )
+            for row in rows
+        )
+
+    def add_adjustment_rule(
+        self,
+        company: UUID,
+        rule: AdjustmentRule,
+        actor: UUID,
+        now: datetime,
+    ) -> AdjustmentRule:
+        from dataclasses import asdict
+
+        self.session.add(
+            CashFlowAdjustmentRuleModel(
+                **asdict(rule),
+                company_id=company,
+                created_by=actor,
+                created_at=now,
+            )
+        )
+        self.session.flush()
+        return rule

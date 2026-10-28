@@ -5,8 +5,10 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from app.accounting.ledger.domain.entities import LedgerFact
+from app.accounting.periods.domain.entities import Period
 from app.closing.application.service import ClosingService
 from app.closing.domain.errors import ClosingRunStale
 from app.companies.application.service import require_company
@@ -22,8 +24,17 @@ from app.reporting.cash_flow.entities import (
     CashPreflightIssue,
     CashScope,
 )
+from app.reporting.cash_flow.indirect import (
+    POLICY_CODE,
+    POLICY_VERSION,
+    RULE_TYPES,
+    AdjustmentRule,
+    BridgeIssue,
+    IndirectBridge,
+    adjustments,
+)
 from app.reporting.cash_flow.unit_of_work import CashFlowUnitOfWork
-from app.reporting.financial_statements.domain.rules import ReportSourceStale
+from app.reporting.financial_statements.domain.rules import LINES, ReportSourceStale, calculate
 
 ZERO = Decimal("0")
 MAX_ALLOCATION = Decimal("9999999999999999.9999")
@@ -92,6 +103,11 @@ class CashFlowService:
                 raise InvalidInput()
             if any(row.account_id == account_id for row in uow.cash_flow.classifications(company)):
                 raise StateConflict()
+            if any(
+                account_id in (row.account_id, row.related_account_id)
+                for row in uow.cash_flow.adjustment_rules(company)
+            ):
+                raise StateConflict()
             old = next(
                 (row for row in uow.cash_flow.scopes(company) if row.account_id == account_id), None
             )
@@ -151,6 +167,264 @@ class CashFlowService:
 
     def preflight(self, actor: Principal, company: UUID, period_id: UUID) -> CashPreflight:
         return self._analyze(actor, company, period_id)[0]
+
+    def adjustment_rules(self, actor: Principal, company: UUID) -> tuple[AdjustmentRule, ...]:
+        with self.factory() as uow:
+            require_company(uow, actor, company, "financial_statement.read")
+            return uow.cash_flow.adjustment_rules(company)
+
+    def map_adjustment(
+        self,
+        actor: Principal,
+        company: UUID,
+        account_id: UUID,
+        adjustment_code: str,
+        source_mapping_type: str,
+        related_account_id: UUID | None,
+        effective_from: date,
+        effective_to: date | None,
+        policy_code: str,
+        policy_version: int,
+    ) -> AdjustmentRule:
+        if (
+            adjustment_code not in RULE_TYPES
+            or source_mapping_type
+            not in {"ACCOUNT_LEDGER", "ASSET_REGISTER", "INVENTORY_SUBLEDGER"}
+            or policy_code != POLICY_CODE
+            or policy_version != POLICY_VERSION
+            or (effective_to is not None and effective_to < effective_from)
+            or (adjustment_code == "NONCASH_PAIR") != (related_account_id is not None)
+            or account_id == related_account_id
+        ):
+            raise InvalidInput()
+        with self.factory() as uow:
+            require_company(uow, actor, company, "financial_statement.generate")
+            account = uow.accounts.get_locked(company_id=company, resource_id=account_id)
+            if account is None:
+                raise ResourceNotFound()
+            allowed = (
+                {"REVENUE", "EXPENSE"}
+                if adjustment_code in {"OPERATING_RESULT", "NONCASH_PAIR"}
+                else {"ASSET", "LIABILITY"}
+                if adjustment_code == "WORKING_CAPITAL"
+                else {"ASSET", "LIABILITY", "EQUITY"}
+            )
+            cash_accounts = {row.account_id for row in uow.cash_flow.scopes(company)}
+            if (
+                account.account_type not in allowed
+                or not account.posting_allowed
+                or account.status != "ACTIVE"
+                or account_id in cash_accounts
+            ):
+                raise InvalidInput()
+            if related_account_id is not None:
+                related = uow.accounts.get(company_id=company, resource_id=related_account_id)
+                if related is None:
+                    raise ResourceNotFound()
+                if (
+                    related.account_type not in {"ASSET", "LIABILITY"}
+                    or not related.posting_allowed
+                    or related.status != "ACTIVE"
+                    or related_account_id in cash_accounts
+                ):
+                    raise InvalidInput()
+            rule = AdjustmentRule(
+                uuid4(),
+                account_id,
+                adjustment_code,
+                source_mapping_type,
+                related_account_id,
+                effective_from,
+                effective_to,
+                1,
+                policy_code,
+                policy_version,
+            )
+            old = next(
+                (r for r in uow.cash_flow.adjustment_rules(company) if r.account_id == account_id),
+                None,
+            )
+            if old is not None:
+                from dataclasses import replace
+
+                if replace(rule, id=old.id) != old:
+                    raise StateConflict()
+                return old
+            return uow.cash_flow.add_adjustment_rule(company, rule, actor.user_id, uow.now())
+
+    def indirect_bridge(self, actor: Principal, company: UUID, period_id: UUID) -> IndirectBridge:
+        """Read-only bridge from one locked CLOSED source; this is not a CF snapshot."""
+        with self.factory() as uow:
+            require_company(uow, actor, company, "financial_statement.read")
+            try:
+                period, run, source_digest, rows, facts = ClosingService.closed_adjusted_source(
+                    uow, company, period_id
+                )
+            except ClosingRunStale:
+                raise ReportSourceStale() from None
+            preflight, events = self._analyze_closed(uow, company, period, source_digest, facts)
+            rules = uow.cash_flow.adjustment_rules(company)
+            account_types = {a.id: a.account_type for a in uow.accounts.list(company)}
+            result, adjustment_issues = adjustments(
+                facts,
+                rules,
+                account_types,
+                {r.account_id for r in uow.cash_flow.scopes(company)},
+                period.start_date,
+                period.end_date,
+            )
+            issues = [BridgeIssue(i.code, journal_id=i.journal_id) for i in preflight.issues]
+            issues.extend(adjustment_issues)
+            rules_by_account = {r.account_id: r for r in rules}
+            for event in events:
+                rule = rules_by_account.get(event.counterpart_account_id)
+                if rule is not None and (
+                    (
+                        rule.adjustment_code in {"OPERATING_RESULT", "WORKING_CAPITAL"}
+                        and event.activity_type != "OPERATING"
+                    )
+                    or (
+                        rule.adjustment_code == "EXCLUDED_BALANCE"
+                        and event.activity_type == "OPERATING"
+                    )
+                ):
+                    issues.append(
+                        BridgeIssue(
+                            "INDIRECT_DIRECT_POLICY_MISMATCH",
+                            event.counterpart_account_id,
+                            event.journal_id,
+                        )
+                    )
+            current = next(
+                (
+                    s
+                    for s in uow.statements.sets(company, period_id)
+                    if s.close_version == period.close_version
+                ),
+                None,
+            )
+            statement_sources: list[tuple[str, str, str]] = []
+            snapshots = (
+                uow.cash_flow.statement_snapshot_sources(company, current.id) if current else ()
+            )
+            net_profit: Decimal | None = None
+            if current is None:
+                issues.append(BridgeIssue("INDIRECT_STATEMENT_SOURCE_MISSING"))
+            else:
+                mappings = uow.statements.mappings(company, current.taxonomy_id, period.end_date)
+                mapping_digest = digest([(str(a), code, version) for a, code, version in mappings])
+                taxonomy = uow.statements.active_taxonomy(period.end_date)
+                if (
+                    current.trial_balance_digest != source_digest
+                    or current.closing_run_id != run.id
+                    or current.mapping_digest != mapping_digest
+                    or taxonomy != (current.taxonomy_id, current.taxonomy_version)
+                    or current.status != "GENERATED"
+                    or [item[2] for item in snapshots] != ["BALANCE_SHEET", "INCOME_STATEMENT"]
+                    or any(
+                        item[3] != 1 or item[4] != source_digest or item[5] != mapping_digest
+                        for item in snapshots
+                    )
+                    or not uow.cash_flow.statement_line_sources_valid(
+                        company, current.id, source_digest
+                    )
+                ):
+                    issues.append(BridgeIssue("INDIRECT_STATEMENT_SOURCE_STALE"))
+                else:
+                    expected = calculate(rows, [(a, c) for a, c, _ in mappings], account_types)
+                    for kind in ("BALANCE_SHEET", "INCOME_STATEMENT"):
+                        view = uow.statements.statement(company, current.id, kind)
+                        if view is None:
+                            issues.append(BridgeIssue("INDIRECT_STATEMENT_SOURCE_MISSING"))
+                            continue
+                        statement_sources.append((kind, str(view.id), view.snapshot_digest))
+                        definitions = [line for line in LINES if line.statement_type == kind]
+                        if (
+                            view.status != "GENERATED"
+                            or [line.line_code for line in view.lines]
+                            != [line.line_code for line in definitions]
+                            or any(
+                                line.current_amount != expected.get(line.line_code)
+                                for line in view.lines
+                            )
+                            or digest(
+                                [
+                                    (line.line_code, str(expected[line.line_code]))
+                                    for line in definitions
+                                ]
+                            )
+                            != view.snapshot_digest
+                        ):
+                            issues.append(BridgeIssue("INDIRECT_STATEMENT_SOURCE_STALE"))
+                        if kind == "INCOME_STATEMENT":
+                            net_profit = next(
+                                (
+                                    line.current_amount
+                                    for line in view.lines
+                                    if line.line_code == "NET_PROFIT"
+                                ),
+                                None,
+                            )
+                    if net_profit is None:
+                        issues.append(BridgeIssue("INDIRECT_STATEMENT_SOURCE_MISSING"))
+            net_operating = (
+                net_profit + sum((row.amount for row in result), ZERO)
+                if net_profit is not None
+                else None
+            )
+            difference = (
+                net_operating - preflight.net_operating if net_operating is not None else None
+            )
+            if difference is not None and difference != ZERO:
+                issues.append(BridgeIssue("INDIRECT_OPERATING_RECONCILIATION_MISMATCH"))
+            return IndirectBridge(
+                period_id,
+                current.id if current else None,
+                period.close_version,
+                source_digest,
+                digest(
+                    (
+                        preflight.mapping_digest,
+                        (
+                            str(current.id),
+                            str(current.closing_run_id),
+                            current.close_version,
+                            str(current.taxonomy_id),
+                            current.taxonomy_version,
+                            current.trial_balance_digest,
+                            current.mapping_digest,
+                        )
+                        if current
+                        else None,
+                        statement_sources,
+                        snapshots,
+                        [
+                            (
+                                str(r.id),
+                                str(r.account_id),
+                                r.adjustment_code,
+                                r.source_mapping_type,
+                                str(r.related_account_id) if r.related_account_id else None,
+                                r.effective_from.isoformat(),
+                                r.effective_to.isoformat() if r.effective_to else None,
+                                r.version,
+                                r.policy_code,
+                                r.policy_version,
+                            )
+                            for r in rules
+                        ],
+                    )
+                ),
+                POLICY_CODE,
+                POLICY_VERSION,
+                net_profit,
+                result,
+                net_operating,
+                preflight.net_operating,
+                difference,
+                tuple(issues),
+                "BLOCKED" if issues else "READY",
+            )
 
     def events(self, actor: Principal, company: UUID, period_id: UUID) -> tuple[CashEvent, ...]:
         preflight, events = self._analyze(actor, company, period_id)
@@ -334,117 +608,127 @@ class CashFlowService:
                 )
             except ClosingRunStale:
                 raise ReportSourceStale() from None
-            scopes = uow.cash_flow.scopes(company)
-            classes = uow.cash_flow.classifications(company)
-            allocations = uow.cash_flow.allocations(company)
-            period_journal_ids = {
-                fact.journal_id
-                for fact in facts
-                if period.start_date <= fact.entry_date and fact.source_type != "OPENING"
-            }
-            mapping_digest = digest(
-                (
-                    [
-                        (
-                            str(r.account_id),
-                            r.scope_type,
-                            r.effective_from.isoformat(),
-                            r.effective_to.isoformat() if r.effective_to else None,
-                            r.version,
-                        )
-                        for r in scopes
-                    ],
-                    [
-                        (
-                            str(r.account_id),
-                            r.activity_type,
-                            r.line_code,
-                            r.effective_from.isoformat(),
-                            r.effective_to.isoformat() if r.effective_to else None,
-                            r.version,
-                        )
-                        for r in classes
-                    ],
-                    [
-                        (
-                            str(a.id),
-                            a.version,
-                            str(a.journal_id),
-                            str(a.cash_line_id),
-                            str(a.counterpart_line_id),
-                            str(a.evidence_id),
-                            str(a.amount),
-                        )
-                        for a in allocations
-                        if a.journal_id in period_journal_ids
-                    ],
-                )
+            return self._analyze_closed(uow, company, period, source_digest, facts)
+
+    @staticmethod
+    def _analyze_closed(
+        uow: CashFlowUnitOfWork,
+        company: UUID,
+        period: Period,
+        source_digest: str,
+        facts: list[LedgerFact],
+    ) -> tuple[CashPreflight, tuple[CashEvent, ...]]:
+        scopes = uow.cash_flow.scopes(company)
+        classes = uow.cash_flow.classifications(company)
+        allocations = uow.cash_flow.allocations(company)
+        period_journal_ids = {
+            fact.journal_id
+            for fact in facts
+            if period.start_date <= fact.entry_date and fact.source_type != "OPENING"
+        }
+        mapping_digest = digest(
+            (
+                [
+                    (
+                        str(r.account_id),
+                        r.scope_type,
+                        r.effective_from.isoformat(),
+                        r.effective_to.isoformat() if r.effective_to else None,
+                        r.version,
+                    )
+                    for r in scopes
+                ],
+                [
+                    (
+                        str(r.account_id),
+                        r.activity_type,
+                        r.line_code,
+                        r.effective_from.isoformat(),
+                        r.effective_to.isoformat() if r.effective_to else None,
+                        r.version,
+                    )
+                    for r in classes
+                ],
+                [
+                    (
+                        str(a.id),
+                        a.version,
+                        str(a.journal_id),
+                        str(a.cash_line_id),
+                        str(a.counterpart_line_id),
+                        str(a.evidence_id),
+                        str(a.amount),
+                    )
+                    for a in allocations
+                    if a.journal_id in period_journal_ids
+                ],
             )
-            issues: list[CashPreflightIssue] = []
-            if not scopes:
-                issues.append(CashPreflightIssue("CASH_SCOPE_MISSING"))
-            cash_accounts = {row.account_id for row in scopes}
-            for row in scopes:
-                if not covers_period(
-                    row.effective_from, row.effective_to, period.start_date, period.end_date
-                ):
-                    issues.append(CashPreflightIssue("CASH_SCOPE_NOT_FULL_PERIOD"))
-            classes_by_account = {row.account_id: row for row in classes}
-            opening = sum(
-                (
-                    f.debit_amount - f.credit_amount
-                    for f in facts
-                    if f.account_id in cash_accounts
-                    and (f.entry_date < period.start_date or f.source_type == "OPENING")
-                ),
-                ZERO,
+        )
+        issues: list[CashPreflightIssue] = []
+        if not scopes:
+            issues.append(CashPreflightIssue("CASH_SCOPE_MISSING"))
+        cash_accounts = {row.account_id for row in scopes}
+        for row in scopes:
+            if not covers_period(
+                row.effective_from, row.effective_to, period.start_date, period.end_date
+            ):
+                issues.append(CashPreflightIssue("CASH_SCOPE_NOT_FULL_PERIOD"))
+        classes_by_account = {row.account_id: row for row in classes}
+        opening = sum(
+            (
+                f.debit_amount - f.credit_amount
+                for f in facts
+                if f.account_id in cash_accounts
+                and (f.entry_date < period.start_date or f.source_type == "OPENING")
+            ),
+            ZERO,
+        )
+        closing = sum(
+            (f.debit_amount - f.credit_amount for f in facts if f.account_id in cash_accounts),
+            ZERO,
+        )
+        by_journal = defaultdict(list)
+        for fact in facts:
+            if period.start_date <= fact.entry_date and fact.source_type != "OPENING":
+                by_journal[fact.journal_id].append(fact)
+        amounts = {activity: ZERO for activity in ACTIVITIES}
+        classified = 0
+        all_events: list[CashEvent] = []
+        for journal_id, journal_facts in by_journal.items():
+            cash = [f for f in journal_facts if f.account_id in cash_accounts]
+            if not cash:
+                continue
+            journal_events, error = direct_events(
+                journal_facts,
+                cash_accounts,
+                classes_by_account,
+                tuple(a for a in allocations if a.journal_id == journal_id),
             )
-            closing = sum(
-                (f.debit_amount - f.credit_amount for f in facts if f.account_id in cash_accounts),
-                ZERO,
-            )
-            by_journal = defaultdict(list)
-            for fact in facts:
-                if period.start_date <= fact.entry_date and fact.source_type != "OPENING":
-                    by_journal[fact.journal_id].append(fact)
-            amounts = {activity: ZERO for activity in ACTIVITIES}
-            classified = 0
-            all_events: list[CashEvent] = []
-            for journal_id, journal_facts in by_journal.items():
-                cash = [f for f in journal_facts if f.account_id in cash_accounts]
-                if not cash:
-                    continue
-                journal_events, error = direct_events(
-                    journal_facts,
-                    cash_accounts,
-                    classes_by_account,
-                    tuple(a for a in allocations if a.journal_id == journal_id),
-                )
-                if error is not None:
-                    issues.append(CashPreflightIssue(error, journal_id))
-                    continue
-                for event in journal_events:
-                    amounts[event.activity_type] += event.cash_inflow - event.cash_outflow
-                all_events.extend(journal_events)
-                if journal_events:
-                    classified += 1
-            net_movement = closing - opening
-            if not issues and sum(amounts.values(), ZERO) != net_movement:
-                issues.append(CashPreflightIssue("CASH_FLOW_RECONCILIATION_MISMATCH"))
-            preflight = CashPreflight(
-                period_id=period_id,
-                close_version=period.close_version,
-                source_digest=source_digest,
-                mapping_digest=mapping_digest,
-                opening_cash=opening,
-                closing_cash=closing,
-                net_cash_movement=net_movement,
-                net_operating=amounts["OPERATING"],
-                net_investing=amounts["INVESTING"],
-                net_financing=amounts["FINANCING"],
-                exchange_effect=amounts["EXCHANGE_EFFECT"],
-                classified_journal_count=classified,
-                issues=tuple(issues),
-                ready=not issues,
-            )
-            return preflight, tuple(all_events)
+            if error is not None:
+                issues.append(CashPreflightIssue(error, journal_id))
+                continue
+            for event in journal_events:
+                amounts[event.activity_type] += event.cash_inflow - event.cash_outflow
+            all_events.extend(journal_events)
+            if journal_events:
+                classified += 1
+        net_movement = closing - opening
+        if not issues and sum(amounts.values(), ZERO) != net_movement:
+            issues.append(CashPreflightIssue("CASH_FLOW_RECONCILIATION_MISMATCH"))
+        preflight = CashPreflight(
+            period_id=period.id,
+            close_version=period.close_version,
+            source_digest=source_digest,
+            mapping_digest=mapping_digest,
+            opening_cash=opening,
+            closing_cash=closing,
+            net_cash_movement=net_movement,
+            net_operating=amounts["OPERATING"],
+            net_investing=amounts["INVESTING"],
+            net_financing=amounts["FINANCING"],
+            exchange_effect=amounts["EXCHANGE_EFFECT"],
+            classified_journal_count=classified,
+            issues=tuple(issues),
+            ready=not issues,
+        )
+        return preflight, tuple(all_events)

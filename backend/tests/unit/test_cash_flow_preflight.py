@@ -63,7 +63,7 @@ def _preflight(monkeypatch, facts, cash, activity):
         CashClassification(uuid4(), activity, "OPERATING", "RECEIPTS", date(2026, 1, 1), None, 1),
     )
     period = SimpleNamespace(
-        start_date=date(2026, 1, 1), end_date=date(2026, 1, 31), close_version=1
+        id=period_id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 31), close_version=1
     )
     monkeypatch.setattr("app.reporting.cash_flow.service.require_company", lambda *_args: None)
     monkeypatch.setattr(
