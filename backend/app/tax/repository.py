@@ -79,16 +79,16 @@ class TaxRepository:
             self._latest(WithholdingModel, Withholding, company),
         )
 
-    def _latest(self, model: type[T], result: type[R], company: UUID) -> tuple[R, ...]:
+    def _latest(
+        self, model: type[VatModel] | type[WithholdingModel], result: type[R], company: UUID
+    ) -> tuple[R, ...]:
         # DISTINCT ON selects the latest immutable revision, including corrections to periods.
         query = (
             select(model)
             .where(model.company_id == company)
-            .distinct(  # type: ignore[attr-defined]
-                model.transaction_id  # type: ignore[attr-defined]
-            )
+            .distinct(model.transaction_id)
             .order_by(model.transaction_id, model.revision.desc())
-        )  # type: ignore[attr-defined]
+        )
         return tuple(result.model_validate(row) for row in self.session.scalars(query))
 
     def transactions(self, company: UUID, start: date, end: date) -> tuple[Transaction, ...]:

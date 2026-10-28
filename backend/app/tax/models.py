@@ -11,7 +11,9 @@ from app.core.database.mixins import UUIDPrimaryKey
 
 class TaxProfileModel(UUIDPrimaryKey, Base):
     __tablename__ = "tax_profiles"
-    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), index=True
+    )
     version: Mapped[int]
     taxpayer_type: Mapped[str] = mapped_column(String(24))
     tax_regime: Mapped[str] = mapped_column(String(20))
@@ -43,7 +45,9 @@ class TaxProfileModel(UUIDPrimaryKey, Base):
 
 class TaxPeriodModel(UUIDPrimaryKey, Base):
     __tablename__ = "tax_periods"
-    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), index=True
+    )
     tax_type: Mapped[str] = mapped_column(String(16))
     period_start: Mapped[date]
     period_end: Mapped[date]
@@ -59,7 +63,9 @@ class TaxPeriodModel(UUIDPrimaryKey, Base):
 
 class TaxFact:
     revision: Mapped[int]
-    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), index=True
+    )
     period_id: Mapped[UUID]
     transaction_id: Mapped[UUID]
     transaction_version: Mapped[int]
@@ -111,7 +117,8 @@ class VatModel(UUIDPrimaryKey, TaxFact, Base):
         CheckConstraint("supply_amount >= 0 AND tax_amount >= 0", name="amounts"),
         CheckConstraint("tax_category = 'TAXABLE' OR tax_amount = 0", name="category_tax"),
         CheckConstraint(
-            "deductible_status IN ('DEDUCTIBLE','NON_DEDUCTIBLE','REVIEW_REQUIRED','NOT_APPLICABLE')",
+            "deductible_status IN ('DEDUCTIBLE','NON_DEDUCTIBLE',"
+            "'REVIEW_REQUIRED','NOT_APPLICABLE')",
             name="deduction",
         ),
         CheckConstraint(
@@ -146,7 +153,8 @@ class WithholdingModel(UUIDPrimaryKey, TaxFact, Base):
             name="income_type",
         ),
         CheckConstraint(
-            "gross_amount >= 0 AND taxable_base >= 0 AND taxable_base <= gross_amount AND withholding_tax >= 0 AND local_tax >= 0 AND net_amount >= 0",
+            "gross_amount >= 0 AND taxable_base >= 0 AND taxable_base <= gross_amount "
+            "AND withholding_tax >= 0 AND local_tax >= 0 AND net_amount >= 0",
             name="amounts",
         ),
         CheckConstraint(
@@ -157,7 +165,9 @@ class WithholdingModel(UUIDPrimaryKey, TaxFact, Base):
 
 class TaxCommandModel(UUIDPrimaryKey, Base):
     __tablename__ = "tax_commands"
-    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), index=True
+    )
     actor_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     command_code: Mapped[str] = mapped_column(String(24))
     idempotency_key: Mapped[str] = mapped_column(String(100))
