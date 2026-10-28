@@ -16,6 +16,8 @@ from app.core.digests import digest
 from app.reporting.cash_flow.entities import CashEvent, CashPreflight
 from app.reporting.cash_flow.indirect import IndirectBridge
 from app.reporting.cash_flow.repository import CashFlowRepository
+from app.reporting.cash_flow.policy_models import FrozenNoncashModel, NoncashDisclosureModel
+from app.reporting.cash_flow.entities import NoncashDisclosure
 from app.reporting.cash_flow.snapshot import (
     CashBalanceSource,
     CashDrilldown,
@@ -174,10 +176,14 @@ class CashSnapshotRepository:
                     allocation_version=allocation.version if allocation else None,
                 )
             )
+        period_journals = {f.journal_id for f in facts if f.entry_date >= period_start
+                           and f.source_type != "OPENING"}
+        noncash = tuple(d for d in repository.noncash(company) if d.journal_id in period_journals)
         journal_ids = (
             {e.journal_id for e in events}
             | {source.journal_id for a in bridge.adjustments for source in a.sources}
             | {s.journal_id for s in balances}
+            | {d.journal_id for d in noncash}
         )
         traces = []
         for journal_id in sorted(journal_ids, key=str):
@@ -225,6 +231,7 @@ class CashSnapshotRepository:
                             ],
                             [asdict(t) for t in traces],
                             [asdict(s) for s in balances],
+                            [asdict(d) for d in noncash],
                         ),
                         default=str,
                     )
@@ -246,6 +253,10 @@ class CashSnapshotRepository:
         )
         self.session.add(row)
         self.session.flush()
+        self.session.add_all([
+            FrozenNoncashModel(id=uuid4(), company_id=company, statement_id=row.id,
+                               disclosure_id=d.id) for d in noncash
+        ])
         self.session.add_all(
             [
                 BalanceModel(id=uuid4(), company_id=company, statement_id=row.id, **asdict(source))
@@ -365,6 +376,17 @@ class CashSnapshotRepository:
 
     def drilldown(self, company: UUID, statement_id: UUID, line_id: UUID | None) -> CashDrilldown:
         lines = self.lines(company, statement_id)
+        noncash = tuple(
+            view(NoncashDisclosure, r) for r in self.session.scalars(
+                select(NoncashDisclosureModel)
+                .join(FrozenNoncashModel,
+                      FrozenNoncashModel.disclosure_id == NoncashDisclosureModel.id)
+                .where(FrozenNoncashModel.company_id == company,
+                       FrozenNoncashModel.statement_id == statement_id,
+                       NoncashDisclosureModel.company_id == company)
+                .order_by(NoncashDisclosureModel.journal_id, NoncashDisclosureModel.debit_line_id)
+            )
+        ) if line_id is None else ()
         if line_id is not None:
             lines = tuple(line for line in lines if line.id == line_id)
             if not lines:
@@ -451,6 +473,7 @@ class CashSnapshotRepository:
             {e.journal_id for e in events}
             | {s.journal_id for s in sources}
             | {s.journal_id for s in balances}
+            | {d.journal_id for d in noncash}
         )
         traces = []
         for r in self.session.scalars(
@@ -473,5 +496,5 @@ class CashSnapshotRepository:
             )
             traces.append(JournalTrace(r.journal_id, r.transaction_id, evidence))
         return CashDrilldown(
-            statement_id, lines, events, adjusted, sources, balances, tuple(traces)
+            statement_id, lines, events, adjusted, sources, balances, tuple(traces), noncash
         )

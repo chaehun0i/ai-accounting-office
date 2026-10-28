@@ -6,7 +6,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from app.contracts.access_errors import StateConflict
-from app.reporting.cash_flow.entities import CashEvent, CashPreflight
+from app.reporting.cash_flow.entities import CashEvent, CashPreflight, NoncashDisclosure
 from app.reporting.cash_flow.indirect import IndirectBridge
 
 
@@ -106,6 +106,7 @@ class CashDrilldown:
     adjustment_sources: tuple[CashSource, ...]
     cash_balance_sources: tuple[CashBalanceSource, ...]
     journals: tuple[JournalTrace, ...]
+    noncash_disclosures: tuple[NoncashDisclosure, ...] = ()
 
 
 def require_reconciled(preflight: CashPreflight, bridge: IndirectBridge) -> None:

@@ -7,11 +7,23 @@ from decimal import Decimal
 from uuid import UUID
 
 from app.accounting.ledger.domain.entities import LedgerFact
+from app.reporting.cash_flow.entities import NoncashDisclosure
 
 ZERO = Decimal("0")
 POLICY_CODE = "TAX_INTEREST_OPERATING"
 POLICY_VERSION = 1
-RULE_TYPES = {"OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE"}
+POLICY_ROLES = ("INTEREST_PAID", "INTEREST_RECEIVED", "TAX_PAID")
+RULE_TYPES = {"OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE",
+              "DISPOSAL_RESULT"} | {f"{role}_{kind}" for role in POLICY_ROLES
+                                    for kind in ("RESULT", "BALANCE")}
+
+
+def policy_role(code: str) -> str | None:
+    return next((role for role in POLICY_ROLES if code.startswith(role + "_")), None)
+
+
+def result_rule(code: str) -> bool:
+    return code in {"OPERATING_RESULT", "NONCASH_PAIR", "DISPOSAL_RESULT"} or code.endswith("_RESULT")
 
 
 @dataclass(frozen=True)
@@ -81,6 +93,8 @@ def adjustments(
     cash_accounts: set[UUID],
     period_start: date,
     period_end: date,
+    noncash: tuple[NoncashDisclosure, ...] = (),
+    policy_activities: dict[str, str] | None = None,
 ) -> tuple[tuple[Adjustment, ...], tuple[BridgeIssue, ...]]:
     """Balances use debit-positive signs; WC adjustment is minus its movement.
 
@@ -100,6 +114,11 @@ def adjustments(
     journals: dict[UUID, list[LedgerFact]] = defaultdict(list)
     for fact in period_facts:
         journals[fact.journal_id].append(fact)
+    disclosed: dict[UUID, Decimal] = defaultdict(lambda: ZERO)
+    for item in noncash:
+        disclosed[item.debit_line_id] += item.amount
+        disclosed[item.credit_line_id] -= item.amount
+    policy_activities = policy_activities or {}
     used = {f.account_id for f in period_facts} - cash_accounts
     for account in sorted(used, key=str):
         if account not in by_account:
@@ -123,9 +142,9 @@ def adjustments(
             issues.append(BridgeIssue("INDIRECT_RULE_NOT_FULL_PERIOD", rule.account_id))
         allowed = (
             {"REVENUE", "EXPENSE"}
-            if rule.adjustment_code in {"OPERATING_RESULT", "NONCASH_PAIR"}
+            if result_rule(rule.adjustment_code)
             else {"ASSET", "LIABILITY"}
-            if rule.adjustment_code == "WORKING_CAPITAL"
+            if rule.adjustment_code == "WORKING_CAPITAL" or rule.adjustment_code.endswith("_BALANCE")
             else {"ASSET", "LIABILITY", "EQUITY"}
         )
         if rule.adjustment_code not in RULE_TYPES or account_type not in allowed:
@@ -141,6 +160,10 @@ def adjustments(
             ZERO,
         )
         movement = sum((f.debit_amount - f.credit_amount for f in current), ZERO)
+        cash_movement = movement - sum((disclosed[f.line_id] for f in current), ZERO)
+        role = policy_role(rule.adjustment_code)
+        if role is not None and role not in policy_activities:
+            issues.append(BridgeIssue("INDIRECT_COMPANY_POLICY_MISSING", rule.account_id))
         if rule.adjustment_code == "NONCASH_PAIR":
             related = by_account.get(rule.related_account_id) if rule.related_account_id else None
             for journal_id in sorted({f.journal_id for f in current}, key=str):
@@ -157,14 +180,35 @@ def adjustments(
                             "INDIRECT_NONCASH_RELATION_UNSUPPORTED", rule.account_id, journal_id
                         )
                     )
-        if rule.adjustment_code == "WORKING_CAPITAL":
+        if rule.adjustment_code == "DISPOSAL_RESULT":
+            for journal_id in sorted({f.journal_id for f in current}, key=str):
+                group = journals[journal_id]
+                if not any(
+                    account_types.get(f.account_id) == "ASSET"
+                    and f.account_id not in cash_accounts
+                    and f.account_id in by_account
+                    and by_account[f.account_id].adjustment_code == "EXCLUDED_BALANCE"
+                    for f in group
+                ) or any(
+                    f.account_id != rule.account_id
+                    and f.account_id not in cash_accounts
+                    and (f.account_id not in by_account or
+                         by_account[f.account_id].adjustment_code != "EXCLUDED_BALANCE")
+                    for f in group
+                ):
+                    issues.append(BridgeIssue("INDIRECT_DISPOSAL_SOURCE_UNSUPPORTED",
+                                              rule.account_id, journal_id))
+        if rule.adjustment_code == "WORKING_CAPITAL" or rule.adjustment_code.endswith("_BALANCE"):
             for journal_id in sorted({f.journal_id for f in current}, key=str):
                 if any(
+                    f.debit_amount - f.credit_amount != disclosed[f.line_id]
+                    and
                     f.account_id not in cash_accounts
                     and (
                         f.account_id not in by_account
                         or by_account[f.account_id].adjustment_code
-                        not in {"WORKING_CAPITAL", "OPERATING_RESULT"}
+                        not in ({"WORKING_CAPITAL", "OPERATING_RESULT"} |
+                                {f"{r}_{k}" for r in POLICY_ROLES for k in ("RESULT", "BALANCE")})
                     )
                     for f in journals[journal_id]
                 ):
@@ -175,13 +219,17 @@ def adjustments(
                             journal_id,
                         )
                     )
-        amount = (
-            -movement
-            if rule.adjustment_code == "WORKING_CAPITAL"
-            else movement
-            if rule.adjustment_code == "NONCASH_PAIR"
-            else ZERO
-        )
+        amount = ZERO
+        if rule.adjustment_code == "WORKING_CAPITAL" or (
+            role is not None and rule.adjustment_code.endswith("_BALANCE")
+            and policy_activities.get(role) == "OPERATING"
+        ):
+            amount = -cash_movement
+        elif rule.adjustment_code in {"NONCASH_PAIR", "DISPOSAL_RESULT"} or (
+            role is not None and rule.adjustment_code.endswith("_RESULT")
+            and policy_activities.get(role) != "OPERATING"
+        ):
+            amount = movement
         result.append(
             Adjustment(
                 rule.id,

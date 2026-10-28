@@ -52,7 +52,9 @@ class CashFlowAdjustmentRuleModel(UUIDPrimaryKey, Base):
         CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="dates"),
         CheckConstraint(
             "adjustment_code IN ('OPERATING_RESULT','NONCASH_PAIR',"
-            "'WORKING_CAPITAL','EXCLUDED_BALANCE')",
+            "'WORKING_CAPITAL','EXCLUDED_BALANCE','DISPOSAL_RESULT',"
+            "'INTEREST_PAID_RESULT','INTEREST_RECEIVED_RESULT','TAX_PAID_RESULT',"
+            "'INTEREST_PAID_BALANCE','INTEREST_RECEIVED_BALANCE','TAX_PAID_BALANCE')",
             name="adjustment_code",
         ),
         CheckConstraint(
