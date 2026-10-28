@@ -24,7 +24,7 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `GET /cash-flow/indirect-bridge?period_id=…`는 동일 CLOSED 장부 및 최신 BS/IS 스냅샷을 확인한 뒤 IS 당기순이익, 계정별 기초·기말 잔액과 POSTED 전표 라인 출처, 비현금 가산 및 운전자본 변동을 Decimal로 계산합니다. 직접법 영업활동 순액과 간접법 순액이 정확히 같아야 `READY`입니다. 미분류 계정, 지원되지 않는 복합 원천, 변조되거나 오래된 BS/IS, 정책·유효일 오류, 직접·간접 차이는 코드와 근거를 포함한 `BLOCKED`로 표시하며 잔차를 임의 조정하지 않습니다. 응답의 close version, source digest, statement set·snapshot 식별자와 mapping digest는 계산에 사용한 원천을 추적합니다.
 
-`POST /cash-flow/generate`는 같은 CLOSED 기간의 현재 BS/IS 세트, 간접법 `READY`, 직접 현금 원천과 정확한 현금 대사를 다시 확인한 뒤 `RECONCILED` 관계형 스냅샷을 생성합니다. `Idempotency-Key`로 같은 요청의 중복 생성을 막고, 회사·기간·마감 버전·원천 및 매핑 digest를 고정합니다. `GET /cash-flow/statements?period_id=…`는 현재 유효한 결과를, `GET /cash-flow/{id}`는 동결된 과거 결과를 조회합니다. 항목과 원천은 `/cash-flow/{id}/lines`, `/cash-flow/{id}/drilldown?line_id=…`에서 확인할 수 있습니다. 현금 이벤트·간접법 조정·기초/기말 현금의 전표 행·증빙·적용 버전은 관계형 이력으로 저장하고, 동결 후 변경을 데이터베이스에서도 차단합니다. 현재 원천이 바뀌면 현재 결과 조회와 새 생성은 재검증을 요구하지만 과거 결과의 의미는 변하지 않습니다.
+`POST /cash-flow/generate`는 같은 CLOSED 기간의 현재 BS/IS 세트, 간접법 `READY`, 직접 현금 원천과 정확한 현금 대사를 다시 확인한 뒤 `RECONCILED` 관계형 스냅샷을 생성합니다. `Idempotency-Key`로 같은 요청의 중복 생성을 막고, 회사·기간·마감 버전·원천 및 매핑 digest를 고정합니다. `GET /cash-flow/statements?period_id=…`는 현재 유효한 결과를, `GET /cash-flow/{id}`는 동결된 과거 결과를 조회합니다. 항목과 원천은 `/cash-flow/{id}/lines`, `/cash-flow/{id}/drilldown?line_id=…`에서 확인할 수 있습니다. 현금 이벤트·간접법 조정·기초/기말 현금의 전표 행·증빙·적용 버전은 회사 범위 인덱스가 있는 관계형 이력으로 저장하고, 동결 후 변경을 데이터베이스에서도 차단합니다. 현재 원천이 바뀌면 현재 결과 조회와 새 생성은 재검증을 요구하지만 과거 결과의 의미는 변하지 않습니다.
 
 `RECONCILED`는 **간접법 금액과 직접 현금 원천의 대사 상태**입니다. 별도 비현금거래 공시 Fact, 투자 처분손익 재분류, 승인된 공식 현금흐름표와 Report Center Export는 아직 제공하지 않습니다. 사용자 화면은 후속 PR 범위입니다. 전체 완료조건은 [후속 Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
 
