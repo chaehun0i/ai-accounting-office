@@ -34,6 +34,7 @@ from app.reporting.center.api import router as report_center_router
 from app.reporting.financial_metrics.api import router as metric_router
 from app.reporting.financial_statements.api.router import router as statement_router
 from app.reporting.periods.api import router as report_period_router
+from app.tax.api import router as tax_router
 
 
 class RequestIdMiddleware:
@@ -127,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(report_center_router)
     app.include_router(cash_flow_router)
     app.include_router(metric_router)
+    app.include_router(tax_router)
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(companies_router)

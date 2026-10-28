@@ -68,6 +68,8 @@ from app.reporting.financial_statements.infrastructure.unit_of_work import (
     ReportingSQLAlchemyUnitOfWork,
 )
 from app.storage.infrastructure.local import LocalObjectStorage
+from app.tax.service import TaxService
+from app.tax.unit_of_work import TaxUnitOfWork
 from app.tools.accounting import build_registry
 from app.tools.registry import ToolRegistry
 
@@ -102,6 +104,7 @@ class Services:
     statements: StatementService | None = None
     report_center: ReportCenterService | None = None
     cash_flow: CashFlowService | None = None
+    tax: TaxService | None = None
 
 
 def create_services(settings: Settings) -> tuple[Engine, Services]:
@@ -164,6 +167,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
             LocalObjectStorage(Path(settings.storage_root)),
         ),
         cash_flow=CashFlowService(lambda: CashFlowUnitOfWork(sessions)),
+        tax=TaxService(lambda: TaxUnitOfWork(sessions)),
     )
     assert container.accounting and container.transactions and container.accounting_reports
     assert (

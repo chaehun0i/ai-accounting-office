@@ -190,6 +190,8 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     from app.reporting.financial_statements.infrastructure.unit_of_work import (
         ReportingSQLAlchemyUnitOfWork,
     )
+    from app.tax.service import TaxService
+    from app.tax.unit_of_work import TaxUnitOfWork
 
     app.state.services = replace(
         app.state.services,
@@ -205,6 +207,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
             lambda: ReportCenterUnitOfWork(factory), LocalObjectStorage(tmp_path)
         ),
         cash_flow=CashFlowService(lambda: CashFlowUnitOfWork(factory)),
+        tax=TaxService(lambda: TaxUnitOfWork(factory)),
         documents=DocumentService(lambda: DocumentSQLAlchemyUnitOfWork(factory)),
         dimensions=DimensionService(lambda: DimensionSQLAlchemyUnitOfWork(factory)),
         promotion=PromotionService(
