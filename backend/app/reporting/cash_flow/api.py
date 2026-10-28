@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from app.accounting.api.router import Actor, CompanyScope, Container
 from app.contracts.errors import DatabaseUnavailable
 from app.identity.auth.api.dependencies import csrf
+from app.reporting.cash_flow.indirect import IndirectBridge
 from app.reporting.cash_flow.service import CashFlowService
 
 router = APIRouter(prefix="/cash-flow", tags=["현금흐름표 사전 점검"])
@@ -24,6 +25,64 @@ def cash_flow(container: Container) -> CashFlowService:
 
 
 Service = Annotated[CashFlowService, Depends(cash_flow)]
+
+
+class AdjustmentRuleCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_id: UUID
+    adjustment_code: Literal[
+        "OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE"
+    ]
+    source_mapping_type: Literal["ACCOUNT_LEDGER", "ASSET_REGISTER", "INVENTORY_SUBLEDGER"]
+    related_account_id: UUID | None = None
+    effective_from: date
+    effective_to: date | None = None
+    policy_code: Literal["TAX_INTEREST_OPERATING"]
+    policy_version: Literal[1]
+
+
+class AdjustmentRuleRead(AdjustmentRuleCreate):
+    id: UUID
+    version: int
+
+
+@router.get("/adjustment-rules", response_model=list[AdjustmentRuleRead])
+def adjustment_rules(
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Service,
+) -> list[AdjustmentRuleRead]:
+    return [
+        AdjustmentRuleRead.model_validate(asdict(row))
+        for row in service.adjustment_rules(actor, company_id)
+    ]
+
+
+@router.post(
+    "/adjustment-rules",
+    response_model=AdjustmentRuleRead,
+    status_code=201,
+    dependencies=[Depends(csrf)],
+)
+def map_adjustment(
+    payload: AdjustmentRuleCreate,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Service,
+) -> AdjustmentRuleRead:
+    return AdjustmentRuleRead.model_validate(
+        asdict(service.map_adjustment(actor, company_id, **payload.model_dump()))
+    )
+
+
+@router.get("/indirect-bridge", response_model=IndirectBridge)
+def indirect_bridge(
+    period_id: UUID,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Service,
+) -> IndirectBridge:
+    return service.indirect_bridge(actor, company_id, period_id)
 
 
 class CashScopeCreate(BaseModel):
