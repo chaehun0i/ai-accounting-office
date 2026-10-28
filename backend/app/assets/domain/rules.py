@@ -13,7 +13,9 @@ def money(value: Decimal) -> Decimal:
     try:
         return require_money(value)
     except ValueError:
-        raise AccountingError("ASSET_AMOUNT_INVALID", "금액과 소수점 자릿수를 확인해 주세요.") from None
+        raise AccountingError(
+            "ASSET_AMOUNT_INVALID", "금액과 소수점 자릿수를 확인해 주세요."
+        ) from None
 
 
 def validate_asset(value: FixedAsset) -> None:
@@ -26,9 +28,12 @@ def validate_asset(value: FixedAsset) -> None:
         or value.in_service_date < value.acquisition_date
         or value.depreciation_method != "STRAIGHT_LINE"
         or value.status != "IN_SERVICE"
-        or len({value.asset_account_id, value.accumulated_account_id, value.expense_account_id}) != 3
+        or len({value.asset_account_id, value.accumulated_account_id, value.expense_account_id})
+        != 3
     ):
-        raise AccountingError("ASSET_INPUT_INVALID", "취득원가·잔존가치·내용연수·계정을 확인해 주세요.")
+        raise AccountingError(
+            "ASSET_INPUT_INVALID", "취득원가·잔존가치·내용연수·계정을 확인해 주세요."
+        )
 
 
 def cumulative_depreciation(asset: FixedAsset, policy: AssetPolicy, through: date) -> Decimal:
@@ -39,7 +44,8 @@ def cumulative_depreciation(asset: FixedAsset, policy: AssetPolicy, through: dat
     """
     validate_asset(asset)
     if policy.proration not in ("MONTHLY", "DAILY") or policy.acquisition_month not in (
-        "FULL", "NEXT_MONTH"
+        "FULL",
+        "NEXT_MONTH",
     ):
         raise AccountingError("ASSET_POLICY_INVALID", "지원되는 월할·일할 정책을 선택해 주세요.")
     if through.day != calendar.monthrange(through.year, through.month)[1]:
@@ -56,6 +62,9 @@ def cumulative_depreciation(asset: FixedAsset, policy: AssetPolicy, through: dat
     elapsed = Decimal(months)
     if policy.proration == "DAILY":
         elapsed -= Decimal(start.day - 1) / Decimal(calendar.monthrange(start.year, start.month)[1])
-    return min(basis, (basis * elapsed / asset.useful_life_months).quantize(
-        MONEY_QUANTUM, rounding=ROUND_HALF_UP
-    ))
+    return min(
+        basis,
+        (basis * elapsed / asset.useful_life_months).quantize(
+            MONEY_QUANTUM, rounding=ROUND_HALF_UP
+        ),
+    )
