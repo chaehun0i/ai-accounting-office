@@ -8,10 +8,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.accounting.journals.infrastructure.models import JournalEvidenceModel, JournalModel
-from app.reporting.cash_flow.entities import (
-    CashAllocation, CashClassification, CashPolicy, CashScope, NoncashDisclosure,
-)
-from app.reporting.cash_flow.policy_models import CashPolicyModel, NoncashDisclosureModel
+from app.reporting.cash_flow.entities import CashAllocation, CashClassification, CashScope
 from app.reporting.cash_flow.indirect import AdjustmentRule
 from app.reporting.cash_flow.models import (
     CashFlowAdjustmentRuleModel,
@@ -29,44 +26,6 @@ from app.reporting.financial_statements.infrastructure.models import (
 class CashFlowRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
-
-    def policies(self, company: UUID) -> tuple[CashPolicy, ...]:
-        return tuple(
-            CashPolicy(r.id, r.effective_from, r.interest_paid, r.interest_received,
-                       r.tax_paid, r.version)
-            for r in self.session.scalars(
-                select(CashPolicyModel).where(CashPolicyModel.company_id == company)
-                .order_by(CashPolicyModel.version)
-            )
-        )
-
-    def add_policy(self, company: UUID, policy: CashPolicy, actor: UUID, now: datetime) -> CashPolicy:
-        from dataclasses import asdict
-
-        self.session.add(CashPolicyModel(**asdict(policy), company_id=company,
-                                        created_by=actor, created_at=now))
-        self.session.flush()
-        return policy
-
-    def noncash(self, company: UUID) -> tuple[NoncashDisclosure, ...]:
-        return tuple(
-            NoncashDisclosure(r.id, r.journal_id, r.debit_line_id, r.credit_line_id,
-                              r.evidence_id, r.transaction_type, r.amount)
-            for r in self.session.scalars(
-                select(NoncashDisclosureModel).where(NoncashDisclosureModel.company_id == company)
-                .order_by(NoncashDisclosureModel.journal_id, NoncashDisclosureModel.debit_line_id,
-                          NoncashDisclosureModel.credit_line_id)
-            )
-        )
-
-    def add_noncash(self, company: UUID, disclosure: NoncashDisclosure,
-                    actor: UUID, now: datetime) -> NoncashDisclosure:
-        from dataclasses import asdict
-
-        self.session.add(NoncashDisclosureModel(**asdict(disclosure), company_id=company,
-                                               created_by=actor, created_at=now))
-        self.session.flush()
-        return disclosure
 
     def lock_configuration(self, company: UUID) -> None:
         """Serialize rule insertion and snapshot creation, including empty rule sets."""

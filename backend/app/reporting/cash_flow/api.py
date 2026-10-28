@@ -14,7 +14,6 @@ from app.contracts.errors import DatabaseUnavailable
 from app.finance.settlements.api.router import Key
 from app.identity.auth.api.dependencies import csrf
 from app.reporting.cash_flow.indirect import IndirectBridge
-from app.reporting.cash_flow.entities import CashPolicy, NoncashDisclosure
 from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.cash_flow.snapshot import CashDrilldown, CashLine, CashStatement
 
@@ -34,9 +33,7 @@ class AdjustmentRuleCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account_id: UUID
     adjustment_code: Literal[
-        "OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE",
-        "DISPOSAL_RESULT", "INTEREST_PAID_RESULT", "INTEREST_RECEIVED_RESULT", "TAX_PAID_RESULT",
-        "INTEREST_PAID_BALANCE", "INTEREST_RECEIVED_BALANCE", "TAX_PAID_BALANCE",
+        "OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE"
     ]
     source_mapping_type: Literal["ACCOUNT_LEDGER", "ASSET_REGISTER", "INVENTORY_SUBLEDGER"]
     related_account_id: UUID | None = None
@@ -49,49 +46,6 @@ class AdjustmentRuleCreate(BaseModel):
 class AdjustmentRuleRead(AdjustmentRuleCreate):
     id: UUID
     version: int
-
-
-class CashPolicyCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    effective_from: date
-    interest_paid: Literal["OPERATING", "FINANCING"]
-    interest_received: Literal["OPERATING", "INVESTING"]
-    tax_paid: Literal["OPERATING", "INVESTING", "FINANCING"]
-    expected_version: int = Field(ge=0)
-
-
-@router.get("/policies", response_model=tuple[CashPolicy, ...])
-def policies(actor: Actor, company_id: CompanyScope, service: Service) -> tuple[CashPolicy, ...]:
-    return service.policies(actor, company_id)
-
-
-@router.post("/policies", response_model=CashPolicy, status_code=201, dependencies=[Depends(csrf)])
-def set_policy(payload: CashPolicyCreate, actor: Actor, company_id: CompanyScope,
-               service: Service) -> CashPolicy:
-    return service.set_policy(actor, company_id, **payload.model_dump())
-
-
-class NoncashCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    journal_id: UUID
-    debit_line_id: UUID
-    credit_line_id: UUID
-    evidence_id: UUID
-    transaction_type: Literal["LEASE_ACQUISITION", "IN_KIND_CAPITAL", "DEBT_TO_EQUITY"]
-    amount: Decimal
-
-
-@router.get("/noncash-disclosures", response_model=tuple[NoncashDisclosure, ...])
-def noncash_disclosures(period_id: UUID, actor: Actor, company_id: CompanyScope,
-                        service: Service) -> tuple[NoncashDisclosure, ...]:
-    return service.noncash_disclosures(actor, company_id, period_id)
-
-
-@router.post("/noncash-disclosures", response_model=NoncashDisclosure, status_code=201,
-             dependencies=[Depends(csrf)])
-def disclose_noncash(payload: NoncashCreate, actor: Actor, company_id: CompanyScope,
-                      service: Service) -> NoncashDisclosure:
-    return service.disclose_noncash(actor, company_id, **payload.model_dump())
 
 
 @router.get("/adjustment-rules", response_model=list[AdjustmentRuleRead])

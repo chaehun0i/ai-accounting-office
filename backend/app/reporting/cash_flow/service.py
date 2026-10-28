@@ -1,8 +1,6 @@
 """POSTED 장부의 현금 범위를 명시적 설정으로 사전 점검합니다."""
 
-import json
 import re
-from dataclasses import asdict
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import date
@@ -25,8 +23,6 @@ from app.reporting.cash_flow.entities import (
     CashPreflight,
     CashPreflightIssue,
     CashScope,
-    CashPolicy,
-    NoncashDisclosure,
 )
 from app.reporting.cash_flow.indirect import (
     POLICY_CODE,
@@ -36,8 +32,6 @@ from app.reporting.cash_flow.indirect import (
     BridgeIssue,
     IndirectBridge,
     adjustments,
-    policy_role,
-    result_rule,
 )
 from app.reporting.cash_flow.snapshot import (
     CashDrilldown,
@@ -71,95 +65,6 @@ def _valid_amount(amount: Decimal, *, allow_zero: bool = False) -> bool:
 class CashFlowService:
     def __init__(self, factory: Callable[[], CashFlowUnitOfWork]) -> None:
         self.factory = factory
-
-    def policies(self, actor: Principal, company: UUID) -> tuple[CashPolicy, ...]:
-        with self.factory() as uow:
-            require_company(uow, actor, company, "financial_statement.read")
-            return uow.cash_flow.policies(company)
-
-    def set_policy(self, actor: Principal, company: UUID, effective_from: date,
-                   interest_paid: str, interest_received: str, tax_paid: str,
-                   expected_version: int) -> CashPolicy:
-        if (interest_paid not in {"OPERATING", "FINANCING"}
-                or interest_received not in {"OPERATING", "INVESTING"}
-                or tax_paid not in {"OPERATING", "INVESTING", "FINANCING"}):
-            raise InvalidInput()
-        with self.factory() as uow:
-            require_company(uow, actor, company, "financial_statement.generate")
-            uow.cash_flow.lock_configuration(company)
-            history = uow.cash_flow.policies(company)
-            version = history[-1].version if history else 0
-            old = next((p for p in history if p.effective_from == effective_from), None)
-            if old is not None and (old.interest_paid, old.interest_received, old.tax_paid) == (
-                interest_paid, interest_received, tax_paid
-            ) and old.version == expected_version + 1:
-                return old
-            if expected_version != version or (history and effective_from <= history[-1].effective_from):
-                raise StateConflict()
-            return uow.cash_flow.add_policy(
-                company, CashPolicy(uuid4(), effective_from, interest_paid, interest_received,
-                                    tax_paid, version + 1), actor.user_id, uow.now()
-            )
-
-    def noncash_disclosures(self, actor: Principal, company: UUID,
-                            period_id: UUID) -> tuple[NoncashDisclosure, ...]:
-        with self.factory() as uow:
-            require_company(uow, actor, company, "financial_statement.read")
-            period, _, _, _, facts = ClosingService.closed_adjusted_source(uow, company, period_id)
-            journals = {f.journal_id for f in facts if period.start_date <= f.entry_date
-                        and f.source_type != "OPENING"}
-            return tuple(d for d in uow.cash_flow.noncash(company) if d.journal_id in journals)
-
-    def disclose_noncash(self, actor: Principal, company: UUID, journal_id: UUID,
-                         debit_line_id: UUID, credit_line_id: UUID, evidence_id: UUID,
-                         transaction_type: str, amount: Decimal) -> NoncashDisclosure:
-        kinds = {"LEASE_ACQUISITION": ("ASSET", "LIABILITY"),
-                 "IN_KIND_CAPITAL": ("ASSET", "EQUITY"),
-                 "DEBT_TO_EQUITY": ("LIABILITY", "EQUITY")}
-        if transaction_type not in kinds or not _valid_amount(amount):
-            raise InvalidInput()
-        with self.factory() as uow:
-            require_company(uow, actor, company, "financial_statement.generate")
-            uow.cash_flow.lock_configuration(company)
-            journal = uow.journals.get(company, journal_id)
-            if journal is None:
-                raise ResourceNotFound()
-            if journal.status != "POSTED" or journal.source_type == "OPENING":
-                raise StateConflict()
-            _, _, _, _, facts = ClosingService.closed_adjusted_source(
-                uow, company, journal.accounting_period_id
-            )
-            group = [f for f in facts if f.journal_id == journal_id]
-            debit = next((f for f in group if f.line_id == debit_line_id), None)
-            credit = next((f for f in group if f.line_id == credit_line_id), None)
-            cash = {r.account_id for r in uow.cash_flow.scopes(company)}
-            types = {a.id: a.account_type for a in uow.accounts.list(company)}
-            if (debit is None or credit is None
-                    or any(f.account_id in cash for f in group)
-                    or any(types[f.account_id] not in {"ASSET", "LIABILITY", "EQUITY"} for f in group)
-                    or (types[debit.account_id], types[credit.account_id]) != kinds[transaction_type]
-                    or debit.debit_amount <= ZERO or credit.credit_amount <= ZERO
-                    or not uow.cash_flow.evidence_linked(company, journal_id, evidence_id)):
-                raise InvalidInput()
-            existing = [d for d in uow.cash_flow.noncash(company) if d.journal_id == journal_id]
-            old = next((d for d in existing if (d.debit_line_id, d.credit_line_id) ==
-                        (debit_line_id, credit_line_id)), None)
-            if old is not None:
-                if (old.amount, old.evidence_id, old.transaction_type) != (
-                    amount, evidence_id, transaction_type
-                ):
-                    raise StateConflict()
-                return old
-            if (sum((d.amount for d in existing if d.debit_line_id == debit_line_id), ZERO) + amount
-                    > debit.debit_amount or
-                    sum((d.amount for d in existing if d.credit_line_id == credit_line_id), ZERO)
-                    + amount > credit.credit_amount):
-                raise InvalidInput()
-            return uow.cash_flow.add_noncash(
-                company, NoncashDisclosure(uuid4(), journal_id, debit_line_id, credit_line_id,
-                                           evidence_id, transaction_type, amount),
-                actor.user_id, uow.now()
-            )
 
     def scopes(self, actor: Principal, company: UUID) -> tuple[CashScope, ...]:
         with self.factory() as uow:
@@ -412,9 +317,9 @@ class CashFlowService:
                 raise ResourceNotFound()
             allowed = (
                 {"REVENUE", "EXPENSE"}
-                if result_rule(adjustment_code)
+                if adjustment_code in {"OPERATING_RESULT", "NONCASH_PAIR"}
                 else {"ASSET", "LIABILITY"}
-                if adjustment_code == "WORKING_CAPITAL" or adjustment_code.endswith("_BALANCE")
+                if adjustment_code == "WORKING_CAPITAL"
                 else {"ASSET", "LIABILITY", "EQUITY"}
             )
             cash_accounts = {row.account_id for row in uow.cash_flow.scopes(company)}
@@ -478,11 +383,6 @@ class CashFlowService:
         preflight, events = self._analyze_closed(uow, company, period, source_digest, facts)
         rules = uow.cash_flow.adjustment_rules(company)
         account_types = {a.id: a.account_type for a in uow.accounts.list(company)}
-        policy = next((p for p in reversed(uow.cash_flow.policies(company))
-                       if p.effective_from <= period.start_date), None)
-        policy_activities = ({"INTEREST_PAID": policy.interest_paid,
-                              "INTEREST_RECEIVED": policy.interest_received,
-                              "TAX_PAID": policy.tax_paid} if policy else {})
         result, adjustment_issues = adjustments(
             facts,
             rules,
@@ -490,18 +390,12 @@ class CashFlowService:
             {r.account_id for r in uow.cash_flow.scopes(company)},
             period.start_date,
             period.end_date,
-            uow.cash_flow.noncash(company),
-            policy_activities,
         )
         issues = [BridgeIssue(i.code, journal_id=i.journal_id) for i in preflight.issues]
         issues.extend(adjustment_issues)
         rules_by_account = {r.account_id: r for r in rules}
         for event in events:
             rule = rules_by_account.get(event.counterpart_account_id)
-            role = policy_role(rule.adjustment_code) if rule else None
-            if role is not None and event.activity_type != policy_activities.get(role):
-                issues.append(BridgeIssue("INDIRECT_DIRECT_POLICY_MISMATCH",
-                                          event.counterpart_account_id, event.journal_id))
             if rule is not None and (
                 (
                     rule.adjustment_code in {"OPERATING_RESULT", "WORKING_CAPITAL"}
@@ -635,8 +529,8 @@ class CashFlowService:
                     ],
                 )
             ),
-            "COMPANY_CASH_POLICY" if policy else POLICY_CODE,
-            policy.version if policy else POLICY_VERSION,
+            POLICY_CODE,
+            POLICY_VERSION,
             net_profit,
             result,
             net_operating,
@@ -843,8 +737,6 @@ class CashFlowService:
         scopes = uow.cash_flow.scopes(company)
         classes = uow.cash_flow.classifications(company)
         allocations = uow.cash_flow.allocations(company)
-        policies = uow.cash_flow.policies(company)
-        noncash = uow.cash_flow.noncash(company)
         period_journal_ids = {
             fact.journal_id
             for fact in facts
@@ -886,15 +778,9 @@ class CashFlowService:
                     for a in allocations
                     if a.journal_id in period_journal_ids
                 ],
-                json.loads(json.dumps([asdict(p) for p in policies
-                                       if p.effective_from <= period.end_date], default=str)),
-                json.loads(json.dumps([asdict(d) for d in noncash
-                                       if d.journal_id in period_journal_ids], default=str)),
             )
         )
         issues: list[CashPreflightIssue] = []
-        if any(period.start_date < p.effective_from <= period.end_date for p in policies):
-            issues.append(CashPreflightIssue("CASH_POLICY_NOT_FULL_PERIOD"))
         if not scopes:
             issues.append(CashPreflightIssue("CASH_SCOPE_MISSING"))
         cash_accounts = {row.account_id for row in scopes}
@@ -924,26 +810,9 @@ class CashFlowService:
         amounts = {activity: ZERO for activity in ACTIVITIES}
         classified = 0
         all_events: list[CashEvent] = []
-        rules = {r.account_id: r for r in uow.cash_flow.adjustment_rules(company)}
         for journal_id, journal_facts in by_journal.items():
             cash = [f for f in journal_facts if f.account_id in cash_accounts]
             if not cash:
-                journal_disclosures = [d for d in noncash if d.journal_id == journal_id]
-                if journal_disclosures:
-                    disclosed: dict[UUID, Decimal] = defaultdict(lambda: ZERO)
-                    for d in journal_disclosures:
-                        disclosed[d.debit_line_id] += d.amount
-                        disclosed[d.credit_line_id] -= d.amount
-                    if any(f.debit_amount - f.credit_amount != disclosed[f.line_id]
-                           for f in journal_facts):
-                        issues.append(CashPreflightIssue("NONCASH_DISCLOSURE_INCOMPLETE", journal_id))
-                elif any(f.account_id in rules and
-                         rules[f.account_id].adjustment_code == "EXCLUDED_BALANCE"
-                         for f in journal_facts) and not any(
-                    f.account_id in rules and rules[f.account_id].adjustment_code == "NONCASH_PAIR"
-                    for f in journal_facts
-                ):
-                    issues.append(CashPreflightIssue("NONCASH_DISCLOSURE_MISSING", journal_id))
                 continue
             journal_events, error = direct_events(
                 journal_facts,

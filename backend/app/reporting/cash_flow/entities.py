@@ -76,24 +76,3 @@ class CashEvent:
     cash_outflow: Decimal
     classification_id: UUID
     evidence_id: UUID | None
-
-
-@dataclass(frozen=True)
-class CashPolicy:
-    id: UUID
-    effective_from: date
-    interest_paid: str
-    interest_received: str
-    tax_paid: str
-    version: int
-
-
-@dataclass(frozen=True)
-class NoncashDisclosure:
-    id: UUID
-    journal_id: UUID
-    debit_line_id: UUID
-    credit_line_id: UUID
-    evidence_id: UUID
-    transaction_type: str
-    amount: Decimal
