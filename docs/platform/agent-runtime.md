@@ -112,6 +112,8 @@ Internal Graph는 MCP 서버를 HTTP로 호출하지 않고 Registry를 직접 �
 
 ## 현재 한계와 제외 범위
 
+기간 질의의 Canonical Registry에는 `cash_flow.read`를 연결했습니다. 현재 회사의 CLOSED 기간에서 유효한 `RECONCILED` 현금흐름표 스냅샷의 합계 항목과 동결 전표 출처만 읽습니다. Agent는 금액을 다시 계산하거나 스냅샷을 생성하지 않습니다. 현금흐름표가 아직 없거나 마감 원천이 바뀌었다면 답을 확정하지 않습니다. 이 경로는 백엔드 초안이며 통합·브라우저 검증은 후속입니다.
+
 실행은 동기 API 요청 기반이며 상시 queue worker, 취소, 주기적 복구 scheduler, live fanout은 없습니다. 네트워크가 끊기면 REST 상태와 저장 이벤트를 조회하세요. Tool timeout metadata는 완료 후 예산 초과를 검사하며 실행 중인 Python 함수를 강제 중단하지 않습니다. Gemini SDK에는 실제 HTTP timeout과 전체 재시도 예산을 적용합니다.
 
 실 Gemini 네트워크 테스트는 키·모델을 제공한 별도 opt-in으로만 수행합니다. 일반 CI는 Fake이며 키가 없어도 Core/health가 동작합니다. Remote MCP OAuth/host별 서비스 인증, checkpoint retention/운영 role 분리, 장기 대화형 Chat UI, 다른 Domain의 Agent 협업·Tax/RAG/자율 Posting은 이번 범위가 아닙니다. 정적 import guard는 Python sandbox가 아닙니다.

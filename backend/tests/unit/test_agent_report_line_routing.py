@@ -3,13 +3,20 @@
 import pytest
 from pydantic import ValidationError
 
-from app.agents.graphs.accounting_question import REPORT_LINE_TYPES, contextual_report_line
+from app.agents.graphs.accounting_question import (
+    CASH_FLOW_LINES,
+    REPORT_LINE_TYPES,
+    contextual_report_line,
+)
 from app.llm.contracts import AccountingQuestionRoute
 from app.reporting.financial_statements.domain.rules import LINES
 
 
 def test_every_report_line_is_routable_without_amount_calculation():
-    assert REPORT_LINE_TYPES == {line.line_code: line.statement_type for line in LINES}
+    assert REPORT_LINE_TYPES == {
+        **{line.line_code: line.statement_type for line in LINES},
+        **{code: "CASH_FLOW" for code in CASH_FLOW_LINES},
+    }
     for line in LINES:
         question = f"이 기간 {line.label} ({line.line_code}) 항목 금액과 근거를 설명해줘."
         assert contextual_report_line(question) == (line.statement_type, line.line_code)

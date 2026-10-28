@@ -25,6 +25,7 @@ from app.finance.receivables.domain.entities import Obligation
 from app.finance.reconciliation.application.service import FinanceReports
 from app.finance.reconciliation.domain.reports import Reconciliation
 from app.finance.settlements.application.service import FinanceService
+from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.financial_statements.application.service import StatementService
 from app.tools.contracts import (
     AsOfInput,
@@ -63,6 +64,7 @@ def build_registry(
     proposals: AgentProposalService,
     closing: ClosingService | None = None,
     statements: StatementService | None = None,
+    cash_flow: CashFlowService | None = None,
 ) -> ToolRegistry:
     def authorize(context: ToolContext, permission: str) -> None:
         with master.factory() as uow:
@@ -256,6 +258,6 @@ def build_registry(
         )
     )
     if closing is not None and statements is not None:
-        for definition in reporting_definitions(closing, statements):
+        for definition in reporting_definitions(closing, statements, cash_flow):
             registry.register(definition)
     return registry

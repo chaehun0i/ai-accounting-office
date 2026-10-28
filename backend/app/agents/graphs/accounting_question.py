@@ -48,6 +48,17 @@ REPORT_LINE_TYPES = {
     **{code: "BALANCE_SHEET" for code in BALANCE_SHEET_LINES},
     **{code: "INCOME_STATEMENT" for code in INCOME_STATEMENT_LINES},
 }
+CASH_FLOW_LINES = frozenset(
+    {
+        "OPENING_CASH",
+        "NET_OPERATING",
+        "NET_INVESTING",
+        "NET_FINANCING",
+        "EXCHANGE_EFFECT",
+        "CLOSING_CASH",
+    }
+)
+REPORT_LINE_TYPES.update({code: "CASH_FLOW" for code in CASH_FLOW_LINES})
 
 
 class AccountingQuestionState(TypedDict, total=False):
@@ -102,6 +113,12 @@ def build_accounting_question(
         if selected["capability"] == "CLOSING":
             code, line = "closing.readiness", None
             arguments: dict[str, object] = {"period_id": state["period_id"]}
+        elif selected["capability"] == "CASH_FLOW":
+            code = "cash_flow.read"
+            line = selected["line_code"] or "NET_OPERATING"
+            if line not in CASH_FLOW_LINES:
+                raise InvalidInput()
+            arguments = {"period_id": state["period_id"], "line_code": line}
         else:
             code = "financial_statement.read"
             line = selected["line_code"] or (
