@@ -26,7 +26,9 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `POST /cash-flow/generate`는 같은 CLOSED 기간의 현재 BS/IS 세트, 간접법 `READY`, 직접 현금 원천과 정확한 현금 대사를 다시 확인한 뒤 `RECONCILED` 관계형 스냅샷을 생성합니다. `Idempotency-Key`로 같은 요청의 중복 생성을 막고, 회사·기간·마감 버전·원천 및 매핑 digest를 고정합니다. `GET /cash-flow/statements?period_id=…`는 현재 유효한 결과를, `GET /cash-flow/{id}`는 동결된 과거 결과를 조회합니다. 항목과 원천은 `/cash-flow/{id}/lines`, `/cash-flow/{id}/drilldown?line_id=…`에서 확인할 수 있습니다. 현금 이벤트·간접법 조정·기초/기말 현금의 전표 행·증빙·적용 버전은 회사 범위 인덱스가 있는 관계형 이력으로 저장하고, 동결 후 변경을 데이터베이스에서도 차단합니다. 현재 원천이 바뀌면 현재 결과 조회와 새 생성은 재검증을 요구하지만 과거 결과의 의미는 변하지 않습니다.
 
-`RECONCILED`는 **간접법 금액과 직접 현금 원천의 대사 상태**입니다. 별도 비현금거래 공시 Fact, 투자 처분손익 재분류, 승인된 공식 현금흐름표와 Report Center Export는 아직 제공하지 않습니다. 사용자 화면은 후속 PR 범위입니다. 전체 완료조건은 [후속 Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
+`/financial-statements`에서 CLOSED 기간과 현재 BS/IS 세트를 선택하면 현금흐름표 영역이 사전 점검, 차단 코드와 대사 차이를 보여줍니다. `financial_statement.generate` 권한자는 현재 원천이 `READY`일 때 간접법 스냅샷을 생성할 수 있습니다. 생성 결과에서는 항목별 금액과 전표·증빙·배분·조정 규칙·기초/기말 현금 원천을 조회합니다. 회사나 기간을 전환하면 이전 회사의 조회 상태를 버립니다. 오래된 원천의 결과는 현재 결과로 표시하지 않고 재점검을 안내합니다.
+
+`RECONCILED`는 **간접법 금액과 직접 현금 원천의 대사 상태**입니다. 별도 비현금거래 공시 Fact, 투자 처분손익 재분류, 승인된 공식 현금흐름표와 Report Center Export는 아직 제공하지 않습니다. 전체 완료조건은 [후속 Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
 
 PostgreSQL API 회귀 검증은 현금 범위·활동 분류 및 증빙 배분, CLOSED 장부 직접 이벤트, 간접법 규칙과 비현금·운전자본 조정, BS/IS 원천 변조·버전 불일치, 직접·간접 대사, 회사 간 접근 차단을 확인합니다. 이 검증은 실제 API와 서비스 구성을 통해 수행합니다.
 
