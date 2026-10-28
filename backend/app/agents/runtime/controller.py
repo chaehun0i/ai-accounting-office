@@ -52,6 +52,18 @@ def reporting_answer(
             source_digest=data["source_digest"],
             source_ids=[UUID(check["source_id"]) for check in data["checks"] if check["source_id"]],
         )
+    if tool_code == "cash_flow.read":
+        amount = Decimal(data["amount"])
+        return AccountingAnswer(
+            text=(
+                f"현금흐름표 {data['line_code']}은(는) {amount}입니다. "
+                f"마감 버전 {data['close_version']}의 대사 스냅샷 기준입니다."
+            ),
+            amount=amount,
+            resource_id=UUID(data["statement_id"]),
+            source_digest=data["snapshot_digest"],
+            source_ids=[UUID(value) for value in data["source_ids"]],
+        )
     line = next(row for row in data["lines"] if row["line_code"] == line_code)
     amount = Decimal(line["current_amount"])
     text = (
@@ -91,6 +103,10 @@ def reporting_verdict(
         data["period_status"] != "CLOSED"
         or data["statement_status"] != "GENERATED"
         or not line_code
+    ):
+        return "BLOCK"
+    if tool_code == "cash_flow.read" and (
+        data["statement_status"] != "RECONCILED" or data["line_code"] != line_code
     ):
         return "BLOCK"
     expected = reporting_answer(tool_code, result, line_code)

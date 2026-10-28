@@ -17,6 +17,10 @@ class FakeProvider:
             question = data["question"]
             if "마감" in question or "결산" in question:
                 return schema.model_validate({"capability": "CLOSING"})
+            if "현금흐름" in question:
+                return schema.model_validate(
+                    {"capability": "CASH_FLOW", "line_code": "NET_OPERATING"}
+                )
             if "자산" in question:
                 return schema.model_validate({"capability": "BALANCE_SHEET", "line_code": "ASSETS"})
             if "부채" in question:

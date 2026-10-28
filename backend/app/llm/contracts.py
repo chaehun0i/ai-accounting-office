@@ -26,7 +26,7 @@ class AccountSelection(StructuredModel):
 
 
 class AccountingQuestionRoute(StructuredModel):
-    capability: Literal["CLOSING", "BALANCE_SHEET", "INCOME_STATEMENT", "UNSUPPORTED"]
+    capability: Literal["CLOSING", "BALANCE_SHEET", "INCOME_STATEMENT", "CASH_FLOW", "UNSUPPORTED"]
     line_code: str | None = Field(default=None, max_length=40, pattern=r"^[A-Z_]+$")
 
 
