@@ -27,7 +27,7 @@ def source_fk(column: str, table: str) -> ForeignKeyConstraint:
 
 class CashFlowStatementModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_statements"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     period_id: Mapped[UUID]
     statement_set_id: Mapped[UUID]
     balance_sheet_id: Mapped[UUID]
@@ -75,7 +75,7 @@ class CashFlowStatementModel(UUIDPrimaryKey, Base):
 
 class CashFlowEventModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_events"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     statement_id: Mapped[UUID]
     journal_id: Mapped[UUID]
     cash_line_id: Mapped[UUID]
@@ -128,7 +128,7 @@ class CashFlowEventModel(UUIDPrimaryKey, Base):
 
 class CashFlowAdjustmentModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_adjustments"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     statement_id: Mapped[UUID]
     rule_id: Mapped[UUID]
     rule_version: Mapped[int]
@@ -150,7 +150,7 @@ class CashFlowAdjustmentModel(UUIDPrimaryKey, Base):
 
 class CashFlowAdjustmentSourceModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_adjustment_sources"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     adjustment_id: Mapped[UUID]
     journal_id: Mapped[UUID]
     journal_line_id: Mapped[UUID]
@@ -170,7 +170,7 @@ class CashFlowAdjustmentSourceModel(UUIDPrimaryKey, Base):
 
 class CashFlowBalanceSourceModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_balance_sources"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     statement_id: Mapped[UUID]
     scope_id: Mapped[UUID]
     scope_version: Mapped[int]
@@ -196,7 +196,7 @@ class CashFlowBalanceSourceModel(UUIDPrimaryKey, Base):
 
 class CashFlowLineModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_lines"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     statement_id: Mapped[UUID]
     line_code: Mapped[str] = mapped_column(String(60))
     amount: Mapped[Decimal] = mapped_column(Numeric(28, 4))
@@ -235,7 +235,7 @@ class CashFlowLineModel(UUIDPrimaryKey, Base):
 
 class CashFlowJournalTraceModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_journal_traces"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     statement_id: Mapped[UUID]
     journal_id: Mapped[UUID]
     transaction_id: Mapped[UUID | None]
@@ -250,7 +250,7 @@ class CashFlowJournalTraceModel(UUIDPrimaryKey, Base):
 
 class CashFlowEvidenceTraceModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_evidence_traces"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     journal_trace_id: Mapped[UUID]
     evidence_id: Mapped[UUID]
     __table_args__ = (
@@ -262,7 +262,7 @@ class CashFlowEvidenceTraceModel(UUIDPrimaryKey, Base):
 
 class CashFlowCommandModel(UUIDPrimaryKey, Base):
     __tablename__ = "cash_flow_commands"
-    company_id: Mapped[UUID]
+    company_id: Mapped[UUID] = mapped_column(index=True)
     actor_id: Mapped[UUID]
     idempotency_key: Mapped[str] = mapped_column(String(100))
     fingerprint: Mapped[str] = mapped_column(String(64))

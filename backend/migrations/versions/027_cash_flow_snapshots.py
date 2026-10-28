@@ -292,6 +292,18 @@ adjustment_id IS NULL)),
         CONSTRAINT ck_cash_flow_lines_display_order CHECK (display_order > 0)
 )
 """)
+    for table in (
+        "cash_flow_statements",
+        "cash_flow_adjustments",
+        "cash_flow_balance_sources",
+        "cash_flow_commands",
+        "cash_flow_journal_traces",
+        "cash_flow_adjustment_sources",
+        "cash_flow_events",
+        "cash_flow_evidence_traces",
+        "cash_flow_lines",
+    ):
+        op.create_index(f"ix_{table}_company_id", table, ["company_id"])
     op.execute("""
 CREATE FUNCTION cash_flow_snapshot_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
