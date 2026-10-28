@@ -6,6 +6,7 @@ import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
 import { financialStatementAskHref } from "@/features/ai-team/context";
+import { CashFlowWorkspace } from "./cash-flow-workspace";
 import { formatMoney, type Account, type Period, type Source, type Statement, type StatementSet } from "./model";
 
 type Kind = "BALANCE_SHEET" | "INCOME_STATEMENT";
@@ -125,6 +126,7 @@ export function FinancialStatements({ company }: { company: Company }) {
       </>}
       {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status">{notice}</p>}
     </section>
+    {selected && <CashFlowWorkspace key={`${company.id}:${selected.id}:${selected.close_version}:${setId}`} company={company} period={selected} statementSet={activeSet} />}
     {periodId && accounts.length > 0 && company.permissions.includes("financial_statement.generate") && <section className="panel"><details><summary>회사 추가 계정 표시 항목 연결</summary>
       <p>확정 전표에 사용한 회사 전용 계정이 매핑되지 않았다면 재무제표 생성이 차단됩니다. 해당 계정을 정확한 표시 항목에 연결하세요.</p>
       <form onSubmit={event => void mapAccount(event)}><label>계정 <select value={accountId} onChange={event => setAccountId(event.target.value)}>{accounts.map(account => <option key={account.id} value={account.id}>{account.account_code} {account.account_name}</option>)}</select></label>
