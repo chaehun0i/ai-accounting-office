@@ -21,6 +21,9 @@ class _CashStore:
     def classifications(self, _company):
         return self._classes
 
+    def allocations(self, _company):
+        return ()
+
 
 class _UnitOfWork:
     def __init__(self, scopes, classes):

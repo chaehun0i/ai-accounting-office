@@ -49,3 +49,30 @@ class CashPreflight:
     classified_journal_count: int
     issues: tuple[CashPreflightIssue, ...]
     ready: bool
+
+
+@dataclass(frozen=True)
+class CashAllocation:
+    id: UUID
+    journal_id: UUID
+    cash_line_id: UUID
+    counterpart_line_id: UUID
+    evidence_id: UUID
+    amount: Decimal
+    version: int
+    replaces_id: UUID | None
+
+
+@dataclass(frozen=True)
+class CashEvent:
+    journal_id: UUID
+    cash_line_id: UUID
+    cash_account_id: UUID
+    counterpart_line_id: UUID
+    counterpart_account_id: UUID
+    activity_type: str
+    line_code: str
+    cash_inflow: Decimal
+    cash_outflow: Decimal
+    classification_id: UUID
+    evidence_id: UUID | None

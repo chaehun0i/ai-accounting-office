@@ -16,7 +16,11 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `GET /cash-flow/preflight?period_id=…`는 기존 CLOSED 마감의 조정 장부와 source digest를 읽어 기초·기말 현금, 기간 순증감, 활동별 명시적 분류 금액과 차이를 Decimal로 검사합니다. 현금 범위가 없거나 기간 전체에 유효하지 않으면 차단합니다. Opening 전표는 해당 기간의 영업·투자·재무 현금흐름으로 세지 않고 기초현금에 포함합니다. 현금 계정 간 순증감 0인 내부 이체도 제외합니다. 상대 계정 분류가 없거나 복합분개를 신뢰할 수 있게 배분할 수 없으면 `CASH_FLOW_UNCLASSIFIED` 또는 `CASH_FLOW_COMPLEX_JOURNAL`을 반환하며 잔차를 임의 활동으로 채우지 않습니다. 분류 총액과 기초·기말 현금 차이가 맞지 않으면 `CASH_FLOW_RECONCILIATION_MISMATCH`를 반환합니다.
 
-이 단계의 `ready`는 **현금 이동 사전 점검 결과**입니다. 간접법 영업활동 bridge, 복합분개 배분, Cash Flow 관계형 이벤트·스냅샷, 사용자 화면과 Report Center Export는 아직 구현되지 않았습니다. 따라서 `ready=true`만으로 현금흐름표가 완성됐거나 공식 제출 가능한 상태라고 표시하지 않습니다. 전체 현금흐름표 완료조건은 [후속 Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
+복합분개는 연결된 증빙을 지정해 `POST /cash-flow/allocations`로 현금 라인과 상대 라인의 금액을 명시적으로 배분할 수 있습니다. 현금 라인은 전액 배분하고 상대 라인은 원래 금액을 넘기지 않아야 합니다. 미배분이나 초과 배분은 차단하며 잔차를 자동 활동으로 분류하지 않습니다. 잘못된 배분은 `PUT /cash-flow/allocations/{allocation_id}`로 새 관계형 이력을 추가해 바로잡습니다. 금액 `0`은 해당 쌍의 철회이며, 철회 후 복구도 최신 이력에 대한 수정으로 수행합니다. `GET /cash-flow/allocations?journal_id=…`는 수정 이력을 읽습니다. 동일 요청 재시도는 같은 배분 또는 직접 후속 수정 이력을 반환하고 오래된 수정 요청은 거부합니다.
+
+`GET /cash-flow/events?period_id=…`는 사전 점검을 통과한 CLOSED 장부에서 직접법 현금 이벤트를 결정적으로 **읽기 투영**합니다. 전표·라인·상대 계정·활동·line code·연결 증빙까지 추적할 수 있습니다. 이것은 저장된 현금흐름표 스냅샷이 아니며 GL을 다시 기표하지 않습니다. 현금 계정만 움직이는 이체는 제외합니다. 현금 계정 간 이체와 외부 거래가 하나의 복합분개에 섞인 경우에는 아직 자동 분할하지 않고 차단합니다.
+
+이 단계의 `ready`는 **현금 이동 사전 점검 결과**입니다. 간접법 영업활동 bridge, 비현금거래 Fact, 불변 Cash Flow 스냅샷, 사용자 화면과 Report Center Export는 아직 구현되지 않았습니다. 따라서 `ready=true`만으로 현금흐름표가 완성됐거나 공식 제출 가능한 상태라고 표시하지 않습니다. 전체 현금흐름표 완료조건은 [후속 Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
 
 PostgreSQL API 회귀 검증은 현금 범위가 없는 CLOSED 기간의 차단, 현금 범위와 활동 분류 등록 후의 재점검, 비자산 계정 거부, 회사 간 접근 차단을 확인합니다. 이 검증은 실제 API와 서비스 구성을 통해 수행합니다.
 
