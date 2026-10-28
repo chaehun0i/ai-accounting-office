@@ -7,13 +7,15 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.accounting.api.router import Actor, CompanyScope, Container
 from app.contracts.errors import DatabaseUnavailable
+from app.finance.settlements.api.router import Key
 from app.identity.auth.api.dependencies import csrf
 from app.reporting.cash_flow.indirect import IndirectBridge
 from app.reporting.cash_flow.service import CashFlowService
+from app.reporting.cash_flow.snapshot import CashDrilldown, CashLine, CashStatement
 
 router = APIRouter(prefix="/cash-flow", tags=["현금흐름표 사전 점검"])
 
@@ -264,3 +266,57 @@ def events(
         CashEventRead.model_validate(asdict(item))
         for item in service.events(actor, company_id, period_id)
     ]
+
+
+class SnapshotGenerate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    period_id: UUID
+    statement_set_id: UUID
+    close_version: int = Field(ge=1)
+    source_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mapping_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+@router.post(
+    "/generate", response_model=CashStatement, status_code=201, dependencies=[Depends(csrf)]
+)
+def generate_snapshot(
+    payload: SnapshotGenerate,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Service,
+    key: Key,
+) -> CashStatement:
+    return service.generate_snapshot(actor, company_id, **payload.model_dump(), key=key)
+
+
+@router.get("/statements", response_model=CashStatement)
+def current_snapshot(
+    period_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> CashStatement:
+    return service.current_snapshot(actor, company_id, period_id)
+
+
+@router.get("/{statement_id}", response_model=CashStatement)
+def snapshot(
+    statement_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> CashStatement:
+    return service.snapshot(actor, company_id, statement_id)
+
+
+@router.get("/{statement_id}/lines", response_model=tuple[CashLine, ...])
+def snapshot_lines(
+    statement_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> tuple[CashLine, ...]:
+    return service.snapshot_lines(actor, company_id, statement_id)
+
+
+@router.get("/{statement_id}/drilldown", response_model=CashDrilldown)
+def snapshot_drilldown(
+    statement_id: UUID,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Service,
+    line_id: UUID | None = None,
+) -> CashDrilldown:
+    return service.snapshot_drilldown(actor, company_id, statement_id, line_id)

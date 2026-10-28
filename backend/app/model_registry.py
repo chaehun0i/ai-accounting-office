@@ -67,6 +67,7 @@ from app.master_data.payment_terms.infrastructure import (  # noqa: E402
 )
 from app.onboarding.infrastructure import models as onboarding_models  # noqa: F401, E402
 from app.reporting.cash_flow import models as cash_flow_models  # noqa: F401, E402
+from app.reporting.cash_flow import snapshot_models as cash_snapshot_models  # noqa: F401, E402
 from app.reporting.center import models as report_center_models  # noqa: F401, E402
 from app.reporting.financial_statements.infrastructure import (  # noqa: E402
     models as financial_statement_models,  # noqa: F401, E402

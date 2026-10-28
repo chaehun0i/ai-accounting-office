@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.accounting.journals.infrastructure.models import JournalEvidenceModel, JournalModel
@@ -26,6 +26,13 @@ from app.reporting.financial_statements.infrastructure.models import (
 class CashFlowRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def lock_configuration(self, company: UUID) -> None:
+        """Serialize rule insertion and snapshot creation, including empty rule sets."""
+        self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"cash-flow:{company}"},
+        )
 
     def statement_snapshot_sources(
         self,
