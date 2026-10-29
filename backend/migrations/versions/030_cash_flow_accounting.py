@@ -151,6 +151,11 @@ def upgrade() -> None:
             "amount > 0", name=op.f("ck_cash_flow_statement_disclosures_amount_positive")
         ),
     )
+    op.create_index(
+        op.f("ix_cash_flow_statement_disclosures_company_id"),
+        "cash_flow_statement_disclosures",
+        ["company_id"],
+    )
     op.create_table(
         "cash_flow_disposal_sources",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -226,6 +231,11 @@ def upgrade() -> None:
             "proceeds > 0 AND gain_amount <> 0",
             name=op.f("ck_cash_flow_statement_disposals_amounts"),
         ),
+    )
+    op.create_index(
+        op.f("ix_cash_flow_statement_disposals_company_id"),
+        "cash_flow_statement_disposals",
+        ["company_id"],
     )
     for table in (
         "cash_flow_policies",
