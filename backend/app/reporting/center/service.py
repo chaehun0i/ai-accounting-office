@@ -11,6 +11,7 @@ from app.companies.application.service import require_company
 from app.contracts.access_errors import InvalidInput, ResourceNotFound, StateConflict
 from app.core.digests import digest
 from app.identity.users.domain.entities import Principal
+from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.center.render import ReportDocument, render
 from app.reporting.center.repository import ReportArtifact, ReportRun
 from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
@@ -22,6 +23,7 @@ REPORTS = (
     ("BALANCE_SHEET", "재무상태표", "AS_OF"),
     ("INCOME_STATEMENT", "손익계산서", "RANGE"),
     ("FINANCIAL_METRICS", "재무비율", "RANGE"),
+    ("CASH_FLOW", "현금흐름표", "RANGE"),
 )
 FORMATS = ("PDF", "XLSX", "CSV")
 
@@ -121,17 +123,46 @@ class ReportCenterService:
             income = uow.statements.statement(company, statement_set.id, "INCOME_STATEMENT")
             if balance is None or income is None:
                 raise ResourceNotFound()
+            cash = None
+            if report_code == "CASH_FLOW":
+                cash = uow.cash_snapshots.current(company, period_id)
+                bridge = CashFlowService(self.factory)._indirect_bridge(uow, company, period_id)
+                if (
+                    bridge.status != "READY"
+                    or bridge.issues
+                    or (
+                        cash.statement_set_id,
+                        cash.close_version,
+                        cash.source_digest,
+                        cash.mapping_digest,
+                        cash.balance_sheet_digest,
+                        cash.income_statement_digest,
+                    )
+                    != (
+                        statement_set.id,
+                        period.close_version,
+                        bridge.source_digest,
+                        bridge.mapping_digest,
+                        balance.snapshot_digest,
+                        income.snapshot_digest,
+                    )
+                ):
+                    raise StateConflict()
             formula_version = max(formula.version for formula in FORMULAS)
-            source = digest(
-                (
-                    str(statement_set.id),
-                    statement_set.close_version,
-                    statement_set.trial_balance_digest,
-                    statement_set.mapping_digest,
-                    statement_set.taxonomy_version,
-                    balance.snapshot_digest,
-                    income.snapshot_digest,
-                    formula_version if report_code == "FINANCIAL_METRICS" else None,
+            source = (
+                cash.snapshot_digest
+                if cash is not None
+                else digest(
+                    (
+                        str(statement_set.id),
+                        statement_set.close_version,
+                        statement_set.trial_balance_digest,
+                        statement_set.mapping_digest,
+                        statement_set.taxonomy_version,
+                        balance.snapshot_digest,
+                        income.snapshot_digest,
+                        formula_version if report_code == "FINANCIAL_METRICS" else None,
+                    )
                 )
             )
             now = uow.now()
@@ -311,22 +342,23 @@ class ReportCenterService:
             or income.snapshot_digest != run.income_statement_digest
         ):
             raise StateConflict()
-        formula_version = max(formula.version for formula in FORMULAS)
-        source = digest(
-            (
-                str(statement_set.id),
-                statement_set.close_version,
-                statement_set.trial_balance_digest,
-                statement_set.mapping_digest,
-                statement_set.taxonomy_version,
-                balance.snapshot_digest,
-                income.snapshot_digest,
-                formula_version if run.report_code == "FINANCIAL_METRICS" else None,
+        if run.report_code != "CASH_FLOW":
+            formula_version = max(formula.version for formula in FORMULAS)
+            source = digest(
+                (
+                    str(statement_set.id),
+                    statement_set.close_version,
+                    statement_set.trial_balance_digest,
+                    statement_set.mapping_digest,
+                    statement_set.taxonomy_version,
+                    balance.snapshot_digest,
+                    income.snapshot_digest,
+                    formula_version if run.report_code == "FINANCIAL_METRICS" else None,
+                )
             )
-        )
-        if source != run.source_digest:
-            raise StateConflict()
-        metadata = (
+            if source != run.source_digest:
+                raise StateConflict()
+        metadata: tuple[tuple[str, str], ...] = (
             ("company", company_name),
             ("report", run.report_code),
             ("period", str(run.as_of or f"{run.date_from}/{run.date_to}")),
@@ -335,13 +367,36 @@ class ReportCenterService:
             ("snapshot_version", str(run.close_version)),
             ("source_digest", run.source_digest),
         )
-        if run.report_code == "FINANCIAL_METRICS":
+        columns: tuple[str, ...]
+        rows: tuple[tuple[str, ...], ...]
+        if run.report_code == "CASH_FLOW":
+            cash = uow.cash_snapshots.by_digest(run.company_id, run.period_id, run.source_digest)
+            if (
+                cash.statement_set_id != run.statement_set_id
+                or cash.close_version != run.close_version
+                or cash.balance_sheet_digest != run.balance_sheet_digest
+                or cash.income_statement_digest != run.income_statement_digest
+                or cash.status != "RECONCILED"
+            ):
+                raise StateConflict()
+            columns = ("line_code", "amount", "source_type")
+            rows = tuple(
+                (line.line_code, format(line.amount, "f"), line.source_type)
+                for line in uow.cash_snapshots.lines(run.company_id, cash.id)
+            )
+            metadata += (
+                ("cash_flow_snapshot_id", str(cash.id)),
+                ("cash_flow_snapshot_version", str(cash.close_version)),
+                ("cash_flow_snapshot_generated_at", cash.generated_at.isoformat()),
+                ("cash_flow_validation", "INTERNAL_VALIDATION_ONLY"),
+            )
+        elif run.report_code == "FINANCIAL_METRICS":
             values = {
                 line.line_code: line.current_amount
                 for view in (balance, income)
                 for line in view.lines
             }
-            rows: tuple[tuple[str, ...], ...] = tuple(
+            rows = tuple(
                 (
                     item.metric_code,
                     str(item.formula_version),
@@ -354,7 +409,7 @@ class ReportCenterService:
                 )
                 for item in calculate(values)
             )
-            columns: tuple[str, ...] = (
+            columns = (
                 "metric_code",
                 "formula_version",
                 "numerator_code",

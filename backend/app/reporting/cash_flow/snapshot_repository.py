@@ -70,6 +70,18 @@ class CashSnapshotRepository:
             raise ResourceNotFound()
         return view(CashStatement, row)
 
+    def by_digest(self, company: UUID, period_id: UUID, snapshot_digest: str) -> CashStatement:
+        row = self.session.scalar(
+            select(SnapshotModel).where(
+                SnapshotModel.company_id == company,
+                SnapshotModel.period_id == period_id,
+                SnapshotModel.snapshot_digest == snapshot_digest,
+            )
+        )
+        if row is None:
+            raise ResourceNotFound()
+        return view(CashStatement, row)
+
     def replay(
         self, company: UUID, actor: UUID, key: str, fingerprint: str
     ) -> CashStatement | None:
