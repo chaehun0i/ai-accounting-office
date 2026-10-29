@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
+import { canAskCashFlowLine, financialStatementAskHref } from "@/features/ai-team/context";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
 import { formatMoney, type Period, type StatementSet } from "./model";
@@ -159,7 +160,7 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
     {!loading && !error && snapshots.length === 0 && <p>현재 원천에 유효한 현금흐름표 스냅샷이 없습니다.</p>}
     {snapshots.length > 0 && <><h3>현금흐름표 스냅샷</h3><label>현금흐름표 생성 결과 <select disabled={busy} value={snapshotId} onChange={event => setSnapshotId(event.target.value)}>{snapshots.map(value => <option key={value.id} value={value.id}>마감 {value.close_version} · {value.generated_at.slice(0, 10)} · {value.status}</option>)}</select></label>
       {snapshot && <><p>간접법 · {snapshot.status === "RECONCILED" ? "대사 완료 (RECONCILED)" : snapshot.status} · 마감 버전 {snapshot.close_version}</p><p>정책 {snapshot.policy_code} v{snapshot.policy_version} · 스냅샷 {snapshot.snapshot_digest.slice(0, 12)}…</p></>}
-      {linesLoading ? <p role="status">현금흐름표 항목을 불러오고 있습니다…</p> : <table><caption>간접법 현금흐름표 항목</caption><thead><tr><th scope="col">항목</th><th scope="col">금액</th><th scope="col">출처</th></tr></thead><tbody>{lines.map(line => <tr key={line.id}><th scope="row">{cashLineLabel(line.line_code)}</th><td>{formatMoney(line.amount)}</td><td><button aria-pressed={line.id === lineId} onClick={() => void drilldown(line.id)}>원천·전표 보기</button></td></tr>)}</tbody></table>}
+      {linesLoading ? <p role="status">현금흐름표 항목을 불러오고 있습니다…</p> : <table><caption>간접법 현금흐름표 항목</caption><thead><tr><th scope="col">항목</th><th scope="col">금액</th><th scope="col">출처와 질문</th></tr></thead><tbody>{lines.map(line => <tr key={line.id}><th scope="row">{cashLineLabel(line.line_code)}</th><td>{formatMoney(line.amount)}</td><td><button aria-pressed={line.id === lineId} onClick={() => void drilldown(line.id)}>원천·전표 보기</button>{canAskCashFlowLine(line.line_code) && (line.source_type === "TOTAL" || line.source_type === "NET_PROFIT") && <> <Link href={financialStatementAskHref(period.id, "CASH_FLOW", line.line_code)} aria-label={`${cashLineLabel(line.line_code)} AI에게 묻기`}>AI에게 묻기</Link></>}</td></tr>)}</tbody></table>}
       <details><summary>비현금 공시 · {frozenDisclosures.length}건</summary><ul>{frozenDisclosures.map(row => <li key={row.id}>{row.source_type} · {formatMoney(row.amount)} · 전표 {row.journal_id} · 증빙 {row.evidence_id}</li>)}</ul></details>
       <details><summary>자산 처분 원천 · {frozenDisposals.length}건</summary><ul>{frozenDisposals.map(row => <li key={row.id}>처분대금 {formatMoney(row.proceeds)} · 처분손익 조정 {formatMoney(row.gain_amount)} · 전표 {row.journal_id} · 증빙 {row.evidence_id}</li>)}</ul></details>
     </>}
