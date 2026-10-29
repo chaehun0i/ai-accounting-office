@@ -7,11 +7,18 @@ from decimal import Decimal
 from uuid import UUID
 
 from app.accounting.ledger.domain.entities import LedgerFact
+from app.reporting.cash_flow.entities import DisposalSource
 
 ZERO = Decimal("0")
 POLICY_CODE = "TAX_INTEREST_OPERATING"
 POLICY_VERSION = 1
-RULE_TYPES = {"OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE"}
+RULE_TYPES = {
+    "OPERATING_RESULT",
+    "NONCASH_PAIR",
+    "WORKING_CAPITAL",
+    "EXCLUDED_BALANCE",
+    "DISPOSAL_GAIN",
+}
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,7 @@ def adjustments(
     cash_accounts: set[UUID],
     period_start: date,
     period_end: date,
+    disposals: tuple[DisposalSource, ...] = (),
 ) -> tuple[tuple[Adjustment, ...], tuple[BridgeIssue, ...]]:
     """Balances use debit-positive signs; WC adjustment is minus its movement.
 
@@ -123,7 +131,7 @@ def adjustments(
             issues.append(BridgeIssue("INDIRECT_RULE_NOT_FULL_PERIOD", rule.account_id))
         allowed = (
             {"REVENUE", "EXPENSE"}
-            if rule.adjustment_code in {"OPERATING_RESULT", "NONCASH_PAIR"}
+            if rule.adjustment_code in {"OPERATING_RESULT", "NONCASH_PAIR", "DISPOSAL_GAIN"}
             else {"ASSET", "LIABILITY"}
             if rule.adjustment_code == "WORKING_CAPITAL"
             else {"ASSET", "LIABILITY", "EQUITY"}
@@ -157,6 +165,32 @@ def adjustments(
                             "INDIRECT_NONCASH_RELATION_UNSUPPORTED", rule.account_id, journal_id
                         )
                     )
+        if rule.adjustment_code == "DISPOSAL_GAIN":
+            for fact in current:
+                source = next((row for row in disposals if row.gain_line_id == fact.line_id), None)
+                group = journals[fact.journal_id]
+                if (
+                    source is None
+                    or source.journal_id != fact.journal_id
+                    or source.gain_amount != fact.debit_amount - fact.credit_amount
+                    or rule.related_account_id is None
+                    or not any(
+                        row.line_id == source.asset_line_id
+                        and row.account_id == rule.related_account_id
+                        for row in group
+                    )
+                    or not any(
+                        row.line_id == source.cash_line_id
+                        and row.account_id in cash_accounts
+                        and row.debit_amount == source.proceeds
+                        for row in group
+                    )
+                ):
+                    issues.append(
+                        BridgeIssue(
+                            "INDIRECT_DISPOSAL_SOURCE_INVALID", rule.account_id, fact.journal_id
+                        )
+                    )
         if rule.adjustment_code == "WORKING_CAPITAL":
             for journal_id in sorted({f.journal_id for f in current}, key=str):
                 if any(
@@ -179,7 +213,7 @@ def adjustments(
             -movement
             if rule.adjustment_code == "WORKING_CAPITAL"
             else movement
-            if rule.adjustment_code == "NONCASH_PAIR"
+            if rule.adjustment_code in {"NONCASH_PAIR", "DISPOSAL_GAIN"}
             else ZERO
         )
         result.append(

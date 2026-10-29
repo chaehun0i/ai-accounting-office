@@ -369,6 +369,7 @@ class ReportCenterService:
         )
         columns: tuple[str, ...]
         rows: tuple[tuple[str, ...], ...]
+        sections: tuple[tuple[str, tuple[str, ...], tuple[tuple[str, ...], ...]], ...] = ()
         if run.report_code == "CASH_FLOW":
             cash = uow.cash_snapshots.by_digest(run.company_id, run.period_id, run.source_digest)
             if (
@@ -384,6 +385,23 @@ class ReportCenterService:
                 (line.line_code, format(line.amount, "f"), line.source_type)
                 for line in uow.cash_snapshots.lines(run.company_id, cash.id)
             )
+            disclosures = uow.cash_snapshots.disclosures(run.company_id, cash.id)
+            if disclosures:
+                sections = (
+                    (
+                        "NonCashDisclosure",
+                        ("source_type", "amount", "journal_id", "evidence_id"),
+                        tuple(
+                            (
+                                item.source_type,
+                                format(item.amount, "f"),
+                                str(item.journal_id),
+                                str(item.evidence_id),
+                            )
+                            for item in disclosures
+                        ),
+                    ),
+                )
             metadata += (
                 ("cash_flow_snapshot_id", str(cash.id)),
                 ("cash_flow_snapshot_version", str(cash.close_version)),
@@ -426,7 +444,7 @@ class ReportCenterService:
                 (line.line_code, line.label, format(line.current_amount, "f"))
                 for line in view.lines
             )
-        return ReportDocument(metadata, columns, rows)
+        return ReportDocument(metadata, columns, rows, sections)
 
 
 class _GenerationFailed(Exception):

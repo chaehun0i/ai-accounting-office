@@ -16,6 +16,7 @@ class ReportDocument:
     metadata: tuple[tuple[str, str], ...]
     columns: tuple[str, ...]
     rows: tuple[tuple[str, ...], ...]
+    sections: tuple[tuple[str, tuple[str, ...], tuple[tuple[str, ...], ...]], ...] = ()
 
 
 def render_csv(document: ReportDocument) -> bytes:
@@ -25,6 +26,11 @@ def render_csv(document: ReportDocument) -> bytes:
     prefix = tuple(value for _, value in document.metadata)
     for row in document.rows:
         writer.writerow((*prefix, *row))
+    for title, columns, rows in document.sections:
+        writer.writerow(())
+        writer.writerow((title,))
+        writer.writerow(columns)
+        writer.writerows(rows)
     return stream.getvalue().encode("utf-8")
 
 
@@ -40,6 +46,11 @@ def render_xlsx(document: ReportDocument) -> bytes:
     for row in document.rows:
         # Decimal facts remain strings; Excel's 15-digit float limit cannot alter them.
         data.append(row)
+    for title, columns, rows in document.sections:
+        sheet = workbook.create_sheet(title)
+        sheet.append(columns)
+        for row in rows:
+            sheet.append(row)
     stream = BytesIO()
     workbook.save(stream)
     return stream.getvalue()
@@ -69,6 +80,12 @@ def render_pdf(document: ReportDocument) -> bytes:
     line("  |  ".join(document.columns))
     for row in document.rows:
         line("  |  ".join(row))
+    for title, columns, rows in document.sections:
+        y -= 12
+        line(title)
+        line("  |  ".join(columns))
+        for row in rows:
+            line("  |  ".join(row))
     pdf.setFont(font, 8)
     pdf.drawRightString(page_width - 40, 30, "AI Accounting Office")
     pdf.save()

@@ -1,19 +1,33 @@
 """현금흐름표 선행 매핑을 회사 범위로 저장합니다."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.accounting.journals.infrastructure.models import JournalEvidenceModel, JournalModel
-from app.reporting.cash_flow.entities import CashAllocation, CashClassification, CashScope
+from app.accounting.journals.infrastructure.models import (
+    JournalEvidenceModel,
+    JournalLineModel,
+    JournalModel,
+)
+from app.reporting.cash_flow.entities import (
+    CashAllocation,
+    CashClassification,
+    CashFlowPolicy,
+    CashScope,
+    DisposalSource,
+    NonCashDisclosure,
+)
 from app.reporting.cash_flow.indirect import AdjustmentRule
 from app.reporting.cash_flow.models import (
     CashFlowAdjustmentRuleModel,
     CashFlowAllocationModel,
     CashFlowClassificationModel,
+    CashFlowDisposalSourceModel,
+    CashFlowNonCashDisclosureModel,
+    CashFlowPolicyModel,
     CashScopeMappingModel,
 )
 from app.reporting.financial_statements.infrastructure.models import (
@@ -27,12 +41,227 @@ class CashFlowRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def policies(self, company: UUID) -> tuple[CashFlowPolicy, ...]:
+        rows = list(
+            self.session.scalars(
+                select(CashFlowPolicyModel)
+                .where(CashFlowPolicyModel.company_id == company)
+                .order_by(CashFlowPolicyModel.version)
+            )
+        )
+        return tuple(
+            CashFlowPolicy(
+                row.id,
+                row.effective_from,
+                row.version,
+                row.interest_paid,
+                row.interest_received,
+                row.income_tax_paid,
+                rows[index + 1].effective_from - timedelta(days=1)
+                if index + 1 < len(rows)
+                else None,
+                "SUPERSEDED" if index + 1 < len(rows) else "LATEST",
+            )
+            for index, row in enumerate(rows)
+        )
+
+    def add_policy(
+        self,
+        company: UUID,
+        effective_from: date,
+        version: int,
+        interest_paid: str,
+        interest_received: str,
+        income_tax_paid: str,
+        actor: UUID,
+        now: datetime,
+    ) -> CashFlowPolicy:
+        row = CashFlowPolicyModel(
+            id=uuid4(),
+            company_id=company,
+            effective_from=effective_from,
+            version=version,
+            interest_paid=interest_paid,
+            interest_received=interest_received,
+            income_tax_paid=income_tax_paid,
+            created_by=actor,
+            created_at=now,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return CashFlowPolicy(
+            row.id,
+            row.effective_from,
+            row.version,
+            row.interest_paid,
+            row.interest_received,
+            row.income_tax_paid,
+        )
+
+    def non_cash_disclosures(
+        self, company: UUID, period_id: UUID | None = None
+    ) -> tuple[NonCashDisclosure, ...]:
+        query = select(CashFlowNonCashDisclosureModel).where(
+            CashFlowNonCashDisclosureModel.company_id == company
+        )
+        if period_id is not None:
+            query = query.join(
+                JournalModel,
+                (JournalModel.company_id == company)
+                & (JournalModel.id == CashFlowNonCashDisclosureModel.journal_id),
+            ).where(JournalModel.accounting_period_id == period_id)
+        return tuple(
+            NonCashDisclosure(
+                row.id,
+                row.journal_id,
+                row.debit_line_id,
+                row.credit_line_id,
+                row.evidence_id,
+                row.source_type,
+                row.amount,
+                row.version,
+            )
+            for row in self.session.scalars(
+                query.order_by(
+                    CashFlowNonCashDisclosureModel.journal_id,
+                    CashFlowNonCashDisclosureModel.debit_line_id,
+                    CashFlowNonCashDisclosureModel.credit_line_id,
+                )
+            )
+        )
+
+    def disposal_sources(
+        self, company: UUID, period_id: UUID | None = None
+    ) -> tuple[DisposalSource, ...]:
+        query = select(CashFlowDisposalSourceModel).where(
+            CashFlowDisposalSourceModel.company_id == company
+        )
+        if period_id is not None:
+            query = query.join(
+                JournalModel,
+                (JournalModel.company_id == company)
+                & (JournalModel.id == CashFlowDisposalSourceModel.journal_id),
+            ).where(JournalModel.accounting_period_id == period_id)
+        return tuple(
+            DisposalSource(
+                row.id,
+                row.journal_id,
+                row.cash_line_id,
+                row.asset_line_id,
+                row.gain_line_id,
+                row.evidence_id,
+                row.proceeds,
+                row.gain_amount,
+                row.version,
+            )
+            for row in self.session.scalars(
+                query.order_by(
+                    CashFlowDisposalSourceModel.journal_id, CashFlowDisposalSourceModel.id
+                )
+            )
+        )
+
+    def add_disposal_source(
+        self,
+        company: UUID,
+        journal_id: UUID,
+        cash_line_id: UUID,
+        asset_line_id: UUID,
+        gain_line_id: UUID,
+        evidence_id: UUID,
+        proceeds: Decimal,
+        gain_amount: Decimal,
+        actor: UUID,
+        now: datetime,
+    ) -> DisposalSource:
+        row = CashFlowDisposalSourceModel(
+            id=uuid4(),
+            company_id=company,
+            journal_id=journal_id,
+            cash_line_id=cash_line_id,
+            asset_line_id=asset_line_id,
+            gain_line_id=gain_line_id,
+            evidence_id=evidence_id,
+            proceeds=proceeds,
+            gain_amount=gain_amount,
+            version=1,
+            created_by=actor,
+            created_at=now,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return DisposalSource(
+            row.id,
+            journal_id,
+            cash_line_id,
+            asset_line_id,
+            gain_line_id,
+            evidence_id,
+            proceeds,
+            gain_amount,
+            1,
+        )
+
+    def add_non_cash_disclosure(
+        self,
+        company: UUID,
+        journal_id: UUID,
+        debit_line_id: UUID,
+        credit_line_id: UUID,
+        evidence_id: UUID,
+        source_type: str,
+        amount: Decimal,
+        actor: UUID,
+        now: datetime,
+    ) -> NonCashDisclosure:
+        row = CashFlowNonCashDisclosureModel(
+            id=uuid4(),
+            company_id=company,
+            journal_id=journal_id,
+            debit_line_id=debit_line_id,
+            credit_line_id=credit_line_id,
+            evidence_id=evidence_id,
+            source_type=source_type,
+            amount=amount,
+            version=1,
+            created_by=actor,
+            created_at=now,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return NonCashDisclosure(
+            row.id, journal_id, debit_line_id, credit_line_id, evidence_id, source_type, amount, 1
+        )
+
     def lock_configuration(self, company: UUID) -> None:
         """Serialize rule insertion and snapshot creation, including empty rule sets."""
         self.session.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
             {"key": f"cash-flow:{company}"},
         )
+
+    def posted_balance_before(
+        self, company: UUID, account_id: UUID, posted_at: datetime
+    ) -> Decimal:
+        value = self.session.scalar(
+            select(
+                func.coalesce(
+                    func.sum(JournalLineModel.debit_amount - JournalLineModel.credit_amount), 0
+                )
+            )
+            .join(
+                JournalModel,
+                (JournalModel.company_id == JournalLineModel.company_id)
+                & (JournalModel.id == JournalLineModel.journal_entry_id),
+            )
+            .where(
+                JournalLineModel.company_id == company,
+                JournalLineModel.account_id == account_id,
+                JournalModel.status == "POSTED",
+                JournalModel.posted_at < posted_at,
+            )
+        )
+        return Decimal(value or 0)
 
     def statement_snapshot_sources(
         self,

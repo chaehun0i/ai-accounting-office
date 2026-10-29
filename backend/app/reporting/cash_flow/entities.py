@@ -7,6 +7,43 @@ from uuid import UUID
 
 
 @dataclass(frozen=True)
+class CashFlowPolicy:
+    id: UUID
+    effective_from: date
+    version: int
+    interest_paid: str
+    interest_received: str
+    income_tax_paid: str
+    effective_to: date | None = None
+    status: str = "LATEST"
+
+
+@dataclass(frozen=True)
+class NonCashDisclosure:
+    id: UUID
+    journal_id: UUID
+    debit_line_id: UUID
+    credit_line_id: UUID
+    evidence_id: UUID
+    source_type: str
+    amount: Decimal
+    version: int
+
+
+@dataclass(frozen=True)
+class DisposalSource:
+    id: UUID
+    journal_id: UUID
+    cash_line_id: UUID
+    asset_line_id: UUID
+    gain_line_id: UUID
+    evidence_id: UUID
+    proceeds: Decimal
+    gain_amount: Decimal
+    version: int
+
+
+@dataclass(frozen=True)
 class CashScope:
     id: UUID
     account_id: UUID

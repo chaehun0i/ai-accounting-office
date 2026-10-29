@@ -8,7 +8,7 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `POST /financial-statements/generate`에는 회사 헤더와 Idempotency-Key가 필요합니다. 동일 마감 버전·시산표 digest·taxonomy·매핑 digest의 재요청은 기존 세트를 반환합니다. 마감 장부가 바뀌면 생성은 실패합니다. 세트, BS/IS, 항목별 계정·전표 라인 출처는 각각 조회 API로 확인할 수 있습니다. 다른 회사의 세트는 조회되지 않습니다.
 
-`/financial-statements`는 BS/IS 스냅샷 생성·조회·출처 확인 화면입니다. 파일 생성은 이 스냅샷을 읽는 [Report Center V1](report-periods.md#report-center-v1-사용자-경로)의 `/reports` 화면에서 제공합니다. Report Center의 PDF/XLSX/CSV 파일은 스냅샷을 표현하는 파생 산출물이며 승인된 공식 재무제표가 아닙니다. 승인, 비교재무제표, 완성된 현금흐름표(CF)·자본변동표(SCE)·주석은 후속 범위입니다. CF의 선행 점검 범위는 아래에서 구분합니다.
+`/financial-statements`는 BS/IS 스냅샷 생성·조회·출처 확인과 현금흐름표 점검·조회 화면입니다. 파일 생성은 스냅샷을 읽는 [Report Center V1](report-periods.md#report-center-v1-사용자-경로)의 `/reports` 화면에서 제공합니다. Report Center의 PDF/XLSX/CSV 파일은 스냅샷을 표현하는 파생 산출물이며 승인된 공식 재무제표가 아닙니다. 승인, 비교재무제표, 자본변동표(SCE)·주석은 후속 범위입니다.
 
 ## 현금흐름표 Phase 2 선행 점검
 
@@ -20,7 +20,7 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `GET /cash-flow/events?period_id=…`는 사전 점검을 통과한 CLOSED 장부에서 직접법 현금 이벤트를 결정적으로 **읽기 투영**합니다. 전표·라인·상대 계정·활동·line code·연결 증빙까지 추적할 수 있습니다. 이것은 저장된 현금흐름표 스냅샷이 아니며 GL을 다시 기표하지 않습니다. 현금 계정만 움직이는 이체는 제외합니다. 현금 계정 간 이체와 외부 거래가 하나의 복합분개에 섞인 경우에는 아직 자동 분할하지 않고 차단합니다.
 
-`POST /cash-flow/adjustment-rules`는 회사 계정에 간접법 역할을 명시적으로 등록합니다. 현재 지원하는 `ACCOUNT_LEDGER` 규칙은 손익 계정, 운전자본 자산·부채, 두 계정으로 근거가 닫히는 비현금 비용과 조정 제외 잔액입니다. 같은 규칙의 재요청은 기존 행을 반환하고 다른 내용으로의 변경은 거부합니다. 유효기간 전체, 계정 유형, 회사 범위와 `TAX_INTEREST_OPERATING` 정책 v1을 검사합니다. Asset Register·Inventory Subledger 원천과 다른 정책 버전은 아직 사용할 수 없으며 명시적으로 차단합니다.
+`POST /cash-flow/adjustment-rules`는 회사 계정에 간접법 역할을 명시적으로 등록합니다. 현재 지원하는 `ACCOUNT_LEDGER` 규칙은 손익 계정, 운전자본 자산·부채, 두 계정으로 근거가 닫히는 비현금 비용, 조정 제외 잔액과 검증된 처분손익입니다. 같은 규칙의 재요청은 기존 행을 반환하고 다른 내용으로의 변경은 거부합니다. 유효기간 전체, 계정 유형, 회사 범위와 기본 `TAX_INTEREST_OPERATING` 규칙 버전을 검사합니다. 회사별 이자·세금 활동 정책은 별도 관계형 이력으로 적용합니다. Asset Register·Inventory Subledger가 필요한 복잡한 원천은 추정하지 않고 차단합니다.
 
 `GET /cash-flow/indirect-bridge?period_id=…`는 동일 CLOSED 장부 및 최신 BS/IS 스냅샷을 확인한 뒤 IS 당기순이익, 계정별 기초·기말 잔액과 POSTED 전표 라인 출처, 비현금 가산 및 운전자본 변동을 Decimal로 계산합니다. 직접법 영업활동 순액과 간접법 순액이 정확히 같아야 `READY`입니다. 미분류 계정, 지원되지 않는 복합 원천, 변조되거나 오래된 BS/IS, 정책·유효일 오류, 직접·간접 차이는 코드와 근거를 포함한 `BLOCKED`로 표시하며 잔차를 임의 조정하지 않습니다. 응답의 close version, source digest, statement set·snapshot 식별자와 mapping digest는 계산에 사용한 원천을 추적합니다.
 
@@ -28,7 +28,7 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `/financial-statements`에서 CLOSED 기간과 현재 BS/IS 세트를 선택하면 현금흐름표 영역이 사전 점검, 차단 코드와 대사 차이를 보여줍니다. `financial_statement.generate` 권한자는 현재 원천이 `READY`일 때 간접법 스냅샷을 생성할 수 있습니다. 생성 결과에서는 항목별 금액과 전표·증빙·배분·조정 규칙·기초/기말 현금 원천을 조회합니다. 회사나 기간을 전환하면 이전 회사의 조회 상태를 버립니다. 오래된 원천의 결과는 현재 결과로 표시하지 않고 재점검을 안내합니다.
 
-`RECONCILED`는 **간접법 금액과 직접 현금 원천의 대사 상태**입니다. 별도 비현금거래 공시 Fact, 투자 처분손익 재분류, 승인된 공식 현금흐름표와 Report Center Export는 아직 제공하지 않습니다. 전체 완료조건은 [후속 Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
+`RECONCILED`는 **간접법 금액과 직접 현금 원천의 대사 상태**입니다. 회사별 이자·세금 정책, 관계형 비현금 공시 Fact, 근거가 닫히는 처분손익 조정과 Report Center Export는 [현금흐름표 회계 계약](cash-flow-policy-remaining-work.md)에 기록합니다. 승인된 공식 현금흐름표는 제공하지 않습니다. 전체 완료조건은 [Issue #87](https://github.com/chaehun0i/ai-accounting-office/issues/87)에서 추적합니다.
 
 PostgreSQL API 회귀 검증은 현금 범위·활동 분류 및 증빙 배분, CLOSED 장부 직접 이벤트, 간접법 규칙과 비현금·운전자본 조정, BS/IS 원천 변조·버전 불일치, 직접·간접 대사, 회사 간 접근 차단을 확인합니다. 이 검증은 실제 API와 서비스 구성을 통해 수행합니다.
 

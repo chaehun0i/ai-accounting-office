@@ -56,7 +56,7 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     command.upgrade(config, "head")
     command.check(config)
     migration = MigrationContext.configure(db_connection, opts={"compare_type": True})
-    assert migration.get_current_heads() == ("029_cash_flow_report_export",)
+    assert migration.get_current_heads() == ("030_cash_flow_accounting",)
     assert compare_metadata(migration, Base.metadata) == []
     assert_relational_schema(db_connection)
     assert set(inspect(db_connection).get_table_names(schema="public")) == expected

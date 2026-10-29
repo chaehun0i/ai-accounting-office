@@ -13,6 +13,7 @@ from app.accounting.api.router import Actor, CompanyScope, Container
 from app.contracts.errors import DatabaseUnavailable
 from app.finance.settlements.api.router import Key
 from app.identity.auth.api.dependencies import csrf
+from app.reporting.cash_flow.entities import DisposalSource, NonCashDisclosure
 from app.reporting.cash_flow.indirect import IndirectBridge
 from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.cash_flow.snapshot import CashDrilldown, CashLine, CashStatement
@@ -29,11 +30,99 @@ def cash_flow(container: Container) -> CashFlowService:
 Service = Annotated[CashFlowService, Depends(cash_flow)]
 
 
+class PolicyCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    effective_from: date
+    interest_paid: Literal["OPERATING", "FINANCING"]
+    interest_received: Literal["OPERATING", "INVESTING"]
+    income_tax_paid: Literal["OPERATING", "INVESTING", "FINANCING"]
+
+
+class PolicyRead(PolicyCreate):
+    id: UUID
+    version: int
+    effective_to: date | None
+    status: Literal["LATEST", "SUPERSEDED"]
+
+
+@router.get("/policies", response_model=list[PolicyRead])
+def policies(actor: Actor, company_id: CompanyScope, service: Service) -> list[PolicyRead]:
+    return [PolicyRead.model_validate(asdict(item)) for item in service.policies(actor, company_id)]
+
+
+@router.post("/policies", response_model=PolicyRead, status_code=201, dependencies=[Depends(csrf)])
+def create_policy(
+    payload: PolicyCreate, actor: Actor, company_id: CompanyScope, service: Service
+) -> PolicyRead:
+    return PolicyRead.model_validate(
+        asdict(service.create_policy(actor, company_id, **payload.model_dump()))
+    )
+
+
+class NonCashCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    journal_id: UUID
+    debit_line_id: UUID
+    credit_line_id: UUID
+    evidence_id: UUID
+    source_type: Literal[
+        "LEASE_IN_KIND", "EQUITY_CONTRIBUTION_IN_KIND", "DEBT_EQUITY_CONVERSION", "OTHER_VERIFIED"
+    ]
+    amount: Decimal
+
+
+class DisposalCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    journal_id: UUID
+    cash_line_id: UUID
+    asset_line_id: UUID
+    gain_line_id: UUID
+    evidence_id: UUID
+
+
+@router.post(
+    "/disposal-sources",
+    response_model=DisposalSource,
+    status_code=201,
+    dependencies=[Depends(csrf)],
+)
+def record_disposal_source(
+    payload: DisposalCreate, actor: Actor, company_id: CompanyScope, service: Service
+) -> DisposalSource:
+    return service.record_disposal_source(actor, company_id, **payload.model_dump())
+
+
+@router.get("/disposal-sources", response_model=tuple[DisposalSource, ...])
+def disposal_sources(
+    period_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> tuple[DisposalSource, ...]:
+    return service.disposal_sources(actor, company_id, period_id)
+
+
+@router.post(
+    "/non-cash-disclosures",
+    response_model=NonCashDisclosure,
+    status_code=201,
+    dependencies=[Depends(csrf)],
+)
+def record_non_cash_disclosure(
+    payload: NonCashCreate, actor: Actor, company_id: CompanyScope, service: Service
+) -> NonCashDisclosure:
+    return service.record_non_cash_disclosure(actor, company_id, **payload.model_dump())
+
+
+@router.get("/non-cash-disclosures", response_model=tuple[NonCashDisclosure, ...])
+def non_cash_disclosures(
+    period_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> tuple[NonCashDisclosure, ...]:
+    return service.non_cash_disclosures(actor, company_id, period_id)
+
+
 class AdjustmentRuleCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account_id: UUID
     adjustment_code: Literal[
-        "OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE"
+        "OPERATING_RESULT", "NONCASH_PAIR", "WORKING_CAPITAL", "EXCLUDED_BALANCE", "DISPOSAL_GAIN"
     ]
     source_mapping_type: Literal["ACCOUNT_LEDGER", "ASSET_REGISTER", "INVENTORY_SUBLEDGER"]
     related_account_id: UUID | None = None
@@ -309,6 +398,20 @@ def snapshot_lines(
     statement_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
 ) -> tuple[CashLine, ...]:
     return service.snapshot_lines(actor, company_id, statement_id)
+
+
+@router.get("/{statement_id}/disclosures", response_model=tuple[NonCashDisclosure, ...])
+def snapshot_disclosures(
+    statement_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> tuple[NonCashDisclosure, ...]:
+    return service.snapshot_disclosures(actor, company_id, statement_id)
+
+
+@router.get("/{statement_id}/disposals", response_model=tuple[DisposalSource, ...])
+def snapshot_disposals(
+    statement_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> tuple[DisposalSource, ...]:
+    return service.snapshot_disposals(actor, company_id, statement_id)
 
 
 @router.get("/{statement_id}/drilldown", response_model=CashDrilldown)

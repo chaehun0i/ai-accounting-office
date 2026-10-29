@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.reporting.cash_flow.entities import DisposalSource
 from app.reporting.cash_flow.indirect import AdjustmentRule, adjustments
 from tests.unit.test_cash_flow_direct_events import fact
 
@@ -140,3 +141,42 @@ def test_unknown_movement_is_blocked_even_when_net_zero():
         END,
     )
     assert [i.code for i in issues] == ["INDIRECT_RULE_MISSING"]
+
+
+def test_verified_disposal_gain_is_removed_from_operating_without_changing_proceeds():
+    cash, asset, gain, journal = (uuid4() for _ in range(4))
+    cash_fact = fact(journal, cash, debit="120")
+    asset_fact = fact(journal, asset, credit="100")
+    gain_fact = fact(journal, gain, credit="20")
+    rules = (rule(asset, "EXCLUDED_BALANCE"), rule(gain, "DISPOSAL_GAIN", asset))
+    source = DisposalSource(
+        uuid4(),
+        journal,
+        cash_fact.line_id,
+        asset_fact.line_id,
+        gain_fact.line_id,
+        uuid4(),
+        Decimal("120"),
+        Decimal("-20"),
+        1,
+    )
+    result, issues = adjustments(
+        [cash_fact, asset_fact, gain_fact],
+        rules,
+        {asset: "ASSET", gain: "REVENUE"},
+        {cash},
+        START,
+        END,
+        (source,),
+    )
+    assert issues == ()
+    assert next(row for row in result if row.account_id == gain).amount == Decimal("-20")
+    _, missing = adjustments(
+        [cash_fact, asset_fact, gain_fact],
+        rules,
+        {asset: "ASSET", gain: "REVENUE"},
+        {cash},
+        START,
+        END,
+    )
+    assert "INDIRECT_DISPOSAL_SOURCE_INVALID" in {issue.code for issue in missing}

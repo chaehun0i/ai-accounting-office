@@ -24,6 +24,15 @@ class _CashStore:
     def allocations(self, _company):
         return ()
 
+    def policies(self, _company):
+        return ()
+
+    def non_cash_disclosures(self, _company, _period_id):
+        return ()
+
+    def disposal_sources(self, _company, _period_id):
+        return ()
+
 
 class _UnitOfWork:
     def __init__(self, scopes, classes):
