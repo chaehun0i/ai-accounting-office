@@ -30,3 +30,30 @@ def test_csv_xlsx_pdf_share_metadata_and_exact_decimal_text():
     pdf_content, pdf_type, pdf_extension = render(document, "PDF")
     assert pdf_content.startswith(b"%PDF-")
     assert pdf_type == "application/pdf" and pdf_extension == "pdf"
+
+
+def test_non_cash_disclosure_is_separate_from_cash_flow_totals():
+    document = ReportDocument(
+        metadata=(("report", "CASH_FLOW"),),
+        columns=("line_code", "amount", "source_type"),
+        rows=(("NET_OPERATING", "100.0000", "TOTAL"),),
+        sections=(
+            (
+                "NonCashDisclosure",
+                ("source_type", "amount", "journal_id", "evidence_id"),
+                (("LEASE_IN_KIND", "25.0000", "journal-1", "evidence-1"),),
+            ),
+        ),
+    )
+    csv_content, _, _ = render(document, "CSV")
+    text = csv_content.decode("utf-8")
+    assert "CASH_FLOW,NET_OPERATING,100.0000,TOTAL\n" in text
+    assert "\nNonCashDisclosure\nsource_type,amount,journal_id,evidence_id\n" in text
+    assert "LEASE_IN_KIND,25.0000,journal-1,evidence-1\n" in text
+    xlsx_content, _, _ = render(document, "XLSX")
+    workbook = load_workbook(BytesIO(xlsx_content), read_only=True, data_only=True)
+    assert workbook.sheetnames == ["Summary", "Dataset", "NonCashDisclosure"]
+    assert workbook["Dataset"]["B2"].value == "100.0000"
+    assert workbook["NonCashDisclosure"]["B2"].value == "25.0000"
+    pdf_content, _, _ = render(document, "PDF")
+    assert pdf_content.startswith(b"%PDF-")

@@ -20,6 +20,21 @@ export type CashStatement = {
   opening_cash: string; closing_cash: string; net_profit: string; net_operating: string;
   net_investing: string; net_financing: string; exchange_effect: string; generated_at: string;
 };
+export type CashPolicy = {
+  id: string; effective_from: string; effective_to: string | null;
+  version: number; status: "LATEST" | "SUPERSEDED";
+  interest_paid: "OPERATING" | "FINANCING";
+  interest_received: "OPERATING" | "INVESTING";
+  income_tax_paid: "OPERATING" | "INVESTING" | "FINANCING";
+};
+export type NonCashDisclosure = {
+  id: string; journal_id: string; debit_line_id: string; credit_line_id: string;
+  evidence_id: string; source_type: string; amount: string; version: number;
+};
+export type DisposalSource = {
+  id: string; journal_id: string; cash_line_id: string; asset_line_id: string;
+  gain_line_id: string; evidence_id: string; proceeds: string; gain_amount: string; version: number;
+};
 export type CashLine = { id: string; line_code: string; amount: string; source_type: string; source_id: string | null; display_order: number };
 type JournalSource = { journal_id: string; journal_line_id: string; entry_date: string; signed_debit_amount: string; is_opening: boolean };
 export type CashDrilldown = {
@@ -56,6 +71,10 @@ const issues: Record<string, string> = {
   CASH_FLOW_ALLOCATION_INVALID: "현금 배분 금액과 증빙 연결을 확인해 주세요.",
   CASH_FLOW_ALLOCATION_INCOMPLETE: "현금 거래 배분을 완료해 주세요.",
   CASH_FLOW_RECONCILIATION_MISMATCH: "현금 증감과 활동별 합계가 일치하지 않습니다.",
+  CASH_FLOW_POLICY_SPLITS_PERIOD: "이자·세금 분류 정책이 기간 중에 바뀌었습니다. 적용일을 기간 경계로 맞춰 주세요.",
+  CASH_FLOW_POLICY_MISMATCH: "이자·세금 현금 거래 분류가 회사 정책과 다릅니다.",
+  CASH_FLOW_DISPOSAL_CLASSIFICATION: "처분대금 현금 유입을 투자활동 처분 항목으로 분류해 주세요.",
+  INDIRECT_DISPOSAL_SOURCE_INVALID: "처분손익 전표·처분대금·증빙 원천을 확인해 주세요.",
   INDIRECT_RULE_MISSING: "사용 계정의 간접법 조정 규칙을 설정해 주세요.",
   INDIRECT_RULE_DUPLICATED: "중복된 간접법 조정 규칙을 확인해 주세요.",
   INDIRECT_RULE_NOT_FULL_PERIOD: "간접법 규칙이 기간 전체에 적용되어야 합니다.",
@@ -75,5 +94,6 @@ const lines: Record<string, string> = {
   NET_PROFIT: "당기순이익", NET_OPERATING: "영업활동 현금흐름", NET_INVESTING: "투자활동 현금흐름",
   NET_FINANCING: "재무활동 현금흐름", EXCHANGE_EFFECT: "환율 변동 효과", NET_CASH_MOVEMENT: "현금 순증감",
   NONCASH_PAIR: "비현금 조정", WORKING_CAPITAL: "운전자본 조정",
+  DISPOSAL_GAIN: "처분손익 조정",
 };
 export function cashLineLabel(code: string) { return lines[code] ?? code; }

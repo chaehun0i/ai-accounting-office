@@ -6,7 +6,7 @@ import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
 import { formatMoney, type Period, type StatementSet } from "./model";
-import { cashGenerationPayload, cashIssueLabel, cashLineLabel, type CashBridge, type CashDrilldown, type CashLine, type CashPreflight, type CashStatement } from "./cash-flow-model";
+import { cashGenerationPayload, cashIssueLabel, cashLineLabel, type CashBridge, type CashDrilldown, type CashLine, type CashPolicy, type CashPreflight, type CashStatement, type DisposalSource, type NonCashDisclosure } from "./cash-flow-model";
 
 const failure = (error: unknown) => error instanceof ApiError ? error.message : "현금흐름표를 불러오지 못했습니다.";
 
@@ -14,6 +14,15 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
   const [preflight, setPreflight] = useState<CashPreflight | null>(null);
   const [bridge, setBridge] = useState<CashBridge | null>(null);
   const [snapshots, setSnapshots] = useState<CashStatement[]>([]);
+  const [policies, setPolicies] = useState<CashPolicy[]>([]);
+  const [disclosures, setDisclosures] = useState<NonCashDisclosure[]>([]);
+  const [disposals, setDisposals] = useState<DisposalSource[]>([]);
+  const [frozenDisclosures, setFrozenDisclosures] = useState<NonCashDisclosure[]>([]);
+  const [frozenDisposals, setFrozenDisposals] = useState<DisposalSource[]>([]);
+  const [policyFrom, setPolicyFrom] = useState(period.start_date);
+  const [interestPaid, setInterestPaid] = useState<CashPolicy["interest_paid"]>("OPERATING");
+  const [interestReceived, setInterestReceived] = useState<CashPolicy["interest_received"]>("OPERATING");
+  const [incomeTaxPaid, setIncomeTaxPaid] = useState<CashPolicy["income_tax_paid"]>("OPERATING");
   const [snapshotId, setSnapshotId] = useState("");
   const [lines, setLines] = useState<CashLine[]>([]);
   const [lineId, setLineId] = useState("");
@@ -39,6 +48,7 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
   useEffect(() => {
     let active = true;
     setLoading(true); setError(""); setCurrentStale(false); setPreflight(null); setBridge(null); setSnapshots([]); setSnapshotId("");
+    setPolicies([]); setDisclosures([]); setDisposals([]); setFrozenDisclosures([]); setFrozenDisposals([]); setPolicyFrom(period.start_date);
     setLines([]); setLineId(""); setTrace(null); traceRequest.current += 1;
     if (!canRead || period.status !== "CLOSED") { setLoading(false); return () => { active = false; }; }
     const headers = { "X-Company-ID": company.id };
@@ -46,14 +56,18 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
     Promise.all([
       authenticatedRequest<CashPreflight>(`/cash-flow/preflight?${query}`, { headers }),
       authenticatedRequest<CashBridge>(`/cash-flow/indirect-bridge?${query}`, { headers }),
+      authenticatedRequest<CashPolicy[]>("/cash-flow/policies", { headers }),
+      authenticatedRequest<NonCashDisclosure[]>(`/cash-flow/non-cash-disclosures?${query}`, { headers }),
+      authenticatedRequest<DisposalSource[]>(`/cash-flow/disposal-sources?${query}`, { headers }),
       authenticatedRequest<CashStatement>(`/cash-flow/statements?${query}`, { headers }).then(value => [value]).catch(reason => {
         if (reason instanceof ApiError && reason.status === 404) return [];
         if (reason instanceof ApiError && reason.status === 409) { if (active) setCurrentStale(true); return []; }
         throw reason;
       }),
-    ]).then(([check, reconciliation, values]) => {
+    ]).then(([check, reconciliation, policyRows, disclosureRows, disposalRows, values]) => {
       if (!active) return;
       setPreflight(check); setBridge(reconciliation); setSnapshots(values); setSnapshotId(values[0]?.id ?? "");
+      setPolicies(policyRows); setDisclosures(disclosureRows); setDisposals(disposalRows);
     }).catch(reason => { if (active) setError(failure(reason)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -61,11 +75,15 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
 
   useEffect(() => {
     let active = true;
-    setLines([]); setLineId(""); setTrace(null); setTraceLoading(false); traceRequest.current += 1;
+    setLines([]); setLineId(""); setTrace(null); setTraceLoading(false); setFrozenDisclosures([]); setFrozenDisposals([]); traceRequest.current += 1;
     if (!snapshotId || !canRead) { setLinesLoading(false); return () => { active = false; }; }
     setLinesLoading(true);
-    authenticatedRequest<CashLine[]>(`/cash-flow/${encodeURIComponent(snapshotId)}/lines`, { headers: { "X-Company-ID": company.id } })
-      .then(values => { if (active) setLines(values); })
+    Promise.all([
+      authenticatedRequest<CashLine[]>(`/cash-flow/${encodeURIComponent(snapshotId)}/lines`, { headers: { "X-Company-ID": company.id } }),
+      authenticatedRequest<NonCashDisclosure[]>(`/cash-flow/${encodeURIComponent(snapshotId)}/disclosures`, { headers: { "X-Company-ID": company.id } }),
+      authenticatedRequest<DisposalSource[]>(`/cash-flow/${encodeURIComponent(snapshotId)}/disposals`, { headers: { "X-Company-ID": company.id } }),
+    ])
+      .then(([values, disclosureRows, disposalRows]) => { if (active) { setLines(values); setFrozenDisclosures(disclosureRows); setFrozenDisposals(disposalRows); } })
       .catch(reason => { if (active) setError(failure(reason)); })
       .finally(() => { if (active) setLinesLoading(false); });
     return () => { active = false; };
@@ -88,6 +106,19 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
     finally { if (mounted.current) setBusy(false); }
   }
 
+  async function savePolicy() {
+    if (!canGenerate || busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const saved = await authenticatedRequest<CashPolicy>("/cash-flow/policies", {
+        method: "POST", headers: { "X-Company-ID": company.id },
+        body: JSON.stringify({ effective_from: policyFrom, interest_paid: interestPaid, interest_received: interestReceived, income_tax_paid: incomeTaxPaid }),
+      });
+      if (mounted.current) { setPolicies(rows => [...rows.filter(row => row.id !== saved.id), saved]); setNotice(`현금흐름 분류 정책 v${saved.version}을 기록했습니다.`); setRevision(value => value + 1); }
+    } catch (reason) { if (mounted.current) setError(failure(reason)); }
+    finally { if (mounted.current) setBusy(false); }
+  }
+
   async function drilldown(id: string) {
     const request = ++traceRequest.current;
     setLineId(id); setTrace(null); setTraceLoading(true); setError("");
@@ -104,6 +135,15 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
     <h2 id="cash-flow-heading">현금흐름표 · 간접법</h2>
     <p>선택한 마감 기간의 BS/IS와 현금 원천을 대사한 표현 스냅샷입니다. 현금 거래는 대사와 출처 확인에 사용됩니다.</p>
     <p>간접법 대사 완료는 보고서 승인 상태를 의미하지 않습니다.</p>
+    <details><summary>이자·법인세 현금흐름 정책</summary>
+      {policies.length > 0 && <ul>{policies.map(row => <li key={row.id}>v{row.version} · {row.effective_from} ~ {row.effective_to ?? "이후"} · {row.status} · 이자 지급 {row.interest_paid} · 이자 수취 {row.interest_received} · 법인세 납부 {row.income_tax_paid}</li>)}</ul>}
+      {policies.length === 0 && <p>별도 회사 정책이 없으면 기존 영업활동 분류를 사용합니다.</p>}
+      {canGenerate && <div className="workspace-buttons"><label>적용 시작일<input type="date" value={policyFrom} onChange={event => setPolicyFrom(event.target.value)} /></label>
+        <label>이자 지급<select value={interestPaid} onChange={event => setInterestPaid(event.target.value as CashPolicy["interest_paid"])}><option value="OPERATING">영업</option><option value="FINANCING">재무</option></select></label>
+        <label>이자 수취<select value={interestReceived} onChange={event => setInterestReceived(event.target.value as CashPolicy["interest_received"])}><option value="OPERATING">영업</option><option value="INVESTING">투자</option></select></label>
+        <label>법인세 납부<select value={incomeTaxPaid} onChange={event => setIncomeTaxPaid(event.target.value as CashPolicy["income_tax_paid"])}><option value="OPERATING">영업</option><option value="INVESTING">투자</option><option value="FINANCING">재무</option></select></label>
+        <button disabled={busy || !policyFrom} onClick={() => void savePolicy()}>정책 기록</button></div>}
+    </details>
     <button disabled={loading || busy} onClick={() => { setNotice(""); setRevision(value => value + 1); }}>사전 점검 새로고침</button>
     {loading ? <p role="status">현금흐름표 생성 조건을 확인하고 있습니다…</p> : <>
       <p role="status">{payload ? "생성 가능 · 현금 및 간접법 대사 완료" : "생성 대기 · 아래 원천과 차단 항목을 확인해 주세요."}</p>
@@ -120,7 +160,10 @@ export function CashFlowWorkspace({ company, period, statementSet }: { company: 
     {snapshots.length > 0 && <><h3>현금흐름표 스냅샷</h3><label>현금흐름표 생성 결과 <select disabled={busy} value={snapshotId} onChange={event => setSnapshotId(event.target.value)}>{snapshots.map(value => <option key={value.id} value={value.id}>마감 {value.close_version} · {value.generated_at.slice(0, 10)} · {value.status}</option>)}</select></label>
       {snapshot && <><p>간접법 · {snapshot.status === "RECONCILED" ? "대사 완료 (RECONCILED)" : snapshot.status} · 마감 버전 {snapshot.close_version}</p><p>정책 {snapshot.policy_code} v{snapshot.policy_version} · 스냅샷 {snapshot.snapshot_digest.slice(0, 12)}…</p></>}
       {linesLoading ? <p role="status">현금흐름표 항목을 불러오고 있습니다…</p> : <table><caption>간접법 현금흐름표 항목</caption><thead><tr><th scope="col">항목</th><th scope="col">금액</th><th scope="col">출처</th></tr></thead><tbody>{lines.map(line => <tr key={line.id}><th scope="row">{cashLineLabel(line.line_code)}</th><td>{formatMoney(line.amount)}</td><td><button aria-pressed={line.id === lineId} onClick={() => void drilldown(line.id)}>원천·전표 보기</button></td></tr>)}</tbody></table>}
+      <details><summary>비현금 공시 · {frozenDisclosures.length}건</summary><ul>{frozenDisclosures.map(row => <li key={row.id}>{row.source_type} · {formatMoney(row.amount)} · 전표 {row.journal_id} · 증빙 {row.evidence_id}</li>)}</ul></details>
+      <details><summary>자산 처분 원천 · {frozenDisposals.length}건</summary><ul>{frozenDisposals.map(row => <li key={row.id}>처분대금 {formatMoney(row.proceeds)} · 처분손익 조정 {formatMoney(row.gain_amount)} · 전표 {row.journal_id} · 증빙 {row.evidence_id}</li>)}</ul></details>
     </>}
+    {(disclosures.length > 0 || disposals.length > 0) && <p>현재 기간 등록 원천: 비현금 {disclosures.length}건 · 처분 {disposals.length}건. 스냅샷을 다시 생성하면 현재 원천이 고정됩니다.</p>}
     {lineId && <div><h3>{cashLineLabel(lines.find(line => line.id === lineId)?.line_code ?? "")} 원천</h3>{traceLoading && <p role="status">동결된 원천과 증빙 연결을 불러오고 있습니다…</p>}{trace && <>
       {trace.adjustments.length > 0 && <table><caption>간접법 조정과 규칙 버전</caption><thead><tr><th scope="col">조정</th><th scope="col">계정</th><th scope="col">금액</th><th scope="col">규칙</th></tr></thead><tbody>{trace.adjustments.map(item => <tr key={item.id}><th scope="row">{cashLineLabel(item.adjustment_code)}</th><td>{item.account_id}</td><td>{formatMoney(item.amount)}</td><td>{item.rule_id} v{item.rule_version}</td></tr>)}</tbody></table>}
       {trace.events.length > 0 && <table><caption>현금 거래 출처 · 대사 근거</caption><thead><tr><th scope="col">전표</th><th scope="col">활동 / 분류 버전</th><th scope="col">유입</th><th scope="col">유출</th><th scope="col">증빙 / 배분 버전</th></tr></thead><tbody>{trace.events.map(item => <tr key={item.id}><th scope="row">{item.journal_id}</th><td>{item.activity_type} · {item.classification_id} v{item.classification_version}</td><td>{formatMoney(item.cash_inflow)}</td><td>{formatMoney(item.cash_outflow)}</td><td>{item.evidence_id ?? "별도 배분 증빙 없음"}{item.allocation_id && <> · {item.allocation_id} v{item.allocation_version}</>}</td></tr>)}</tbody></table>}

@@ -273,3 +273,39 @@ class CashFlowCommandModel(UUIDPrimaryKey, Base):
         source_fk("statement_id", "cash_flow_statements"),
         ForeignKeyConstraint(["actor_id"], ["users.id"], ondelete="RESTRICT"),
     )
+
+
+class CashFlowStatementDisclosureModel(UUIDPrimaryKey, Base):
+    __tablename__ = "cash_flow_statement_disclosures"
+
+    company_id: Mapped[UUID] = mapped_column(index=True)
+    statement_id: Mapped[UUID]
+    disclosure_id: Mapped[UUID]
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    source_type: Mapped[str] = mapped_column(String(32))
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "id"),
+        UniqueConstraint("statement_id", "disclosure_id"),
+        source_fk("statement_id", "cash_flow_statements"),
+        source_fk("disclosure_id", "cash_flow_non_cash_disclosures"),
+        CheckConstraint("amount > 0", name="amount_positive"),
+    )
+
+
+class CashFlowStatementDisposalModel(UUIDPrimaryKey, Base):
+    __tablename__ = "cash_flow_statement_disposals"
+
+    company_id: Mapped[UUID] = mapped_column(index=True)
+    statement_id: Mapped[UUID]
+    disposal_id: Mapped[UUID]
+    proceeds: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    gain_amount: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "id"),
+        UniqueConstraint("statement_id", "disposal_id"),
+        source_fk("statement_id", "cash_flow_statements"),
+        source_fk("disposal_id", "cash_flow_disposal_sources"),
+        CheckConstraint("proceeds > 0 AND gain_amount <> 0", name="amounts"),
+    )

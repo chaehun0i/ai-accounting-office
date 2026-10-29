@@ -13,8 +13,17 @@ from app.accounting.journals.infrastructure.models import JournalEvidenceModel, 
 from app.accounting.ledger.domain.entities import LedgerFact
 from app.contracts.access_errors import ResourceNotFound
 from app.core.digests import digest
-from app.reporting.cash_flow.entities import CashEvent, CashPreflight
+from app.reporting.cash_flow.entities import (
+    CashEvent,
+    CashPreflight,
+    DisposalSource,
+    NonCashDisclosure,
+)
 from app.reporting.cash_flow.indirect import IndirectBridge
+from app.reporting.cash_flow.models import (
+    CashFlowDisposalSourceModel,
+    CashFlowNonCashDisclosureModel,
+)
 from app.reporting.cash_flow.repository import CashFlowRepository
 from app.reporting.cash_flow.snapshot import (
     CashBalanceSource,
@@ -45,6 +54,12 @@ from app.reporting.cash_flow.snapshot_models import (
 )
 from app.reporting.cash_flow.snapshot_models import (
     CashFlowLineModel as LineModel,
+)
+from app.reporting.cash_flow.snapshot_models import (
+    CashFlowStatementDisclosureModel as StatementDisclosureModel,
+)
+from app.reporting.cash_flow.snapshot_models import (
+    CashFlowStatementDisposalModel as StatementDisposalModel,
 )
 from app.reporting.cash_flow.snapshot_models import (
     CashFlowStatementModel as SnapshotModel,
@@ -152,6 +167,8 @@ class CashSnapshotRepository:
             return view(CashStatement, existing)
         # Digest covers values/provenance, never random row IDs or wall-clock time.
         repository = CashFlowRepository(self.session)
+        disclosures = repository.non_cash_disclosures(company, bridge.period_id)
+        disposals = repository.disposal_sources(company, bridge.period_id)
         scopes = {r.account_id: r for r in repository.scopes(company)}
         balances = tuple(
             CashBalanceSource(
@@ -190,6 +207,8 @@ class CashSnapshotRepository:
             {e.journal_id for e in events}
             | {source.journal_id for a in bridge.adjustments for source in a.sources}
             | {s.journal_id for s in balances}
+            | {d.journal_id for d in disclosures}
+            | {d.journal_id for d in disposals}
         )
         traces = []
         for journal_id in sorted(journal_ids, key=str):
@@ -237,6 +256,8 @@ class CashSnapshotRepository:
                             ],
                             [asdict(t) for t in traces],
                             [asdict(s) for s in balances],
+                            [asdict(d) for d in disclosures],
+                            [asdict(d) for d in disposals],
                         ),
                         default=str,
                     )
@@ -258,6 +279,32 @@ class CashSnapshotRepository:
         )
         self.session.add(row)
         self.session.flush()
+        self.session.add_all(
+            [
+                StatementDisclosureModel(
+                    id=uuid4(),
+                    company_id=company,
+                    statement_id=row.id,
+                    disclosure_id=disclosure.id,
+                    amount=disclosure.amount,
+                    source_type=disclosure.source_type,
+                )
+                for disclosure in disclosures
+            ]
+        )
+        self.session.add_all(
+            [
+                StatementDisposalModel(
+                    id=uuid4(),
+                    company_id=company,
+                    statement_id=row.id,
+                    disposal_id=disposal.id,
+                    proceeds=disposal.proceeds,
+                    gain_amount=disposal.gain_amount,
+                )
+                for disposal in disposals
+            ]
+        )
         self.session.add_all(
             [
                 BalanceModel(id=uuid4(), company_id=company, statement_id=row.id, **asdict(source))
@@ -373,6 +420,59 @@ class CashSnapshotRepository:
                 .where(LineModel.company_id == company, LineModel.statement_id == statement_id)
                 .order_by(LineModel.display_order)
             )
+        )
+
+    def disclosures(self, company: UUID, statement_id: UUID) -> tuple[NonCashDisclosure, ...]:
+        self.get(company, statement_id)
+        rows = self.session.scalars(
+            select(CashFlowNonCashDisclosureModel)
+            .join(
+                StatementDisclosureModel,
+                (StatementDisclosureModel.company_id == company)
+                & (StatementDisclosureModel.disclosure_id == CashFlowNonCashDisclosureModel.id),
+            )
+            .where(StatementDisclosureModel.statement_id == statement_id)
+            .order_by(CashFlowNonCashDisclosureModel.journal_id, CashFlowNonCashDisclosureModel.id)
+        )
+        return tuple(
+            NonCashDisclosure(
+                row.id,
+                row.journal_id,
+                row.debit_line_id,
+                row.credit_line_id,
+                row.evidence_id,
+                row.source_type,
+                row.amount,
+                row.version,
+            )
+            for row in rows
+        )
+
+    def disposals(self, company: UUID, statement_id: UUID) -> tuple[DisposalSource, ...]:
+        self.get(company, statement_id)
+        rows = self.session.scalars(
+            select(CashFlowDisposalSourceModel)
+            .join(
+                StatementDisposalModel,
+                (StatementDisposalModel.company_id == company)
+                & (StatementDisposalModel.disposal_id == CashFlowDisposalSourceModel.id),
+            )
+            .where(StatementDisposalModel.statement_id == statement_id)
+            .order_by(CashFlowDisposalSourceModel.journal_id, CashFlowDisposalSourceModel.id)
+        )
+        return tuple(
+            DisposalSource(
+                row.id,
+                row.journal_id,
+                row.cash_line_id,
+                row.asset_line_id,
+                row.gain_line_id,
+                row.evidence_id,
+                row.proceeds,
+                row.gain_amount,
+                row.version,
+            )
+            for row in rows
         )
 
     def drilldown(self, company: UUID, statement_id: UUID, line_id: UUID | None) -> CashDrilldown:
