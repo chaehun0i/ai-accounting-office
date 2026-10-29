@@ -22,6 +22,7 @@ from app.llm.providers.fake import FakeProvider
 from app.tools.accounting import build_registry
 from app.tools.adapters.mcp import create_mcp_server
 from app.tools.contracts import ToolContext
+from tests.integration.test_cash_flow_snapshot import ready_snapshot
 from tests.integration.test_financial_statements import closed_company
 from tests.integration.test_journal_flow import prepare
 
@@ -45,6 +46,7 @@ def runtime_for(client, connection, engine):
         AgentProposalService(services.journals, services.journal_commands),
         services.closing,
         services.statements,
+        services.cash_flow,
     )
     registry.record = audit.record_tool
     registry.started = audit.tool_started
@@ -295,6 +297,56 @@ def test_period_team_capabilities_use_same_stdio_mcp_registry(api_client, auth_s
                     else:
                         value = await client.call_tool("closing.readiness", {"period_id": period})
                         assert value.is_error
+                group.cancel_scope.cancel()
+
+    anyio.run(exercise, company)
+    anyio.run(exercise, uuid4())
+
+
+def test_cash_flow_read_through_mcp_protocol(api_client, auth_service, db_engine):
+    from mcp.client import ClientSession
+    from mcp.shared.memory import create_client_server_memory_streams
+
+    _, writer, payload, journal, connection = ready_snapshot(api_client, auth_service)
+    response = api_client.post(
+        "/cash-flow/generate",
+        headers={**writer, "Idempotency-Key": str(uuid4())},
+        json=payload,
+    )
+    assert response.status_code == 201, response.text
+    snapshot = response.json()
+    runtime = runtime_for(api_client, connection, db_engine)
+    actor = api_client.app.state.services.auth.authenticate(
+        writer["Authorization"].removeprefix("Bearer ")
+    )
+    company = UUID(writer["X-Company-ID"])
+
+    async def exercise(scope: UUID):
+        server = create_mcp_server(runtime.registry, lambda: ToolContext(actor, scope))
+        async with create_client_server_memory_streams() as (client_streams, server_streams):
+            async with anyio.create_task_group() as group:
+                group.start_soon(
+                    server.run, *server_streams, server.create_initialization_options()
+                )
+                async with ClientSession(*client_streams) as client:
+                    await client.initialize()
+                    listed = await client.list_tools()
+                    names = {tool.name for tool in listed.tools}
+                    assert ("cash_flow.read" in names) is (scope == company)
+                    result = await client.call_tool(
+                        "cash_flow.read",
+                        {"period_id": payload["period_id"], "line_code": "NET_OPERATING"},
+                    )
+                    if scope == company:
+                        assert not result.is_error
+                        assert result.structured_content is not None
+                        data = result.structured_content["data"]
+                        assert data["statement_id"] == snapshot["id"]
+                        assert data["amount"] == snapshot["net_operating"]
+                        assert data["snapshot_digest"] == snapshot["snapshot_digest"]
+                        assert journal["id"] in data["source_ids"]
+                    else:
+                        assert result.is_error
                 group.cancel_scope.cancel()
 
     anyio.run(exercise, company)

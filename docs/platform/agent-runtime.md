@@ -112,7 +112,7 @@ Internal Graph는 MCP 서버를 HTTP로 호출하지 않고 Registry를 직접 �
 
 ## 현재 한계와 제외 범위
 
-기간 질의의 Canonical Registry에는 `cash_flow.read`를 연결했습니다. 현재 회사의 CLOSED 기간에서 유효한 `RECONCILED` 현금흐름표 스냅샷의 합계 항목과 동결 전표 출처만 읽습니다. Agent는 금액을 다시 계산하거나 스냅샷을 생성하지 않습니다. 현금흐름표가 아직 없거나 마감 원천이 바뀌었다면 답을 확정하지 않습니다. 이 경로는 백엔드 초안이며 통합·브라우저 검증은 후속입니다.
+기간 질의의 Canonical Registry에는 `cash_flow.read`를 연결했습니다. 현재 회사의 CLOSED 기간에서 유효한 `RECONCILED` 현금흐름표 스냅샷의 합계 항목과 동결 전표 출처만 읽습니다. Agent는 금액을 다시 계산하거나 스냅샷을 생성하지 않습니다. 현금흐름표가 아직 없거나 마감 원천이 바뀌었다면 답을 확정하지 않습니다. `/financial-statements`의 지원 합계 항목에서 **AI에게 묻기**를 누르면 기간·항목 코드만 `/ai-team` 질문 초안에 전달합니다. 사용자가 내용을 확인해 제출한 뒤 기존 Agent Graph가 `cash_flow.read`를 호출하며, 회사와 기간·권한은 서버가 다시 확인합니다. PostgreSQL을 사용한 MCP SDK ClientSession 통합 검증에서 Tool 목록, 실제 호출의 금액·스냅샷 digest·전표 출처, 다른 회사 호출 차단을 확인했습니다. 별도 운영 프로세스의 stdio 연결 및 브라우저 검증은 이 테스트 범위가 아닙니다.
 
 실행은 동기 API 요청 기반이며 상시 queue worker, 취소, 주기적 복구 scheduler, live fanout은 없습니다. 네트워크가 끊기면 REST 상태와 저장 이벤트를 조회하세요. Tool timeout metadata는 완료 후 예산 초과를 검사하며 실행 중인 Python 함수를 강제 중단하지 않습니다. Gemini SDK에는 실제 HTTP timeout과 전체 재시도 예산을 적용합니다.
 

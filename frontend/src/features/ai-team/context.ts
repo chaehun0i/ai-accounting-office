@@ -3,7 +3,7 @@ import type { Period } from "./model";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ClosingAskContext = { kind: "closing"; periodId: string | null };
-export type FinancialStatementType = "BALANCE_SHEET" | "INCOME_STATEMENT";
+export type FinancialStatementType = "BALANCE_SHEET" | "INCOME_STATEMENT" | "CASH_FLOW";
 export type FinancialStatementAskContext = {
   kind: "financial_statement";
   periodId: string | null;
@@ -25,7 +25,16 @@ const REPORT_LINES: Record<FinancialStatementType, Record<string, string>> = {
     NON_OPERATING_INCOME: "영업외수익", NON_OPERATING_EXPENSE: "영업외비용",
     PROFIT_BEFORE_TAX: "법인세차감전이익", TAX_EXPENSE: "법인세비용", NET_PROFIT: "당기순이익",
   },
+  CASH_FLOW: {
+    OPENING_CASH: "기초 현금 및 현금성자산", NET_OPERATING: "영업활동 현금흐름",
+    NET_INVESTING: "투자활동 현금흐름", NET_FINANCING: "재무활동 현금흐름",
+    EXCHANGE_EFFECT: "환율 변동 효과", CLOSING_CASH: "기말 현금 및 현금성자산",
+  },
 };
+
+export function canAskCashFlowLine(lineCode: string) {
+  return Object.hasOwn(REPORT_LINES.CASH_FLOW, lineCode);
+}
 
 export const CLOSING_QUESTION = "이 기간의 월마감 준비 상태와 마감을 막는 항목을 알려줘.";
 
@@ -42,8 +51,9 @@ export function financialStatementAskHref(periodId: string, statementType: Finan
 export function questionDraft(context: AskContext | null) {
   if (!context) return "";
   if (context.kind === "closing") return CLOSING_QUESTION;
-  const statement = context.statementType === "BALANCE_SHEET" ? "재무상태표" : "손익계산서";
-  return `이 기간 ${statement}의 ${context.lineLabel} (${context.lineCode}) 항목 금액과 연결 계정을 설명해줘.`;
+  const statement = context.statementType === "BALANCE_SHEET" ? "재무상태표" : context.statementType === "CASH_FLOW" ? "현금흐름표" : "손익계산서";
+  const source = context.statementType === "CASH_FLOW" ? "연결 전표" : "연결 계정";
+  return `이 기간 ${statement}의 ${context.lineLabel} (${context.lineCode}) 항목 금액과 ${source}을 설명해줘.`;
 }
 
 export function askContextKey(companyId: string, context: AskContext | null) {
@@ -63,7 +73,7 @@ export function parseAskContext(params: Pick<URLSearchParams, "get" | "getAll">)
   const codes = params.getAll("line_code");
   if (types.length !== 1 || codes.length !== 1) return null;
   const statementType = types[0];
-  if (statementType !== "BALANCE_SHEET" && statementType !== "INCOME_STATEMENT") return null;
+  if (statementType !== "BALANCE_SHEET" && statementType !== "INCOME_STATEMENT" && statementType !== "CASH_FLOW") return null;
   const lineCode = codes[0];
   if (!Object.hasOwn(REPORT_LINES[statementType], lineCode)) return null;
   const lineLabel = REPORT_LINES[statementType][lineCode];

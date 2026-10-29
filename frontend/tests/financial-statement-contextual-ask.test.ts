@@ -12,14 +12,14 @@ const periods: Period[] = [{
   fiscal_year: 2026, period_no: 9, status: "CLOSED",
 }];
 
-test("BS/IS 항목 링크는 금액과 회사 정보를 전달하지 않는다", () => {
-  for (const [type, code] of [["BALANCE_SHEET", "ASSET_ACCOUNTS"], ["INCOME_STATEMENT", "OPERATING_EXPENSE"]] as const) {
+test("BS/IS/CF 항목 링크는 금액과 회사 정보를 전달하지 않는다", () => {
+  for (const [type, code, label] of [["BALANCE_SHEET", "ASSET_ACCOUNTS", "자산"], ["INCOME_STATEMENT", "OPERATING_EXPENSE", "영업비용"], ["CASH_FLOW", "NET_OPERATING", "영업활동 현금흐름"]] as const) {
     const href = financialStatementAskHref(periodId, type, code);
     const url = new URL(href, "https://example.test");
     assert.deepEqual([...url.searchParams.keys()], ["period_id", "context", "statement_type", "line_code"]);
     assert.deepEqual(parseAskContext(url.searchParams), {
       kind: "financial_statement", periodId, statementType: type, lineCode: code,
-      lineLabel: type === "BALANCE_SHEET" ? "자산" : "영업비용",
+      lineLabel: label,
     });
     assert.doesNotMatch(href, /company_id|current_amount|source_digest/);
   }
