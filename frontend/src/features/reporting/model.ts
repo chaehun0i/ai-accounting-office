@@ -29,7 +29,7 @@ export function formatMoney(value: string): string {
 }
 
 export type ReportDefinition = {
-  code: "BALANCE_SHEET" | "INCOME_STATEMENT" | "FINANCIAL_METRICS";
+  code: "BALANCE_SHEET" | "INCOME_STATEMENT" | "FINANCIAL_METRICS" | "CASH_FLOW";
   label: string;
   period_mode: "AS_OF" | "RANGE";
   formats: ("PDF" | "XLSX" | "CSV")[];

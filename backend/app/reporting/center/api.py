@@ -31,7 +31,7 @@ Service = Annotated[ReportCenterService, Depends(center)]
 class ReportCatalogRead(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: Literal["BALANCE_SHEET", "INCOME_STATEMENT", "FINANCIAL_METRICS"]
+    code: Literal["BALANCE_SHEET", "INCOME_STATEMENT", "FINANCIAL_METRICS", "CASH_FLOW"]
     label: str
     period_mode: Literal["AS_OF", "RANGE"]
     formats: tuple[Literal["PDF", "XLSX", "CSV"], ...]
@@ -41,7 +41,7 @@ class ReportCatalogRead(BaseModel):
 class ReportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    report_code: Literal["BALANCE_SHEET", "INCOME_STATEMENT", "FINANCIAL_METRICS"]
+    report_code: Literal["BALANCE_SHEET", "INCOME_STATEMENT", "FINANCIAL_METRICS", "CASH_FLOW"]
     format: Literal["PDF", "XLSX", "CSV"]
     period_id: UUID
     period_preset: Preset

@@ -70,7 +70,7 @@ class ReportRunModel(UUIDPrimaryKey, Base):
         ),
         Index("ix_report_generation_runs_company_requested", "company_id", "requested_at"),
         CheckConstraint(
-            "report_code IN ('BALANCE_SHEET','INCOME_STATEMENT','FINANCIAL_METRICS')",
+            "report_code IN ('BALANCE_SHEET','INCOME_STATEMENT','FINANCIAL_METRICS','CASH_FLOW')",
             name="report_code",
         ),
         CheckConstraint("format IN ('PDF','XLSX','CSV')", name="format"),

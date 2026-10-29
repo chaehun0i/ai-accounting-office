@@ -1,12 +1,10 @@
 from typing import Self
 
+from app.reporting.cash_flow.unit_of_work import CashFlowUnitOfWork
 from app.reporting.center.repository import ReportRunRepository
-from app.reporting.financial_statements.infrastructure.unit_of_work import (
-    ReportingSQLAlchemyUnitOfWork,
-)
 
 
-class ReportCenterUnitOfWork(ReportingSQLAlchemyUnitOfWork):
+class ReportCenterUnitOfWork(CashFlowUnitOfWork):
     report_runs: ReportRunRepository
 
     def __enter__(self) -> Self:
