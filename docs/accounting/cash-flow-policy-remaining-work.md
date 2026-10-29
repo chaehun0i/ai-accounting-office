@@ -14,7 +14,7 @@
 
 `POST /cash-flow/disposal-sources`는 증빙이 연결된 POSTED 자산 처분 전표의 현금 유입 line, 자산 장부금액 감소 line과 처분손익 line을 관계형으로 연결합니다. 현재 지원하는 원천은 세 line의 금액이 정확히 닫히고, 처분 직전 POSTED 자산 잔액으로 장부금액을 확인할 수 있는 경우입니다. `DISPOSAL_GAIN` 조정 규칙과 실제 투자활동 현금 이벤트가 모두 필요합니다. 간접법에서는 이익을 차감하고 손실을 가산하며, 현금 유입은 투자활동에 한 번만 포함합니다. 근거가 부족한 복합 처분이나 미구현 자산대장 값은 추정하지 않고 차단합니다. 현재 Fact와 스냅샷 Fact는 각각 `/cash-flow/disposal-sources`와 `/cash-flow/{id}/disposals`에서 조회합니다.
 
-정책, 공시, 처분 Fact, 전표·증빙과 조정 규칙은 스냅샷 provenance와 digest에 반영됩니다. 관계형 Fact와 스냅샷 연결은 추가 전용이며 POSTED Journal이나 GL을 변경하지 않습니다.
+정책, 공시, 처분 Fact, 전표·증빙과 조정 규칙은 스냅샷 provenance와 digest에 반영됩니다. 관계형 Fact와 스냅샷 연결은 추가 전용이며 회사별 인덱스와 회사 범위 외래키로 격리합니다. POSTED Journal이나 GL을 변경하지 않습니다.
 
 ## 조회와 Export
 
