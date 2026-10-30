@@ -7,6 +7,8 @@ from datetime import date
 from hashlib import sha256
 from uuid import UUID, uuid4
 
+from sqlalchemy import select
+
 from app.companies.application.service import require_company
 from app.contracts.access_errors import InvalidInput, ResourceNotFound, StateConflict
 from app.core.digests import digest
@@ -15,6 +17,12 @@ from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.center.render import ReportDocument, render
 from app.reporting.center.repository import ReportArtifact, ReportRun
 from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
+from app.reporting.equity.models import (
+    EquityComponentModel,
+    EquityStatementLineModel,
+    EquityStatementModel,
+)
+from app.reporting.equity.service import MOVEMENTS, EquityService
 from app.reporting.financial_metrics.rules import FORMULAS, calculate
 from app.reporting.periods.rules import Preset, resolve
 from app.storage.domain.contracts import ObjectStorage, StorageUnavailable
@@ -24,6 +32,7 @@ REPORTS = (
     ("INCOME_STATEMENT", "손익계산서", "RANGE"),
     ("FINANCIAL_METRICS", "재무비율", "RANGE"),
     ("CASH_FLOW", "현금흐름표", "RANGE"),
+    ("CHANGES_IN_EQUITY", "자본변동표", "RANGE"),
 )
 FORMATS = ("PDF", "XLSX", "CSV")
 
@@ -124,6 +133,7 @@ class ReportCenterService:
             if balance is None or income is None:
                 raise ResourceNotFound()
             cash = None
+            equity = None
             if report_code == "CASH_FLOW":
                 cash = uow.cash_snapshots.current(company, period_id)
                 bridge = CashFlowService(self.factory)._indirect_bridge(uow, company, period_id)
@@ -148,10 +158,33 @@ class ReportCenterService:
                     )
                 ):
                     raise StateConflict()
+            if report_code == "CHANGES_IN_EQUITY":
+                _, _, _, _, _, _, _, identity, _, _, issues = EquityService(
+                    self.factory
+                )._calculate(uow, company, period_id)
+                if issues:
+                    raise StateConflict()
+                equity = uow.session.scalar(
+                    select(EquityStatementModel).where(
+                        EquityStatementModel.company_id == company,
+                        EquityStatementModel.period_id == period_id,
+                        EquityStatementModel.snapshot_digest == identity,
+                    )
+                )
+                if (
+                    equity is None
+                    or equity.statement_set_id != statement_set.id
+                    or equity.balance_sheet_digest != balance.snapshot_digest
+                    or equity.income_statement_digest != income.snapshot_digest
+                    or equity.status != "RECONCILED"
+                ):
+                    raise StateConflict()
             formula_version = max(formula.version for formula in FORMULAS)
             source = (
                 cash.snapshot_digest
                 if cash is not None
+                else equity.snapshot_digest
+                if equity is not None
                 else digest(
                     (
                         str(statement_set.id),
@@ -342,7 +375,7 @@ class ReportCenterService:
             or income.snapshot_digest != run.income_statement_digest
         ):
             raise StateConflict()
-        if run.report_code != "CASH_FLOW":
+        if run.report_code not in {"CASH_FLOW", "CHANGES_IN_EQUITY"}:
             formula_version = max(formula.version for formula in FORMULAS)
             source = digest(
                 (
@@ -370,7 +403,67 @@ class ReportCenterService:
         columns: tuple[str, ...]
         rows: tuple[tuple[str, ...], ...]
         sections: tuple[tuple[str, tuple[str, ...], tuple[tuple[str, ...], ...]], ...] = ()
-        if run.report_code == "CASH_FLOW":
+        if run.report_code == "CHANGES_IN_EQUITY":
+            equity = uow.session.scalar(
+                select(EquityStatementModel).where(
+                    EquityStatementModel.company_id == run.company_id,
+                    EquityStatementModel.period_id == run.period_id,
+                    EquityStatementModel.statement_set_id == run.statement_set_id,
+                    EquityStatementModel.snapshot_digest == run.source_digest,
+                )
+            )
+            if (
+                equity is None
+                or equity.status != "RECONCILED"
+                or equity.balance_sheet_digest != run.balance_sheet_digest
+                or equity.income_statement_digest != run.income_statement_digest
+            ):
+                raise StateConflict()
+            components = list(
+                uow.session.scalars(
+                    select(EquityComponentModel)
+                    .where(
+                        EquityComponentModel.company_id == run.company_id,
+                        EquityComponentModel.id.in_(
+                            select(EquityStatementLineModel.component_id).where(
+                                EquityStatementLineModel.company_id == run.company_id,
+                                EquityStatementLineModel.statement_id == equity.id,
+                            )
+                        ),
+                    )
+                    .order_by(EquityComponentModel.display_order, EquityComponentModel.id)
+                )
+            )
+            saved_lines = list(
+                uow.session.scalars(
+                    select(EquityStatementLineModel).where(
+                        EquityStatementLineModel.company_id == run.company_id,
+                        EquityStatementLineModel.statement_id == equity.id,
+                    )
+                )
+            )
+            amounts = {(line.component_id, line.movement_type): line.amount for line in saved_lines}
+            columns = ("movement_type", *(component.component_code for component in components))
+            rows = tuple(
+                (
+                    movement,
+                    *(format(amounts[(component.id, movement)], "f") for component in components),
+                )
+                for movement in MOVEMENTS
+            )
+            sections = (
+                (
+                    "Components",
+                    ("component_code", "name"),
+                    tuple((component.component_code, component.name) for component in components),
+                ),
+            )
+            metadata += (
+                ("equity_snapshot_id", str(equity.id)),
+                ("equity_snapshot_generated_at", equity.generated_at.isoformat()),
+                ("equity_validation", "INTERNAL_VALIDATION_ONLY"),
+            )
+        elif run.report_code == "CASH_FLOW":
             cash = uow.cash_snapshots.by_digest(run.company_id, run.period_id, run.source_digest)
             if (
                 cash.statement_set_id != run.statement_set_id
