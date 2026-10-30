@@ -170,6 +170,7 @@ export function ReportCenter({ company }: { company: Company }) {
       <h2>보고서 생성</h2>
       <p>마감된 기간의 재무제표 스냅샷을 파일로 표현합니다. 보고서 생성은 장부를 변경하지 않습니다.</p>
       {definition?.code === "CASH_FLOW" && <p>현금흐름표는 대사 완료된 스냅샷에서만 생성합니다. <Link href="/financial-statements">현금흐름표 원천·대사 확인</Link>을 먼저 마쳐 주세요. 내려받는 파일은 내부 검증용입니다.</p>}
+      {definition?.code === "CHANGES_IN_EQUITY" && <p>자본변동표는 대사 완료된 스냅샷에서만 생성합니다. <Link href="/financial-statements">자본 구성요소·원천·대사 확인</Link>을 먼저 마쳐 주세요. 내려받는 파일은 내부 검증용이며 법정 승인이나 감사 완료를 뜻하지 않습니다.</p>}
       {catalog.length === 0 ? <p>현재 사용할 수 있는 보고서가 없습니다.</p> : <div className="report-center-form">
         <label>보고서 종류<select aria-label="보고서 종류" value={reportCode} onChange={event => { setReportCode(event.target.value); setResolved(null); }}>
           {catalog.map(row => <option key={row.code} value={row.code}>{row.label}</option>)}
