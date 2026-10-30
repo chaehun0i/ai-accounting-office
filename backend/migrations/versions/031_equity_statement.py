@@ -253,8 +253,10 @@ END
 $$
 """)
     for table in (
-        "statement_of_changes_in_equity", "equity_statement_lines",
-        "equity_statement_sources", "equity_statement_commands",
+        "statement_of_changes_in_equity",
+        "equity_statement_lines",
+        "equity_statement_sources",
+        "equity_statement_commands",
     ):
         op.execute(
             f"CREATE TRIGGER immutable_equity BEFORE UPDATE OR DELETE ON {table} "
@@ -269,8 +271,10 @@ $$
 
 def downgrade() -> None:
     for table in (
-        "statement_of_changes_in_equity", "equity_statement_lines",
-        "equity_statement_sources", "equity_statement_commands",
+        "statement_of_changes_in_equity",
+        "equity_statement_lines",
+        "equity_statement_sources",
+        "equity_statement_commands",
     ):
         op.execute(f"DROP TRIGGER immutable_equity ON {table}")
     for table in ("equity_statement_lines", "equity_statement_sources"):

@@ -240,7 +240,9 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(api_client, auth_servic
     ).status_code in {403, 404}
     with Session(connection, join_transaction_mode="create_savepoint") as session:
         with pytest.raises(IntegrityError):
-            session.execute(update(EquityStatementModel)
-                            .where(EquityStatementModel.id == UUID(generated.json()["id"]))
-                            .values(status="RECONCILED"))
+            session.execute(
+                update(EquityStatementModel)
+                .where(EquityStatementModel.id == UUID(generated.json()["id"]))
+                .values(status="RECONCILED")
+            )
         session.rollback()
