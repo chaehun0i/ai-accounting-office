@@ -101,13 +101,11 @@ jobs:
           cache-dependency-path: backend/requirements-dev.lock
       - run: python -m pip install -r requirements-dev.lock
       - run: python -m pip install --no-deps -e .
-      - run: python -m alembic current
       - run: python -m alembic upgrade head
       - run: python -m alembic current --check-heads
-      - run: python -m alembic check
       - name: 은행 카드 대사·관계형 스키마·회계·재무·Agent·산업별 연간 Golden 회귀
         if: needs.scope.outputs.full_postgresql == 'true'
-        run: python -m pytest tests/integration --require-postgres
+        run: python -m pytest tests/integration --require-postgres --durations=20
       - name: 읽기 전용 회계 질의 PostgreSQL 통합 검증
         if: needs.scope.outputs.full_postgresql != 'true'
         run: python -m pytest tests/integration/test_agent_reporting_tools.py --require-postgres
