@@ -32,7 +32,10 @@ class ReportCatalogRead(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     code: Literal[
-        "BALANCE_SHEET", "INCOME_STATEMENT", "FINANCIAL_METRICS", "CASH_FLOW",
+        "BALANCE_SHEET",
+        "INCOME_STATEMENT",
+        "FINANCIAL_METRICS",
+        "CASH_FLOW",
         "CHANGES_IN_EQUITY",
     ]
     label: str
@@ -45,7 +48,10 @@ class ReportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     report_code: Literal[
-        "BALANCE_SHEET", "INCOME_STATEMENT", "FINANCIAL_METRICS", "CASH_FLOW",
+        "BALANCE_SHEET",
+        "INCOME_STATEMENT",
+        "FINANCIAL_METRICS",
+        "CASH_FLOW",
         "CHANGES_IN_EQUITY",
     ]
     format: Literal["PDF", "XLSX", "CSV"]
