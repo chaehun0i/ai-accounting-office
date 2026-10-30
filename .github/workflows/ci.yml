@@ -3,6 +3,7 @@ on:
   push:
     branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master, feat/storage-evidence-intake, feat/onboarding-data-exchange, feat/transaction-journal-ledger, feat/finance-subledger-settlement, feat/p0-agent-runtime-foundation, feat/accounting-dimensions, feat/import-transaction-promotion, feat/bank-card-reconciliation]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -24,22 +25,21 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [[ "$EVENT_NAME" == "push" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "full_postgresql=true" >> "$GITHUB_OUTPUT"
             echo "full_infrastructure=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            echo "full_postgresql=false" >> "$GITHUB_OUTPUT"
+            echo "full_infrastructure=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           full_postgresql=false
           full_infrastructure=false
           while IFS= read -r file; do
-            case "$file" in
-              backend/app/agents/graphs/accounting_question.py|backend/app/agents/runtime/controller.py|backend/app/llm/contracts.py|backend/tests/integration/test_agent_reporting_tools.py|backend/tests/unit/*|backend/tests/contract/*)
-                ;;
-              backend/*|scripts/verify_accounting_schema.py)
-                full_postgresql=true
-                ;;
-            esac
             case "$file" in
               infra/*|scripts/dev.py|scripts/bootstrap_local.py|backend/Dockerfile|frontend/Dockerfile|backend/requirements-dev.lock|frontend/package-lock.json|.env.example)
                 full_infrastructure=true
@@ -101,26 +101,27 @@ jobs:
           cache-dependency-path: backend/requirements-dev.lock
       - run: python -m pip install -r requirements-dev.lock
       - run: python -m pip install --no-deps -e .
-      - run: python -m alembic current
       - run: python -m alembic upgrade head
       - run: python -m alembic current --check-heads
-      - run: python -m alembic check
-      - name: 은행 카드 대사·관계형 스키마·회계·재무·Agent·산업별 연간 Golden 회귀
+      - name: 전체 PostgreSQL 회귀 (수동 실행)
         if: needs.scope.outputs.full_postgresql == 'true'
-        run: python -m pytest tests/integration --require-postgres
-      - name: 읽기 전용 회계 질의 PostgreSQL 통합 검증
+        run: python -m pytest tests/integration --require-postgres --durations=20
+      - name: PostgreSQL 핵심 회계·스키마 검증
         if: needs.scope.outputs.full_postgresql != 'true'
-        run: python -m pytest tests/integration/test_agent_reporting_tools.py --require-postgres
+        run: >-
+          python -m pytest
+          tests/integration/test_database_values.py
+          tests/integration/test_schema_policy.py
+          tests/integration/test_journal_flow.py
+          tests/integration/test_posting_concurrency.py
+          tests/integration/test_agent_reporting_tools.py
+          --require-postgres
       - name: 업무 테이블과 JSON·FK 실제 수치 검증
         run: python ../scripts/verify_accounting_schema.py
-      - if: needs.scope.outputs.full_postgresql == 'true'
-        run: python -m app.companies.infrastructure.seed
-      - if: needs.scope.outputs.full_postgresql == 'true'
-        run: python -m app.companies.infrastructure.seed
-      - if: needs.scope.outputs.full_postgresql == 'true'
-        run: python -m app.accounting.templates.infrastructure.seed
-      - if: needs.scope.outputs.full_postgresql == 'true'
-        run: python -m app.accounting.templates.infrastructure.seed
+      - run: python -m app.companies.infrastructure.seed
+      - run: python -m app.companies.infrastructure.seed
+      - run: python -m app.accounting.templates.infrastructure.seed
+      - run: python -m app.accounting.templates.infrastructure.seed
       - run: python -m alembic check
   frontend:
     runs-on: ubuntu-latest

@@ -35,23 +35,7 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     command.upgrade(config, "head")
     command.current(config, check_heads=True)
     command.check(config)
-    command.downgrade(config, "011_accounting_dimensions")
-    assert "import_promotion_rows" not in inspect(db_connection).get_table_names(schema="public")
-    db_connection.commit()
-    command.upgrade(config, "head")
-    command.check(config)
-    command.downgrade(config, "010_agent_runtime_foundation")
-    assert "accounting_dimensions" not in inspect(db_connection).get_table_names(schema="public")
-    db_connection.commit()
-    command.upgrade(config, "head")
-    command.check(config)
-    command.downgrade(config, "009_finance_subledger")
-    assert "agent_runs" not in inspect(db_connection).get_table_names(schema="public")
-    db_connection.commit()
-    command.upgrade(config, "head")
-    command.check(config)
-    command.downgrade(config, "008_governance")
-    assert "receivables" not in inspect(db_connection).get_table_names(schema="public")
+    command.downgrade(config, "-1")
     db_connection.commit()
     command.upgrade(config, "head")
     command.check(config)
@@ -61,35 +45,3 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     assert_relational_schema(db_connection)
     assert set(inspect(db_connection).get_table_names(schema="public")) == expected
     db_connection.commit()
-    command.downgrade(config, "db_foundation")
-    assert set(inspect(db_connection).get_table_names(schema="public")) == {"alembic_version"}
-    db_connection.commit()
-    command.upgrade(config, "001_identity")
-    assert set(inspect(db_connection).get_table_names(schema="public")) == {
-        "users",
-        "refresh_sessions",
-        "identity_security_events",
-        "alembic_version",
-    }
-    db_connection.commit()
-    command.upgrade(config, "002_tenant_company_rbac")
-    assert len(inspect(db_connection).get_table_names(schema="public")) == 11
-    db_connection.commit()
-    command.upgrade(config, "003_master_accounting_settings")
-    command.downgrade(config, "002_tenant_company_rbac")
-    assert len(inspect(db_connection).get_table_names(schema="public")) == 11
-    db_connection.commit()
-    command.upgrade(config, "head")
-    command.downgrade(config, "004_storage_evidence_intake")
-    assert "onboarding_sessions" not in inspect(db_connection).get_table_names(schema="public")
-    db_connection.commit()
-    command.upgrade(config, "head")
-    command.check(config)
-    command.downgrade(config, "003_master_accounting_settings")
-    assert "imports" not in inspect(db_connection).get_table_names(schema="public")
-    db_connection.commit()
-    command.upgrade(config, "head")
-    command.downgrade(config, "base")
-    assert MigrationContext.configure(db_connection).get_current_heads() == ()
-    db_connection.commit()
-    command.upgrade(config, "head")

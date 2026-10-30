@@ -18,3 +18,4 @@ MCP는 회계 Agent 자체가 아니라 동일한 허용 Tool Registry를 외부
 
 PR #18 이후의 오류·코드 정리 결과는 [검증 기록](verification/post-merge-quality.md)에 있습니다.
 저장소 전반의 정적·테스트 점검과 보수적 정리 범위는 [코드·테스트 정리 기록](verification/codebase-audit.md)에 있습니다.
+PostgreSQL CI 분할 실행과 migration 테스트 축소 기준은 [PostgreSQL CI와 테스트 정리](verification/postgresql-ci.md)에 있습니다.
