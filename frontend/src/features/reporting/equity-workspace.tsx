@@ -45,12 +45,21 @@ export function EquityWorkspace({ company, period, statementSet }: {
   const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
   const retry = useRef<{ source: string; key: string } | null>(null);
+  const scope = `${company.id}:${period.id}`;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const selectedSnapshotRef = useRef(snapshotId);
+  selectedSnapshotRef.current = snapshotId;
   const canGenerate = company.permissions.includes("financial_statement.generate");
   const headers = { "X-Company-ID": company.id };
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setSnapshot(null); setSnapshotId(""); setSources([]); setSourceLine(null);
+    setLoading(true); setBusy(false); setError(""); setNotice("");
+    setComponents([]); setMappings([]); setAccounts([]); setEvents([]);
+    setDeclarations([]); setPayments({}); setReadiness(null); setHistory([]);
+    setSnapshot(null); setSnapshotId(""); setSources([]); setSourceLine(null);
+    retry.current = null;
     Promise.all([
       authenticatedRequest<EquityComponent[]>("/equity/components", { headers: { "X-Company-ID": company.id } }),
       authenticatedRequest<EquityMapping[]>("/equity/mappings", { headers: { "X-Company-ID": company.id } }),
@@ -85,15 +94,18 @@ export function EquityWorkspace({ company, period, statementSet }: {
   }, [company.id, period.id, snapshotId]);
 
   async function post(path: string, payload: object, message: string, key?: string) {
+    const requestScope = scope;
     setBusy(true); setError(""); setNotice("");
     try {
       await authenticatedRequest(path, {
         method: "POST", headers: { ...headers, ...(key ? { "Idempotency-Key": key } : {}) },
         body: JSON.stringify(payload),
       });
-      setNotice(message); setRevision(value => value + 1);
-    } catch (reason) { setError(fail(reason)); }
-    finally { setBusy(false); }
+      if (scopeRef.current === requestScope) {
+        setNotice(message); setRevision(value => value + 1);
+      }
+    } catch (reason) { if (scopeRef.current === requestScope) setError(fail(reason)); }
+    finally { if (scopeRef.current === requestScope) setBusy(false); }
   }
 
   function createComponent(event: FormEvent<HTMLFormElement>) {
@@ -152,13 +164,17 @@ export function EquityWorkspace({ company, period, statementSet }: {
 
   async function drilldown(line: EquitySnapshot["lines"][number]) {
     if (!snapshot) return;
+    const requestScope = scope;
+    const statementId = snapshot.id;
     setSourceLine(line); setSources([]); setError("");
     try {
       const rows = await authenticatedRequest<EquitySource[]>(
-        `/equity/statements/${snapshot.id}/lines/${line.id}/sources`, { headers },
+        `/equity/statements/${statementId}/lines/${line.id}/sources`, { headers },
       );
-      setSources(rows);
-    } catch (reason) { setError(fail(reason)); }
+      if (scopeRef.current === requestScope && selectedSnapshotRef.current === statementId) {
+        setSources(rows);
+      }
+    } catch (reason) { if (scopeRef.current === requestScope) setError(fail(reason)); }
   }
 
   const currentSnapshot = snapshot?.snapshot_digest === readiness?.source_digest;

@@ -34,6 +34,6 @@ SCE Run은 현재 대사 상태를 다시 검사하고 SCE Snapshot digest를 �
 
 API는 `GET /reports/catalog`, `POST /reports/generations`, `GET /reports/generations`, `GET /reports/generations/{run_id}`와 완료 Run의 `/artifact`·`/download`를 제공합니다. 생성과 재시도 요청에는 `X-Company-ID`, CSRF, `Idempotency-Key`가 적용됩니다. 지원 형식은 PDF, XLSX, UTF-8 CSV입니다.
 
-V1은 작은 보고서를 요청 중 동기 생성합니다. CF 파일에는 `INTERNAL_VALIDATION_ONLY`를 표시합니다. `RECONCILED`는 법정 승인·감사·공시 완료를 뜻하지 않습니다. SCE/Notes, DOCX, LLM 설명문, 예약·이메일, Cloud Storage는 지원하지 않습니다.
+V1은 작은 보고서를 요청 중 동기 생성합니다. CF·SCE 파일에는 `INTERNAL_VALIDATION_ONLY`를 표시합니다. `RECONCILED`는 법정 승인·감사·공시 완료를 뜻하지 않습니다. 구조화된 Notes, DOCX, LLM 설명문, 예약·이메일, Cloud Storage는 지원하지 않습니다.
 
 현금흐름표의 회사별 정책·비현금 공시·처분손익 원천을 포함한 새 생성 요청은 현재 스냅샷의 유효성을 확인합니다. 비현금 공시는 PDF/XLSX/CSV에서 현금흐름 합계와 분리해 표시합니다. 기존에 완료된 Run과 Artifact는 생성 당시 스냅샷을 계속 가리킵니다. 세부 검증 범위는 [현금흐름표 회계 계약](cash-flow-policy-remaining-work.md)에 기록합니다.
