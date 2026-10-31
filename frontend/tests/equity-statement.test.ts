@@ -16,4 +16,6 @@ test("자본변동표 셀은 스냅샷 금액을 그대로 사용한다", () => 
 test("차단 사유는 완료 상태 대신 명시적으로 표시된다", () => {
   assert.match(equityIssueLabels.EQUITY_ROLLFORWARD_MISMATCH, /BS 자본총계/);
   assert.match(equityIssueLabels.DIVIDEND_CF_SOURCE_MISMATCH, /CF/);
+  assert.match(equityIssueLabels.PROFIT_TRANSFER_IS_MISMATCH, /IS/);
+  assert.match(equityIssueLabels.PRIOR_EQUITY_SNAPSHOT_STALE, /마감 원천/);
 });

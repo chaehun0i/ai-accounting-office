@@ -59,7 +59,10 @@ export const equityIssueLabels: Record<string, string> = {
   UNCLASSIFIED_EQUITY_SOURCE: "POSTED 자본변동 전표 라인을 분류해 주세요.",
   OPENING_EQUITY_UNVERIFIED: "Opening 전표 또는 전기 BS로 기초자본을 검증해 주세요.",
   PRIOR_EQUITY_SNAPSHOT_MISSING: "직전 CLOSED 기간의 BS 스냅샷이 필요합니다.",
+  PRIOR_EQUITY_SNAPSHOT_STALE: "직전 기간의 마감 원천이 변경됐습니다. BS 스냅샷을 다시 확인해 주세요.",
   PRIOR_EQUITY_MISMATCH: "기초자본과 직전 BS 기말자본이 다릅니다.",
+  PROFIT_TRANSFER_IS_MISMATCH: "손익 대체 전표가 IS 당기순이익 표시와 일치하지 않습니다.",
+  PROFIT_TRANSFER_SOURCE_MISMATCH: "손익 대체 전표의 손익·이익잉여금 원천이 일치하지 않습니다.",
   EQUITY_ROLLFORWARD_MISMATCH: "구성요소 기말합계와 BS 자본총계가 다릅니다.",
   DIVIDEND_CF_SOURCE_MISMATCH: "실제 배당지급과 CF 재무활동 원천이 일치하지 않습니다.",
 };
