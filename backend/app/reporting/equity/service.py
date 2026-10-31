@@ -417,10 +417,12 @@ class EquityService:
         with self.factory() as uow:
             require_company(uow, actor, company, "financial_statement.generate")
             declaration = uow.session.scalar(
-                select(DividendDeclarationModel).where(
+                select(DividendDeclarationModel)
+                .where(
                     DividendDeclarationModel.company_id == company,
                     DividendDeclarationModel.id == declaration_id,
                 )
+                .with_for_update()
             )
             event = uow.session.scalar(
                 select(CashFlowEventModel).where(
@@ -687,11 +689,19 @@ class EquityService:
         prior_equity: Decimal | None = None
         prior_digest: str | None = None
         if prior_period is not None and prior_period.status == "CLOSED":
+            try:
+                _, _, prior_source_digest, _, _ = ClosingService.closed_adjusted_source(
+                    uow, company, prior_period.id
+                )
+            except ClosingRunStale:
+                prior_source_digest = None
+                issues.append("PRIOR_EQUITY_SNAPSHOT_STALE")
             prior_set = next(
                 (
                     item
                     for item in uow.statements.sets(company, prior_period.id)
                     if item.close_version == prior_period.close_version
+                    and item.trial_balance_digest == prior_source_digest
                 ),
                 None,
             )
@@ -708,6 +718,52 @@ class EquityService:
             issues.append("PRIOR_EQUITY_SNAPSHOT_MISSING")
         if prior_period is None and not any(fact.source_type == "OPENING" for fact in facts):
             issues.append("OPENING_EQUITY_UNVERIFIED")
+        transfer_journals = {
+            event.source_journal_id for event in events if event.event_type == "PROFIT_TRANSFER"
+        }
+        if transfer_journals:
+            operational_profit = sum(
+                (
+                    fact.credit_amount - fact.debit_amount
+                    for fact in facts
+                    if period.start_date <= fact.entry_date <= period.end_date
+                    and fact.journal_id not in transfer_journals
+                    and account_types.get(fact.account_id) in {"REVENUE", "EXPENSE"}
+                ),
+                ZERO,
+            )
+            if operational_profit != net_profit:
+                issues.append("PROFIT_TRANSFER_IS_MISMATCH")
+            for journal_id in transfer_journals:
+                journal_facts = [fact for fact in facts if fact.journal_id == journal_id]
+                transfer_events = [
+                    event
+                    for event in events
+                    if event.event_type == "PROFIT_TRANSFER"
+                    and event.source_journal_id == journal_id
+                ]
+                transferred_profit = sum(
+                    (
+                        fact.credit_amount - fact.debit_amount
+                        for fact in journal_facts
+                        if account_types.get(fact.account_id) in {"REVENUE", "EXPENSE"}
+                    ),
+                    ZERO,
+                )
+                retained_transfer = sum(
+                    (event.amount for event in transfer_events),
+                    ZERO,
+                )
+                if (
+                    not journal_facts
+                    or len(transfer_events) != 1
+                    or transferred_profit + retained_transfer != ZERO
+                    or any(
+                        account_types.get(fact.account_id) not in {"REVENUE", "EXPENSE", "EQUITY"}
+                        for fact in journal_facts
+                    )
+                ):
+                    issues.append("PROFIT_TRANSFER_SOURCE_MISMATCH")
         amounts = {
             component.id: {movement: ZERO for movement in MOVEMENTS} for component in components
         }
@@ -724,6 +780,24 @@ class EquityService:
             else:
                 event = by_line.get(fact.line_id)
                 if event is None:
+                    continue
+                if event.event_type == "PROFIT_TRANSFER":
+                    # 이미 기초 미대체 손익에 포함된 금액의 물리적 계정 대체다.
+                    # 이동 원천은 보존하되 총자본 변동으로 다시 더하지 않는다.
+                    sources[(component_id, "OTHER_ADJUSTMENTS")].append(
+                        (fact.line_id, None, amount)
+                    )
+                    for transfer_fact in facts:
+                        if transfer_fact.journal_id == fact.journal_id and account_types.get(
+                            transfer_fact.account_id
+                        ) in {"REVENUE", "EXPENSE"}:
+                            sources[(component_id, "OTHER_ADJUSTMENTS")].append(
+                                (
+                                    transfer_fact.line_id,
+                                    None,
+                                    transfer_fact.credit_amount - transfer_fact.debit_amount,
+                                )
+                            )
                     continue
                 movement = (
                     "OWNER_TRANSACTIONS"

@@ -18,6 +18,8 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `GET /equity/reconciliation?period_id=…`는 CLOSED 마감 장부, 현재 BS/IS Snapshot, 전기 BS 기말자본, 계정 매핑과 분류 이벤트를 검사합니다. 기초자본은 검증된 Opening 전표 또는 전기 CLOSED BS에서만 확정합니다. 이익잉여금에는 전기 미대체 손익을 기초로, 당기순이익은 현재 IS Snapshot의 결정적 금액으로 한 번만 연결합니다. 구성요소별 기초 + 소유주거래 + 당기손익 + OCI + 기타조정 = 기말을 계산하고 BS 자본총계와 일치하지 않으면 `BLOCKED`입니다. 연결된 배당 지급은 CF의 현재 Snapshot·원천 이벤트와 다시 대사합니다.
 
+전기말 BS의 마감 원천이 stale이면 당기초 자본을 확정하지 않습니다. 실제 손익 대체 전표는 미대체 전기손익을 다시 자본변동으로 더하지 않고 원천만 보존합니다. 현재 BS/IS 생성 계약에서 대체 전표가 당월 IS 순이익에 섞인 경우에는 `PROFIT_TRANSFER_IS_MISMATCH`로 SCE 생성을 차단합니다. 표시용 IS 순이익을 임의로 재계산하지 않습니다. 배당 지급 연결은 결의 행 잠금과 CF 이벤트 고유 제약으로 동시 초과 지급·중복 연결을 막고, 지급 누계가 결의액을 넘으면 거부합니다.
+
 `POST /equity/statements/generate`는 `READY`일 때만 관계형 SCE Snapshot을 추가합니다. 동일 원천·버전의 재요청은 기존 결과를 반환하고, 같은 Idempotency-Key의 다른 원천 요청은 거부합니다. 헤더·행·출처는 PostgreSQL 트리거로 UPDATE/DELETE 및 생성 트랜잭션 이후 행 추가가 차단됩니다. `/equity/statements`, `/equity/statements/{id}`, `/equity/statements/{id}/lines/{line_id}/sources`에서 회사 범위로 조회합니다. 원천에는 POSTED 전표·계정·증빙 ID 또는 IS Snapshot ID가 남습니다. 현재 SCE 상태는 내부 대사 완료를 뜻하며 법정 승인·감사 완료를 뜻하지 않습니다. 화면·Report Center Export는 후속 UI/Export PR에서 연결합니다.
 
 ## 현금흐름표 Phase 2 선행 점검

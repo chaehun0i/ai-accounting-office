@@ -36,7 +36,10 @@ def close(client, owner, writer, review, period_id):
     assert result.status_code == 200, result.text
 
 
-def test_equity_rollforward_uses_prior_bs_and_current_is(api_client, auth_service):
+@pytest.mark.parametrize("physical_transfer", [False, True])
+def test_equity_rollforward_uses_prior_bs_and_current_is(
+    api_client, auth_service, physical_transfer
+):
     owner, writer, payload, connection = prepare(api_client, auth_service)
     review = reviewer(api_client, owner, connection)
     periods = api_client.get("/closing/periods", headers=writer).json()
@@ -108,6 +111,22 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(api_client, auth_servic
             {"account_id": accounts["자본금"], "credit_amount": "25.0000"},
         ],
     )
+    transfer = None
+    if physical_transfer:
+        transfer = post_journal(
+            api_client,
+            owner,
+            writer,
+            {
+                "accounting_period_id": february["id"],
+                "entry_date": "2026-02-04",
+                "source_type": "MANUAL",
+            },
+            [
+                {"account_id": accounts["매출"], "debit_amount": "100.0000"},
+                {"account_id": accounts["미처분이익잉여금"], "credit_amount": "100.0000"},
+            ],
+        )
     dividend = post_journal(
         api_client,
         owner,
@@ -204,10 +223,33 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(api_client, auth_servic
             "/equity/events", headers=writer, json={"journal_line_id": line_id, "event_type": kind}
         )
         assert classified.status_code == 201, classified.text
+    if transfer:
+        transfer_line = next(
+            line["id"]
+            for line in transfer["lines"]
+            if line["account_id"] == accounts["미처분이익잉여금"]
+        )
+        classified = api_client.post(
+            "/equity/events",
+            headers=writer,
+            json={"journal_line_id": transfer_line, "event_type": "PROFIT_TRANSFER"},
+        )
+        assert classified.status_code == 201, classified.text
     ready = api_client.get(
         "/equity/reconciliation", headers=owner, params={"period_id": february["id"]}
     )
     assert ready.status_code == 200, ready.text
+    if transfer:
+        assert ready.json()["status"] == "BLOCKED", ready.json()
+        assert "PROFIT_TRANSFER_IS_MISMATCH" in ready.json()["issues"]
+        assert Decimal(ready.json()["income_statement_profit"]) == Decimal("-50")
+        assert (
+            request(
+                api_client, writer, "/equity/statements/generate", {"period_id": february["id"]}
+            ).status_code
+            == 422
+        )
+        return
     assert ready.json()["status"] == "READY", ready.json()
     assert Decimal(ready.json()["balance_sheet_equity"]) == Decimal("365")
     assert Decimal(ready.json()["income_statement_profit"]) == Decimal("50")
@@ -246,3 +288,116 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(api_client, auth_servic
                 .values(status="RECONCILED")
             )
         session.rollback()
+
+    march = next(p for p in periods if p["period_no"] == 3)
+    first_payment = post_journal(
+        api_client,
+        owner,
+        writer,
+        {"accounting_period_id": march["id"], "entry_date": "2026-03-04", "source_type": "MANUAL"},
+        [
+            {"account_id": accounts["미지급배당금"], "debit_amount": "5.0000"},
+            {"account_id": accounts["현금및현금성자산"], "credit_amount": "5.0000"},
+        ],
+    )
+    excess_payment = post_journal(
+        api_client,
+        owner,
+        writer,
+        {"accounting_period_id": march["id"], "entry_date": "2026-03-05", "source_type": "MANUAL"},
+        [
+            {"account_id": accounts["미지급배당금"], "debit_amount": "6.0000"},
+            {"account_id": accounts["현금및현금성자산"], "credit_amount": "6.0000"},
+        ],
+    )
+    close(api_client, owner, writer, review, march["id"])
+    assert (
+        request(
+            api_client, writer, "/financial-statements/generate", {"period_id": march["id"]}
+        ).status_code
+        == 201
+    )
+    assert (
+        api_client.post(
+            "/cash-flow/cash-scope",
+            headers=writer,
+            json={
+                "account_id": accounts["현금및현금성자산"],
+                "scope_type": "CASH",
+                "effective_from": "2026-01-01",
+            },
+        ).status_code
+        == 201
+    )
+    assert (
+        api_client.post(
+            "/cash-flow/classifications",
+            headers=writer,
+            json={
+                "account_id": accounts["미지급배당금"],
+                "activity_type": "FINANCING",
+                "line_code": "DIVIDENDS_PAID",
+                "effective_from": "2026-03-01",
+            },
+        ).status_code
+        == 201
+    )
+    assert (
+        api_client.post(
+            "/cash-flow/adjustment-rules",
+            headers=writer,
+            json={
+                "account_id": accounts["미지급배당금"],
+                "adjustment_code": "EXCLUDED_BALANCE",
+                "source_mapping_type": "ACCOUNT_LEDGER",
+                "related_account_id": None,
+                "effective_from": "2026-03-01",
+                "policy_code": "TAX_INTEREST_OPERATING",
+                "policy_version": 1,
+            },
+        ).status_code
+        == 201
+    )
+    bridge = api_client.get(
+        "/cash-flow/indirect-bridge", headers=writer, params={"period_id": march["id"]}
+    )
+    assert bridge.status_code == 200 and bridge.json()["status"] == "READY", bridge.text
+    cf_payload = {
+        key: bridge.json()[key]
+        for key in (
+            "period_id",
+            "statement_set_id",
+            "close_version",
+            "source_digest",
+            "mapping_digest",
+        )
+    }
+    cash_flow = request(api_client, writer, "/cash-flow/generate", cf_payload)
+    assert cash_flow.status_code == 201, cash_flow.text
+    events = api_client.get(
+        f"/cash-flow/{cash_flow.json()['id']}/drilldown", headers=writer
+    ).json()["events"]
+    event_ids = {event["journal_id"]: event["id"] for event in events}
+    assert set(event_ids) == {first_payment["id"], excess_payment["id"]}
+    payment_url = f"/equity/dividends/{declared.json()['id']}/payments"
+    paid = api_client.post(
+        payment_url, headers=writer, json={"cash_flow_event_id": event_ids[first_payment["id"]]}
+    )
+    assert paid.status_code == 201, paid.text
+    assert Decimal(paid.json()["amount"]) == Decimal("5")
+    replayed_payment = api_client.post(
+        payment_url, headers=writer, json={"cash_flow_event_id": event_ids[first_payment["id"]]}
+    )
+    assert (
+        replayed_payment.status_code == 201 and replayed_payment.json()["id"] == paid.json()["id"]
+    )
+    blocked_payment = api_client.post(
+        payment_url, headers=writer, json={"cash_flow_event_id": event_ids[excess_payment["id"]]}
+    )
+    assert blocked_payment.status_code == 409, blocked_payment.text
+    assert len(api_client.get(payment_url, headers=writer).json()) == 1
+    assert api_client.post(
+        payment_url,
+        headers={**writer, "X-Company-ID": str(uuid4())},
+        json={"cash_flow_event_id": event_ids[first_payment["id"]]},
+    ).status_code in {403, 404}
