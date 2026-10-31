@@ -204,7 +204,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
             lambda: ClosingSQLAlchemyUnitOfWork(factory), app.state.services.journal_commands
         ),
         statements=StatementService(lambda: ReportingSQLAlchemyUnitOfWork(factory)),
-        equity=EquityService(lambda: ReportingSQLAlchemyUnitOfWork(factory)),
+        equity=EquityService(lambda: CashFlowUnitOfWork(factory)),
         report_center=ReportCenterService(
             lambda: ReportCenterUnitOfWork(factory), LocalObjectStorage(tmp_path)
         ),

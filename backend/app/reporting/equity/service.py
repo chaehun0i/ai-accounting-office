@@ -26,6 +26,7 @@ from app.core.digests import digest
 from app.identity.users.domain.entities import Principal
 from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.cash_flow.snapshot_models import CashFlowEventModel, CashFlowStatementModel
+from app.reporting.cash_flow.unit_of_work import CashFlowUnitOfWork
 from app.reporting.equity.models import (
     DividendDeclarationModel,
     DividendPaymentModel,
@@ -38,9 +39,6 @@ from app.reporting.equity.models import (
     EquityStatementSourceModel,
 )
 from app.reporting.financial_statements.domain.rules import ReportSourceStale
-from app.reporting.financial_statements.infrastructure.unit_of_work import (
-    ReportingSQLAlchemyUnitOfWork,
-)
 
 ZERO = Decimal("0")
 TYPES = {
@@ -99,12 +97,12 @@ def _row(row: object) -> dict[str, object]:
 
 
 class EquityService:
-    def __init__(self, factory: Callable[[], ReportingSQLAlchemyUnitOfWork]) -> None:
+    def __init__(self, factory: Callable[[], CashFlowUnitOfWork]) -> None:
         self.factory = factory
 
     def _current_cash_source(
         self,
-        uow: ReportingSQLAlchemyUnitOfWork,
+        uow: CashFlowUnitOfWork,
         company: UUID,
         statement: CashFlowStatementModel,
     ) -> bool:
@@ -596,7 +594,7 @@ class EquityService:
             return _row(row)
 
     def _calculate(
-        self, uow: ReportingSQLAlchemyUnitOfWork, company: UUID, period_id: UUID
+        self, uow: CashFlowUnitOfWork, company: UUID, period_id: UUID
     ) -> tuple[Any, ...]:
         issues: list[str] = []
         try:

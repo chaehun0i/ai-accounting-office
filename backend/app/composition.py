@@ -164,7 +164,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
             lambda: ClosingSQLAlchemyUnitOfWork(sessions), container.journal_commands
         ),
         statements=StatementService(lambda: ReportingSQLAlchemyUnitOfWork(sessions)),
-        equity=EquityService(lambda: ReportingSQLAlchemyUnitOfWork(sessions)),
+        equity=EquityService(lambda: CashFlowUnitOfWork(sessions)),
         report_center=ReportCenterService(
             lambda: ReportCenterUnitOfWork(sessions),
             LocalObjectStorage(Path(settings.storage_root)),
