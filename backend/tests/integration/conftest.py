@@ -186,6 +186,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
     from app.reporting.cash_flow.unit_of_work import CashFlowUnitOfWork
     from app.reporting.center.service import ReportCenterService
     from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
+    from app.reporting.equity.service import EquityService
     from app.reporting.financial_statements.application.service import StatementService
     from app.reporting.financial_statements.infrastructure.unit_of_work import (
         ReportingSQLAlchemyUnitOfWork,
@@ -203,6 +204,7 @@ def api_client(auth_service: tuple[AuthService, Connection], settings: Settings,
             lambda: ClosingSQLAlchemyUnitOfWork(factory), app.state.services.journal_commands
         ),
         statements=StatementService(lambda: ReportingSQLAlchemyUnitOfWork(factory)),
+        equity=EquityService(lambda: CashFlowUnitOfWork(factory)),
         report_center=ReportCenterService(
             lambda: ReportCenterUnitOfWork(factory), LocalObjectStorage(tmp_path)
         ),
