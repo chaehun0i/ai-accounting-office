@@ -6,7 +6,7 @@
 
 Graphify v0.9.97을 격리 설치한 환경에서 `python scripts/dev_code_graph.py rebuild`로 tracked 백엔드 Python 495개 파일만 분석했다. 결과는 3,591개 노드와 14,669개 연결이었다. 기존 그래프도 `status`와 `explain ToolRegistry`로 재사용했다. 코드는 `.local/code-graph/`로만 출력하며, `.env`, 로컬 설계 정본, 사용자 자료, DB는 입력하지 않는다. 자동 hook은 없다.
 
-Codex는 `.agents/skills/accounting-code-graph/SKILL.md`를 사용한다. Graphify 실행 파일을 별도 설치한 뒤 `GRAPHIFY_EXE`로 지정하고 다음 명령을 실행한다. 다른 worktree의 그래프를 읽을 때는 `GRAPHIFY_GRAPH`를 지정할 수 있다.
+코드 그래프 사용법은 아래 명령으로 확인할 수 있다. 개인용 에이전트 Skill은 로컬에서만 관리하며 저장소에 포함하지 않는다. Graphify 실행 파일을 별도 설치한 뒤 `GRAPHIFY_EXE`로 지정하고 다음 명령을 실행한다. 다른 worktree의 그래프를 읽을 때는 `GRAPHIFY_GRAPH`를 지정할 수 있다.
 
 ```powershell
 python scripts/dev_code_graph.py status
@@ -47,7 +47,7 @@ Cloudflare Security Audit Skill의 격리 조건을 갖춘 전체 감사는 수�
 
 ## 개발 중 사용 절차
 
-1. 구조를 찾을 때 코드 그래프 Skill로 검색하고, 연결된 실제 소스와 권한 경계를 확인한다.
+1. 구조를 찾을 때 코드 그래프 명령으로 검색하고, 연결된 실제 소스와 권한 경계를 확인한다.
 2. 코드가 바뀐 뒤 필요한 경우에만 그래프를 수동 재분석한다.
 3. AI Memory와 Ruflo는 프로젝트 자동 실행에 연결하지 않는다. 실험이 필요하면 별도 더미 프로젝트에서 수행한다.
 4. Tool/MCP 권한을 수정할 때 권한 철회 회귀 테스트와 기존 Agent Tool 집중 테스트를 실행한다.
