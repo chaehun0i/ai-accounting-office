@@ -426,6 +426,7 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
             },
         ).status_code
         == 409
+    )
     catalog = api_client.get("/reports/catalog", headers=owner).json()
     assert (
         next(item for item in catalog if item["code"] == "CHANGES_IN_EQUITY")["period_mode"]
