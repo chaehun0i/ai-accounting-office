@@ -15,3 +15,5 @@ out/
 .local/
 /docs/AI_Accounting_Office_v0.2.6_통합설계_정본/
 .playwright-mcp/
+.agents/
+/frontend/AGENTS.md
