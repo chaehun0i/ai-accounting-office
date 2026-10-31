@@ -1,9 +1,12 @@
 """CLOSED BS/IS to frozen SCE, provenance and company isolation."""
 
 from decimal import Decimal
+from hashlib import sha256
+from io import BytesIO
 from uuid import UUID, uuid4
 
 import pytest
+from openpyxl import load_workbook
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -423,4 +426,84 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
             },
         ).status_code
         == 409
+    )
+    catalog = api_client.get("/reports/catalog", headers=owner).json()
+    assert (
+        next(item for item in catalog if item["code"] == "CHANGES_IN_EQUITY")["period_mode"]
+        == "RANGE"
+    )
+    csv_run_id = None
+    for format in ("CSV", "XLSX", "PDF"):
+        report = api_client.post(
+            "/reports/generations",
+            headers={**writer, "Idempotency-Key": str(uuid4())},
+            json={
+                "report_code": "CHANGES_IN_EQUITY",
+                "format": format,
+                "period_id": february["id"],
+                "period_preset": "CUSTOM",
+                "date_from": february["start_date"],
+                "date_to": february["end_date"],
+            },
+        )
+        assert report.status_code == 201, report.text
+        assert report.json()["status"] == "COMPLETED", report.text
+        if format == "CSV":
+            csv_run_id = report.json()["id"]
+        assert report.json()["source_digest"] == generated.json()["snapshot_digest"]
+        download = api_client.get(
+            f"/reports/generations/{report.json()['id']}/download",
+            headers=owner,
+        )
+        assert download.status_code == 200
+        assert download.headers["X-Content-SHA256"] == sha256(download.content).hexdigest()
+        if format == "CSV":
+            content = download.content.decode("utf-8")
+            assert "INTERNAL_VALIDATION_ONLY" in content
+            assert "CLOSING" in content and "225.0000" in content and "140.0000" in content
+        elif format == "XLSX":
+            book = load_workbook(BytesIO(download.content), read_only=True, data_only=True)
+            assert book["Dataset"]["A1"].value == "movement_type"
+            assert any(row[0] == "CLOSING" for row in book["Dataset"].iter_rows(values_only=True))
+        else:
+            assert download.content.startswith(b"%PDF-")
+        assert api_client.get(
+            f"/reports/generations/{report.json()['id']}/download",
+            headers={**owner, "X-Company-ID": str(uuid4())},
+        ).status_code in {403, 404}
+    assert csv_run_id is not None
+    history = api_client.get("/reports/generations", headers=owner)
+    assert history.status_code == 200
+    assert csv_run_id in {run["id"] for run in history.json()}
+    assert (
+        api_client.get(f"/reports/generations/{csv_run_id}/artifact", headers=owner).status_code
+        == 200
+    )
+    changed = api_client.post(
+        "/equity/components",
+        headers=writer,
+        json={
+            "component_code": "OTHER",
+            "name": "기타자본",
+            "component_type": "OTHER_EQUITY",
+            "display_order": 3,
+        },
+    )
+    assert changed.status_code == 201, changed.text
+    stale = api_client.post(
+        "/reports/generations",
+        headers={**writer, "Idempotency-Key": str(uuid4())},
+        json={
+            "report_code": "CHANGES_IN_EQUITY",
+            "format": "CSV",
+            "period_id": february["id"],
+            "period_preset": "CUSTOM",
+            "date_from": february["start_date"],
+            "date_to": february["end_date"],
+        },
+    )
+    assert stale.status_code == 409
+    assert (
+        api_client.get(f"/reports/generations/{csv_run_id}/download", headers=owner).status_code
+        == 200
     )
