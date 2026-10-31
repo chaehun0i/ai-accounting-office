@@ -485,6 +485,24 @@ class EquityService:
                 raise StateConflict()
             if not self._current_cash_source(uow, company, statement):
                 raise StateConflict()
+            period = uow.periods.get(company_id=company, resource_id=statement.period_id)
+            declaration_journal = uow.journals.get(company, declaration.source_journal_id)
+            counterpart_line = uow.session.scalar(
+                select(JournalLineModel).where(
+                    JournalLineModel.company_id == company,
+                    JournalLineModel.id == event.counterpart_line_id,
+                )
+            )
+            if (
+                period is None
+                or declaration_journal is None
+                or not period.start_date <= journal.entry_date <= period.end_date
+                or journal.entry_date < declaration.resolution_date
+                or journal.entry_date < declaration_journal.entry_date
+                or counterpart_line is None
+                or counterpart_line.debit_amount < event.cash_outflow
+            ):
+                raise StateConflict()
             declaration_accounts = set(
                 uow.session.scalars(
                     select(JournalLineModel.account_id).where(
@@ -558,24 +576,46 @@ class EquityService:
                         .where(
                             EquityAccountMappingModel.company_id == company,
                             EquityAccountMappingModel.status == "ACTIVE",
+                            EquityAccountMappingModel.effective_from <= journal.entry_date,
+                            (EquityAccountMappingModel.effective_to.is_(None))
+                            | (EquityAccountMappingModel.effective_to >= journal.entry_date),
                             EquityComponentModel.component_type == "RETAINED_EARNINGS",
                         )
                     )
                 )
+                journal_lines = list(
+                    uow.session.scalars(
+                        select(JournalLineModel).where(
+                            JournalLineModel.company_id == company,
+                            JournalLineModel.journal_entry_id == journal.id,
+                        )
+                    )
+                )
+                account_types = {
+                    account.id: account.account_type for account in uow.accounts.list(company)
+                }
                 debit = sum(
                     (
                         line.debit_amount
-                        for line in uow.session.scalars(
-                            select(JournalLineModel).where(
-                                JournalLineModel.company_id == company,
-                                JournalLineModel.journal_entry_id == journal.id,
-                                JournalLineModel.account_id.in_(retained_accounts),
-                            )
-                        )
+                        for line in journal_lines
+                        if line.account_id in retained_accounts
                     ),
                     ZERO,
                 )
-                if debit != total_amount:
+                credit = sum((line.credit_amount for line in journal_lines), ZERO)
+                if (
+                    debit != total_amount
+                    or credit != total_amount
+                    or any(
+                        line.debit_amount > ZERO and line.account_id not in retained_accounts
+                        for line in journal_lines
+                    )
+                    or any(
+                        line.credit_amount > ZERO
+                        and account_types.get(line.account_id) != "LIABILITY"
+                        for line in journal_lines
+                    )
+                ):
                     raise StateConflict()
             row = DividendDeclarationModel(
                 id=uuid4(),

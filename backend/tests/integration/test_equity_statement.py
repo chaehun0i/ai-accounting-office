@@ -401,3 +401,26 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         headers={**writer, "X-Company-ID": str(uuid4())},
         json={"cash_flow_event_id": event_ids[first_payment["id"]]},
     ).status_code in {403, 404}
+    april = next(p for p in periods if p["period_no"] == 4)
+    invalid_declaration = post_journal(
+        api_client,
+        owner,
+        writer,
+        {"accounting_period_id": april["id"], "entry_date": "2026-04-02", "source_type": "MANUAL"},
+        [
+            {"account_id": accounts["미처분이익잉여금"], "debit_amount": "4.0000"},
+            {"account_id": accounts["현금및현금성자산"], "credit_amount": "4.0000"},
+        ],
+    )
+    assert (
+        api_client.post(
+            "/equity/dividends",
+            headers=writer,
+            json={
+                "resolution_date": "2026-04-02",
+                "total_amount": "4.0000",
+                "source_journal_id": invalid_declaration["id"],
+            },
+        ).status_code
+        == 409
+    )
