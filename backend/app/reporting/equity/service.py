@@ -24,6 +24,7 @@ from app.contracts.access_errors import InvalidInput, ResourceNotFound, StateCon
 from app.contracts.errors import ApplicationError
 from app.core.digests import digest
 from app.identity.users.domain.entities import Principal
+from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.cash_flow.snapshot_models import CashFlowEventModel, CashFlowStatementModel
 from app.reporting.equity.models import (
     DividendDeclarationModel,
@@ -100,6 +101,30 @@ def _row(row: object) -> dict[str, object]:
 class EquityService:
     def __init__(self, factory: Callable[[], ReportingSQLAlchemyUnitOfWork]) -> None:
         self.factory = factory
+
+    def _current_cash_source(
+        self,
+        uow: ReportingSQLAlchemyUnitOfWork,
+        company: UUID,
+        statement: CashFlowStatementModel,
+    ) -> bool:
+        try:
+            bridge = CashFlowService(self.factory)._indirect_bridge(
+                uow, company, statement.period_id
+            )
+        except (ReportSourceStale, StateConflict):
+            return False
+        return bridge.status == "READY" and (
+            statement.statement_set_id,
+            statement.close_version,
+            statement.source_digest,
+            statement.mapping_digest,
+        ) == (
+            bridge.statement_set_id,
+            bridge.close_version,
+            bridge.source_digest,
+            bridge.mapping_digest,
+        )
 
     def components(self, actor: Principal, company: UUID) -> list[dict[str, object]]:
         with self.factory() as uow:
@@ -459,6 +484,8 @@ class EquityService:
                 or event.activity_type != "FINANCING"
                 or event.cash_outflow <= ZERO
             ):
+                raise StateConflict()
+            if not self._current_cash_source(uow, company, statement):
                 raise StateConflict()
             declaration_accounts = set(
                 uow.session.scalars(
@@ -882,6 +909,7 @@ class EquityService:
                 or cash_event.statement_id != cash_statement.id
                 or cash_event.activity_type != "FINANCING"
                 or cash_event.cash_outflow != payment.amount
+                or not self._current_cash_source(uow, company, cash_statement)
             ):
                 issues.append("DIVIDEND_CF_SOURCE_MISMATCH")
             else:
