@@ -294,12 +294,6 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
-            ["company_id"],
-            ["companies.id"],
-            name=op.f("fk_disclosure_audit_events_company_id_companies"),
-            ondelete="RESTRICT",
-        ),
-        sa.ForeignKeyConstraint(
             ["company_id", "instance_id"],
             ["disclosure_instances.company_id", "disclosure_instances.id"],
             name=op.f("fk_disclosure_audit_events_instance_scope"),

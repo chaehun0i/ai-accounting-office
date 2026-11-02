@@ -11,6 +11,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.reporting.disclosures.models import DisclosureNarrativeModel, DisclosureValueModel
 from app.reporting.equity.models import EquityStatementModel
 from tests.integration.test_closing_workflow import request, reviewer
 from tests.integration.test_finance_flow import post_journal
@@ -482,19 +483,68 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert (
         api_client.post(
             f"/disclosures/instances/{notes_instance['id']}/approve",
+            headers=owner,
+            json={"expected_version": instance_version},
+        ).status_code
+        == 409
+    )
+    assert (
+        api_client.post(
+            f"/disclosures/instances/{notes_instance['id']}/approve",
             headers=writer,
             json={"expected_version": requested.json()["version"]},
         ).status_code
         == 409
     )
+    rejected = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/reject",
+        headers=owner,
+        json={"expected_version": requested.json()["version"], "reason": "표현 보완"},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["status"] == "REJECTED"
+    revised_narrative = api_client.put(
+        f"/disclosures/instances/{notes_instance['id']}/narratives",
+        headers=writer,
+        json={
+            "section_id": sections[0]["id"],
+            "text_value": "검토 의견을 반영해 원천을 다시 확인했습니다.",
+            "expected_version": rejected.json()["version"],
+        },
+    )
+    assert revised_narrative.status_code == 200, revised_narrative.text
+    requested_again = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/request-review",
+        headers=writer,
+        json={"expected_version": revised_narrative.json()["instance_version"]},
+    )
+    assert requested_again.status_code == 200, requested_again.text
     approved = api_client.post(
         f"/disclosures/instances/{notes_instance['id']}/approve",
         headers=owner,
-        json={"expected_version": requested.json()["version"]},
+        json={"expected_version": requested_again.json()["version"]},
     )
     assert approved.status_code == 200, approved.text
     assert approved.json()["status"] == "APPROVED"
     assert approved.json()["approved_by"] != approved.json()["created_by"]
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        with pytest.raises(IntegrityError):
+            session.execute(
+                update(DisclosureValueModel)
+                .where(DisclosureValueModel.id == UUID(source_value["id"]))
+                .values(decimal_value=Decimal("0"))
+            )
+        session.rollback()
+        with pytest.raises(IntegrityError):
+            session.execute(
+                update(DisclosureNarrativeModel)
+                .where(
+                    DisclosureNarrativeModel.instance_id == UUID(notes_instance["id"]),
+                    DisclosureNarrativeModel.section_id == UUID(sections[0]["id"]),
+                )
+                .values(text_value="변경 불가")
+            )
+        session.rollback()
 
     for report_format in ("CSV", "XLSX", "PDF"):
         report = api_client.post(

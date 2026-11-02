@@ -62,7 +62,8 @@ class DisclosureService:
     def _template(
         self, uow: CashFlowUnitOfWork, period_start: date, period_end: date
     ) -> tuple[
-        DisclosureTemplateModel, dict[str, tuple[DisclosureSectionModel, DisclosureFieldModel]]
+        DisclosureTemplateModel,
+        dict[tuple[str, str], tuple[DisclosureSectionModel, DisclosureFieldModel]],
     ]:
         template = uow.session.scalar(
             select(DisclosureTemplateModel).where(
@@ -85,7 +86,29 @@ class DisclosureService:
             .where(DisclosureSectionModel.template_id == template.id)
             .order_by(DisclosureSectionModel.display_order)
         ).all()
-        return template, {field.source_fact_type: (section, field) for section, field in rows}
+        registry = {
+            (section.section_code, field.source_fact_type): (section, field)
+            for section, field in rows
+        }
+        required_sources = {
+            ("BALANCE_SHEET", "STATEMENT_LINE"),
+            ("INCOME_STATEMENT", "STATEMENT_LINE"),
+            ("CASH_FLOW", "CASH_FLOW_LINE"),
+            ("CHANGES_IN_EQUITY", "EQUITY_LINE"),
+        }
+        if (
+            set(registry) != required_sources
+            or len(rows) != len(registry)
+            or any(
+                field.data_type != "DECIMAL"
+                or not field.required
+                or field.aggregation_handler_key != "COPY_VERIFIED_LINE"
+                or section.requirement_rule_key != "SOURCE_STATEMENT_REQUIRED"
+                for section, field in rows
+            )
+        ):
+            raise StateConflict()
+        return template, registry
 
     def templates(self, actor: Principal, company: UUID) -> list[dict[str, object]]:
         with self.factory() as uow:
@@ -254,10 +277,19 @@ class DisclosureService:
                 issues.append("DISCLOSURE_RECONCILIATION_MISMATCH")
             else:
                 reconciliation_facts.append(("BALANCE_SHEET", "EQUITY", str(balance_equity)))
+        template = None
+        template_registry = None
+        if period.status == "CLOSED":
+            try:
+                template, template_registry = self._template(
+                    uow, period.start_date, period.end_date
+                )
+            except StateConflict:
+                issues.append("DISCLOSURE_TEMPLATE_REQUIRED")
         if issues:
             return None, tuple(dict.fromkeys(issues))
         assert statement_set is not None and balance is not None and income is not None
-        assert cash is not None and equity is not None
+        assert cash is not None and equity is not None and template is not None
         source_digest = digest(
             (
                 str(statement_set.id),
@@ -266,6 +298,8 @@ class DisclosureService:
                 income.snapshot_digest,
                 cash.snapshot_digest,
                 equity.snapshot_digest,
+                str(template.id),
+                template.version,
             )
         )
         reconciliation_digest = digest((source_digest, reconciliation_facts))
@@ -276,6 +310,8 @@ class DisclosureService:
             "income": income,
             "cash": cash,
             "equity": equity,
+            "template": template,
+            "template_registry": template_registry,
             "source_digest": source_digest,
             "reconciliation_status": "RECONCILED",
             "reconciliation_digest": reconciliation_digest,
@@ -291,6 +327,8 @@ class DisclosureService:
                 "issues": issues,
                 "statement_set_id": sources["statement_set_id"] if sources else None,
                 "source_digest": sources["source_digest"] if sources else None,
+                "template_id": sources["template"].id if sources else None,
+                "template_version": sources["template"].version if sources else None,
                 "validation_status": "INTERNAL_VALIDATION_ONLY",
             }
 
@@ -336,9 +374,8 @@ class DisclosureService:
                 if replay is None:
                     raise ResourceNotFound()
                 return self._detail(uow, company, replay, sources)
-            template, registry = self._template(
-                uow, sources["period"].start_date, sources["period"].end_date
-            )
+            template = sources["template"]
+            registry = sources["template_registry"]
             existing = uow.session.scalar(
                 select(DisclosureInstanceModel)
                 .where(
@@ -440,7 +477,13 @@ class DisclosureService:
                     )
                 )
             for source_type, source_id, source_code, label, amount in facts:
-                section, field = registry[source_type]
+                section_code, fact_type = {
+                    "BALANCE_SHEET": ("BALANCE_SHEET", "STATEMENT_LINE"),
+                    "INCOME_STATEMENT": ("INCOME_STATEMENT", "STATEMENT_LINE"),
+                    "CASH_FLOW": ("CASH_FLOW", "CASH_FLOW_LINE"),
+                    "CHANGES_IN_EQUITY": ("CHANGES_IN_EQUITY", "EQUITY_LINE"),
+                }[source_type]
+                section, field = registry[(section_code, fact_type)]
                 statement_line_id = (
                     source_id if source_type in {"BALANCE_SHEET", "INCOME_STATEMENT"} else None
                 )

@@ -35,6 +35,9 @@ const labels: Record<string, string> = {
   CASH_FLOW_SOURCE_STALE: "현금흐름표 원천이 현재 재무제표와 다릅니다.",
   EQUITY_SOURCE_REQUIRED: "대사 완료된 자본변동표 Snapshot이 필요합니다.",
   EQUITY_SOURCE_STALE: "자본변동표 원천이 현재 재무제표와 다릅니다.",
+  DISCLOSURE_TEMPLATE_REQUIRED: "기간에 유효한 주석 템플릿과 필수 항목 연결이 필요합니다.",
+  DISCLOSURE_RECONCILIATION_MISMATCH: "제표 간 금액 대사가 맞지 않아 주석 생성을 차단했습니다.",
+  REPORT_SOURCE_STALE: "현재 마감 또는 보고서 원천이 변경되어 다시 확인해야 합니다.",
   EQUITY_ROLLFORWARD_MISMATCH: "자본변동과 재무상태표 자본 합계가 일치하지 않습니다.",
   PROFIT_TRANSFER_IS_MISMATCH: "손익 대체 전표와 손익계산서 순이익 표시를 먼저 확인해 주세요.",
 };
@@ -52,13 +55,14 @@ export function DisclosureWorkspace({ company, period }: { company: Company; per
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const request = useRef<{ periodId: string; key: string } | null>(null);
+  const request = useRef<{ companyId: string; periodId: string; key: string } | null>(null);
   const scope = { "X-Company-ID": company.id };
   const canEdit = company.permissions.includes("disclosure.edit");
   const canApprove = company.permissions.includes("disclosure.approve");
 
   useEffect(() => {
     let active = true;
+    request.current = null;
     setLoading(true); setError(""); setInstance(null); setSource(null); setInstances([]);
     setReadiness(null); setDrafts({});
     Promise.all([
@@ -87,7 +91,13 @@ export function DisclosureWorkspace({ company, period }: { company: Company; per
 
   async function generate() {
     if (!readiness?.source_digest || !canEdit) return;
-    if (request.current?.periodId !== period.id) request.current = { periodId: period.id, key: crypto.randomUUID() };
+    if (
+      !request.current ||
+      request.current.companyId !== company.id ||
+      request.current.periodId !== period.id
+    ) {
+      request.current = { companyId: company.id, periodId: period.id, key: crypto.randomUUID() };
+    }
     setBusy(true); setError(""); setNotice("");
     try {
       const value = await authenticatedRequest<GenerateResult>("/disclosures/instances/generate", {
