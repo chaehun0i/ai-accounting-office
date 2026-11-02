@@ -37,6 +37,7 @@ class ReportCatalogRead(BaseModel):
         "FINANCIAL_METRICS",
         "CASH_FLOW",
         "CHANGES_IN_EQUITY",
+        "NOTES",
     ]
     label: str
     period_mode: Literal["AS_OF", "RANGE"]
@@ -53,6 +54,7 @@ class ReportRequest(BaseModel):
         "FINANCIAL_METRICS",
         "CASH_FLOW",
         "CHANGES_IN_EQUITY",
+        "NOTES",
     ]
     format: Literal["PDF", "XLSX", "CSV"]
     period_id: UUID

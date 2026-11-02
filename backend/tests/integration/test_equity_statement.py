@@ -8,9 +8,14 @@ from uuid import UUID, uuid4
 import pytest
 from openpyxl import load_workbook
 from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session
 
+from app.reporting.disclosures.models import (
+    DisclosureInstanceModel,
+    DisclosureNarrativeModel,
+    DisclosureValueModel,
+)
 from app.reporting.equity.models import EquityStatementModel
 from tests.integration.test_closing_workflow import request, reviewer
 from tests.integration.test_finance_flow import post_journal
@@ -404,6 +409,240 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         headers={**writer, "X-Company-ID": str(uuid4())},
         json={"cash_flow_event_id": event_ids[first_payment["id"]]},
     ).status_code in {403, 404}
+
+    march_equity_ready = api_client.get(
+        "/equity/reconciliation", headers=writer, params={"period_id": march["id"]}
+    )
+    assert march_equity_ready.status_code == 200, march_equity_ready.text
+    assert march_equity_ready.json()["status"] == "READY", march_equity_ready.json()
+    march_equity = request(
+        api_client, writer, "/equity/statements/generate", {"period_id": march["id"]}
+    )
+    assert march_equity.status_code == 201, march_equity.text
+
+    notes_ready = api_client.get(
+        "/disclosures/readiness", headers=owner, params={"period_id": march["id"]}
+    )
+    assert notes_ready.status_code == 200, notes_ready.text
+    assert notes_ready.json()["status"] == "READY", notes_ready.json()
+    template = api_client.get("/disclosures/templates", headers=owner)
+    assert template.status_code == 200, template.text
+    sections = template.json()[0]["sections"]
+    notes_key = str(uuid4())
+    notes = request(
+        api_client,
+        owner,
+        "/disclosures/instances/generate",
+        {"period_id": march["id"]},
+        notes_key,
+    )
+    assert notes.status_code == 201, notes.text
+    notes_instance = notes.json()
+    assert notes_instance["status"] == "DRAFT"
+    assert notes_instance["reconciliation_status"] == "RECONCILED"
+    assert len(notes_instance["values"]) > len(sections)
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        original_instance = session.get(DisclosureInstanceModel, UUID(notes_instance["id"]))
+        assert original_instance is not None
+        with pytest.raises(IntegrityError):
+            session.add(
+                DisclosureInstanceModel(
+                    id=uuid4(),
+                    company_id=original_instance.company_id,
+                    statement_set_id=original_instance.statement_set_id,
+                    period_id=original_instance.period_id,
+                    template_id=original_instance.template_id,
+                    template_version=original_instance.template_version,
+                    revision=original_instance.revision,
+                    status="DRAFT",
+                    balance_sheet_digest=original_instance.balance_sheet_digest,
+                    income_statement_digest=original_instance.income_statement_digest,
+                    cash_flow_digest=original_instance.cash_flow_digest,
+                    equity_digest=original_instance.equity_digest,
+                    source_digest=original_instance.source_digest,
+                    reconciliation_status=original_instance.reconciliation_status,
+                    reconciliation_digest=original_instance.reconciliation_digest,
+                    created_by=original_instance.created_by,
+                    created_at=original_instance.created_at,
+                    approved_by=None,
+                    approved_at=None,
+                    version=original_instance.version,
+                )
+            )
+            session.flush()
+        session.rollback()
+    account_facts = [
+        value
+        for value in notes_instance["values"]
+        if value.get("account_id") and Decimal(value["decimal_value"]) != 0
+    ]
+    assert account_facts
+    account_fact = account_facts[0]
+    account_source = api_client.get(
+        f"/disclosures/instances/{notes_instance['id']}/values/{account_fact['id']}/source",
+        headers=writer,
+    )
+    assert account_source.status_code == 200, account_source.text
+    assert account_source.json()["account_id"] == account_fact["account_id"]
+    assert account_source.json()["journal_line_ids"]
+    assert account_source.json()["amount"] == account_fact["decimal_value"]
+    replay = request(
+        api_client,
+        owner,
+        "/disclosures/instances/generate",
+        {"period_id": march["id"]},
+        notes_key,
+    )
+    assert replay.status_code == 201 and replay.json()["id"] == notes_instance["id"]
+    conflicting_replay = request(
+        api_client,
+        owner,
+        "/disclosures/instances/generate",
+        {"period_id": february["id"]},
+        notes_key,
+    )
+    assert conflicting_replay.status_code == 409, conflicting_replay.text
+    source_value = next(
+        value for value in notes_instance["values"] if value["source_type"] == "BALANCE_SHEET"
+    )
+    source = api_client.get(
+        f"/disclosures/instances/{notes_instance['id']}/values/{source_value['id']}/source",
+        headers=owner,
+    )
+    assert source.status_code == 200, source.text
+    assert source.json()["source_id"] == source_value["source_id"]
+    assert source.json()["source_path"].startswith("/financial-statements/sets/")
+    assert api_client.get(
+        f"/disclosures/instances/{notes_instance['id']}/values/{source_value['id']}/source",
+        headers={**writer, "X-Company-ID": str(uuid4())},
+    ).status_code in {403, 404}
+
+    instance_version = notes_instance["version"]
+    for section in sections:
+        saved = api_client.put(
+            f"/disclosures/instances/{notes_instance['id']}/narratives",
+            headers=owner,
+            json={
+                "section_id": section["id"],
+                "text_value": f"{section['title']}의 검증된 Fact를 검토했습니다.",
+                "expected_version": instance_version,
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        instance_version = saved.json()["instance_version"]
+    stale_review = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/request-review",
+        headers=owner,
+        json={"expected_version": notes_instance["version"]},
+    )
+    assert stale_review.status_code == 409, stale_review.text
+    requested = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/request-review",
+        headers=owner,
+        json={"expected_version": instance_version},
+    )
+    assert requested.status_code == 200, requested.text
+    assert requested.json()["status"] == "REVIEW_REQUESTED"
+    assert (
+        api_client.post(
+            f"/disclosures/instances/{notes_instance['id']}/approve",
+            headers=owner,
+            json={"expected_version": instance_version},
+        ).status_code
+        == 409
+    )
+    assert (
+        api_client.post(
+            f"/disclosures/instances/{notes_instance['id']}/approve",
+            headers=writer,
+            json={"expected_version": requested.json()["version"]},
+        ).status_code
+        == 403
+    )
+    rejected = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/reject",
+        headers=review,
+        json={"expected_version": requested.json()["version"], "reason": "표현 보완"},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["status"] == "REJECTED"
+    revised_narrative = api_client.put(
+        f"/disclosures/instances/{notes_instance['id']}/narratives",
+        headers=owner,
+        json={
+            "section_id": sections[0]["id"],
+            "text_value": "검토 의견을 반영해 원천을 다시 확인했습니다.",
+            "expected_version": rejected.json()["version"],
+        },
+    )
+    assert revised_narrative.status_code == 200, revised_narrative.text
+    requested_again = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/request-review",
+        headers=owner,
+        json={"expected_version": revised_narrative.json()["instance_version"]},
+    )
+    assert requested_again.status_code == 200, requested_again.text
+    approved = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/approve",
+        headers=review,
+        json={"expected_version": requested_again.json()["version"]},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "APPROVED"
+    assert approved.json()["approved_by"] != approved.json()["created_by"]
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        with pytest.raises(ProgrammingError):
+            session.execute(
+                update(DisclosureValueModel)
+                .where(DisclosureValueModel.id == UUID(source_value["id"]))
+                .values(decimal_value=Decimal("0"))
+            )
+        session.rollback()
+        with pytest.raises(ProgrammingError):
+            session.execute(
+                update(DisclosureNarrativeModel)
+                .where(
+                    DisclosureNarrativeModel.instance_id == UUID(notes_instance["id"]),
+                    DisclosureNarrativeModel.section_id == UUID(sections[0]["id"]),
+                )
+                .values(text_value="변경 불가")
+            )
+        session.rollback()
+
+    for report_format in ("CSV", "XLSX", "PDF"):
+        report = api_client.post(
+            "/reports/generations",
+            headers={**writer, "Idempotency-Key": str(uuid4())},
+            json={
+                "report_code": "NOTES",
+                "format": report_format,
+                "period_id": march["id"],
+                "period_preset": "CUSTOM",
+                "date_from": march["start_date"],
+                "date_to": march["end_date"],
+            },
+        )
+        assert report.status_code == 201, report.text
+        assert report.json()["source_digest"] == notes_instance["source_digest"]
+        assert report.json()["status"] == "COMPLETED", report.text
+        artifact = api_client.get(
+            f"/reports/generations/{report.json()['id']}/artifact", headers=writer
+        )
+        assert artifact.status_code == 200, artifact.text
+        download = api_client.get(
+            f"/reports/generations/{report.json()['id']}/download", headers=writer
+        )
+        assert download.status_code == 200
+        assert download.headers["x-content-sha256"] == artifact.json()["file_sha256"]
+        assert (
+            notes_instance["source_digest"] in download.content.decode("utf-8", errors="ignore")
+            if report_format == "CSV"
+            else True
+        )
+        if report_format == "CSV":
+            assert "statement_line_id" in download.content.decode("utf-8")
+            assert "account_id" in download.content.decode("utf-8")
+
     april = next(p for p in periods if p["period_no"] == 4)
     invalid_declaration = post_journal(
         api_client,

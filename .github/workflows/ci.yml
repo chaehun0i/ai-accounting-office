@@ -115,6 +115,10 @@ jobs:
           tests/integration/test_journal_flow.py
           tests/integration/test_posting_concurrency.py
           tests/integration/test_agent_reporting_tools.py
+          tests/integration/test_equity_statement.py
+          tests/integration/test_disclosures.py
+          tests/integration/test_report_center.py
+          tests/integration/test_migrations.py
           --require-postgres
       - name: 업무 테이블과 JSON·FK 실제 수치 검증
         run: python ../scripts/verify_accounting_schema.py
