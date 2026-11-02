@@ -61,3 +61,5 @@ BS/IS 각 항목의 **계정·전표 보기**는 원장 출처 조회이며, **A
 각 Fact의 `/disclosures/instances/{id}/values/{value_id}/source` 응답은 제표 drill-down 경로와 POSTED Journal·Evidence 식별자를 제공합니다. `/financial-statements`의 Notes 영역은 원천 준비, 차단 사유, Fact, 설명 초안, 독립 승인과 원천 상세를 표시합니다. AI는 금액·정책·근거를 생성하지 않으며 현재 경로는 결정론적 Fact와 사용자 작성 설명을 사용합니다.
 
 Report Center `NOTES`는 현재 원천 digest와 일치하는 독립 승인 revision에서만 PDF/XLSX/CSV Run을 생성합니다. 기존 Artifact/History/Download 및 SHA-256 검증을 재사용하고 파일에 revision·template/source digest·`INTERNAL_VALIDATION_ONLY`를 표시합니다. 승인된 Notes는 내부 검토본이며 법정 승인·감사 완료·외부 제출 적합성을 뜻하지 않습니다.
+
+Notes의 PostgreSQL 핵심 회귀는 `test_equity_statement.py`의 CLOSED 원천 생성·Fact/전표 추적·작성자와 Reviewer 분리·승인 불변성·세 형식 Export 정상 경로, `test_disclosures.py`의 미완료 원천 차단, Report Center 회사 범위 및 migration lifecycle 테스트를 포함합니다. 로컬 PostgreSQL 없이 이 검증을 통과로 표시하지 않으며, CI PostgreSQL job에서 실제 DB로 실행합니다.
