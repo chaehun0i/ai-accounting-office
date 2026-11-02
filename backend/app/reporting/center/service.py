@@ -194,7 +194,8 @@ class ReportCenterService:
                     select(EquityStatementModel).where(
                         EquityStatementModel.company_id == company,
                         EquityStatementModel.period_id == period_id,
-                        EquityStatementModel.snapshot_digest == identity,
+                        EquityStatementModel.snapshot_digest
+                        == note_source["equity"].snapshot_digest,
                     )
                 )
                 if (
