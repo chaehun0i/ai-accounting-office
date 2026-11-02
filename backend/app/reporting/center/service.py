@@ -173,6 +173,15 @@ class ReportCenterService:
                 )._calculate(uow, company, period_id)
                 if issues:
                     raise StateConflict()
+                equity = uow.session.scalar(
+                    select(EquityStatementModel).where(
+                        EquityStatementModel.company_id == company,
+                        EquityStatementModel.period_id == period_id,
+                        EquityStatementModel.snapshot_digest == identity,
+                    )
+                )
+                if equity is None:
+                    raise StateConflict()
             if report_code == "NOTES":
                 note_source, issues = DisclosureService(self.factory)._sources(
                     uow, company, period_id
