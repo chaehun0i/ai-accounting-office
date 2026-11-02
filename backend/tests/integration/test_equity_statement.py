@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from openpyxl import load_workbook
 from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.reporting.disclosures.models import DisclosureNarrativeModel, DisclosureValueModel
@@ -557,14 +557,14 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert approved.json()["status"] == "APPROVED"
     assert approved.json()["approved_by"] != approved.json()["created_by"]
     with Session(connection, join_transaction_mode="create_savepoint") as session:
-        with pytest.raises(IntegrityError):
+        with pytest.raises(ProgrammingError):
             session.execute(
                 update(DisclosureValueModel)
                 .where(DisclosureValueModel.id == UUID(source_value["id"]))
                 .values(decimal_value=Decimal("0"))
             )
         session.rollback()
-        with pytest.raises(IntegrityError):
+        with pytest.raises(ProgrammingError):
             session.execute(
                 update(DisclosureNarrativeModel)
                 .where(
