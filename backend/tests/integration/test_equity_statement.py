@@ -11,7 +11,11 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session
 
-from app.reporting.disclosures.models import DisclosureNarrativeModel, DisclosureValueModel
+from app.reporting.disclosures.models import (
+    DisclosureInstanceModel,
+    DisclosureNarrativeModel,
+    DisclosureValueModel,
+)
 from app.reporting.equity.models import EquityStatementModel
 from tests.integration.test_closing_workflow import request, reviewer
 from tests.integration.test_finance_flow import post_journal
@@ -437,6 +441,36 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert notes_instance["status"] == "DRAFT"
     assert notes_instance["reconciliation_status"] == "RECONCILED"
     assert len(notes_instance["values"]) > len(sections)
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        original_instance = session.get(DisclosureInstanceModel, UUID(notes_instance["id"]))
+        assert original_instance is not None
+        with pytest.raises(IntegrityError):
+            session.add(
+                DisclosureInstanceModel(
+                    id=uuid4(),
+                    company_id=original_instance.company_id,
+                    statement_set_id=original_instance.statement_set_id,
+                    period_id=original_instance.period_id,
+                    template_id=original_instance.template_id,
+                    template_version=original_instance.template_version,
+                    revision=original_instance.revision,
+                    status="DRAFT",
+                    balance_sheet_digest=original_instance.balance_sheet_digest,
+                    income_statement_digest=original_instance.income_statement_digest,
+                    cash_flow_digest=original_instance.cash_flow_digest,
+                    equity_digest=original_instance.equity_digest,
+                    source_digest=original_instance.source_digest,
+                    reconciliation_status=original_instance.reconciliation_status,
+                    reconciliation_digest=original_instance.reconciliation_digest,
+                    created_by=original_instance.created_by,
+                    created_at=original_instance.created_at,
+                    approved_by=None,
+                    approved_at=None,
+                    version=original_instance.version,
+                )
+            )
+            session.flush()
+        session.rollback()
     account_facts = [
         value
         for value in notes_instance["values"]
