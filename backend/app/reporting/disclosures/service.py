@@ -373,17 +373,8 @@ class DisclosureService:
                 .where(PeriodModel.company_id == company, PeriodModel.id == period_id)
                 .with_for_update()
             )
-            sources, issues = self._sources(uow, company, period_id)
-            if sources is None:
-                return {
-                    "period_id": period_id,
-                    "status": "BLOCKED",
-                    "issues": issues,
-                    "instance_id": None,
-                    "validation_status": "INTERNAL_VALIDATION_ONLY",
-                }
             uow.lock_command(company, actor.user_id, "disclosure.generate", key)
-            fingerprint = digest(("disclosure.generate", str(period_id), sources["source_digest"]))
+            fingerprint = digest(("disclosure.generate", str(period_id)))
             command = uow.session.scalar(
                 select(DisclosureCommandModel).where(
                     DisclosureCommandModel.company_id == company,
@@ -391,9 +382,10 @@ class DisclosureService:
                     DisclosureCommandModel.idempotency_key == key,
                 )
             )
+            if command is not None and command.fingerprint != fingerprint:
+                raise StateConflict()
+            sources, issues = self._sources(uow, company, period_id)
             if command is not None:
-                if command.fingerprint != fingerprint:
-                    raise StateConflict()
                 replay = uow.session.scalar(
                     select(DisclosureInstanceModel).where(
                         DisclosureInstanceModel.company_id == company,
@@ -403,6 +395,14 @@ class DisclosureService:
                 if replay is None:
                     raise ResourceNotFound()
                 return self._detail(uow, company, replay, sources)
+            if sources is None:
+                return {
+                    "period_id": period_id,
+                    "status": "BLOCKED",
+                    "issues": issues,
+                    "instance_id": None,
+                    "validation_status": "INTERNAL_VALIDATION_ONLY",
+                }
             template = sources["template"]
             registry = sources["template_registry"]
             existing = uow.session.scalar(
