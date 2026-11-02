@@ -17,6 +17,13 @@ from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.center.render import ReportDocument, render
 from app.reporting.center.repository import ReportArtifact, ReportRun
 from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
+from app.reporting.disclosures.models import (
+    DisclosureInstanceModel,
+    DisclosureNarrativeModel,
+    DisclosureSectionModel,
+    DisclosureValueModel,
+)
+from app.reporting.disclosures.service import DisclosureService
 from app.reporting.equity.models import (
     EquityComponentModel,
     EquityStatementLineModel,
@@ -33,6 +40,7 @@ REPORTS = (
     ("FINANCIAL_METRICS", "재무비율", "RANGE"),
     ("CASH_FLOW", "현금흐름표", "RANGE"),
     ("CHANGES_IN_EQUITY", "자본변동표", "RANGE"),
+    ("NOTES", "재무제표 주석", "RANGE"),
 )
 FORMATS = ("PDF", "XLSX", "CSV")
 
@@ -134,6 +142,7 @@ class ReportCenterService:
                 raise ResourceNotFound()
             cash = None
             equity = None
+            notes = None
             if report_code == "CASH_FLOW":
                 cash = uow.cash_snapshots.current(company, period_id)
                 bridge = CashFlowService(self.factory)._indirect_bridge(uow, company, period_id)
@@ -164,6 +173,23 @@ class ReportCenterService:
                 )._calculate(uow, company, period_id)
                 if issues:
                     raise StateConflict()
+            if report_code == "NOTES":
+                note_source, issues = DisclosureService(self.factory)._sources(
+                    uow, company, period_id
+                )
+                if note_source is None or issues:
+                    raise StateConflict()
+                notes = uow.session.scalar(
+                    select(DisclosureInstanceModel).where(
+                        DisclosureInstanceModel.company_id == company,
+                        DisclosureInstanceModel.period_id == period_id,
+                        DisclosureInstanceModel.statement_set_id == statement_set.id,
+                        DisclosureInstanceModel.source_digest == note_source["source_digest"],
+                        DisclosureInstanceModel.status == "APPROVED",
+                    )
+                )
+                if notes is None:
+                    raise StateConflict()
                 equity = uow.session.scalar(
                     select(EquityStatementModel).where(
                         EquityStatementModel.company_id == company,
@@ -180,11 +206,13 @@ class ReportCenterService:
                 ):
                     raise StateConflict()
             formula_version = max(formula.version for formula in FORMULAS)
-            source = (
+            source_digest = (
                 cash.snapshot_digest
                 if cash is not None
                 else equity.snapshot_digest
                 if equity is not None
+                else notes.source_digest
+                if notes is not None
                 else digest(
                     (
                         str(statement_set.id),
@@ -217,7 +245,7 @@ class ReportCenterService:
                 mapping_digest=statement_set.mapping_digest,
                 balance_sheet_digest=balance.snapshot_digest,
                 income_statement_digest=income.snapshot_digest,
-                source_digest=source,
+                source_digest=source_digest,
                 template_version=1,
                 status="REQUESTED",
                 requested_by=actor.user_id,
@@ -375,7 +403,7 @@ class ReportCenterService:
             or income.snapshot_digest != run.income_statement_digest
         ):
             raise StateConflict()
-        if run.report_code not in {"CASH_FLOW", "CHANGES_IN_EQUITY"}:
+        if run.report_code not in {"CASH_FLOW", "CHANGES_IN_EQUITY", "NOTES"}:
             formula_version = max(formula.version for formula in FORMULAS)
             source = digest(
                 (
@@ -462,6 +490,95 @@ class ReportCenterService:
                 ("equity_snapshot_id", str(equity.id)),
                 ("equity_snapshot_generated_at", equity.generated_at.isoformat()),
                 ("equity_validation", "INTERNAL_VALIDATION_ONLY"),
+            )
+        elif run.report_code == "NOTES":
+            current, issues = DisclosureService(lambda: uow)._sources(
+                uow, run.company_id, run.period_id
+            )
+            note = uow.session.scalar(
+                select(DisclosureInstanceModel).where(
+                    DisclosureInstanceModel.company_id == run.company_id,
+                    DisclosureInstanceModel.period_id == run.period_id,
+                    DisclosureInstanceModel.statement_set_id == run.statement_set_id,
+                    DisclosureInstanceModel.source_digest == run.source_digest,
+                    DisclosureInstanceModel.status == "APPROVED",
+                )
+            )
+            if (
+                current is None
+                or issues
+                or current["source_digest"] != run.source_digest
+                or note is None
+            ):
+                raise StateConflict()
+            note_values = list(
+                uow.session.scalars(
+                    select(DisclosureValueModel)
+                    .where(
+                        DisclosureValueModel.company_id == run.company_id,
+                        DisclosureValueModel.instance_id == note.id,
+                    )
+                    .order_by(DisclosureValueModel.section_id, DisclosureValueModel.source_code)
+                )
+            )
+            sections_by_id = {
+                row.id: row.title
+                for row in uow.session.scalars(
+                    select(DisclosureSectionModel).where(
+                        DisclosureSectionModel.template_id == note.template_id
+                    )
+                )
+            }
+            narratives = list(
+                uow.session.scalars(
+                    select(DisclosureNarrativeModel)
+                    .where(
+                        DisclosureNarrativeModel.company_id == run.company_id,
+                        DisclosureNarrativeModel.instance_id == note.id,
+                    )
+                    .order_by(DisclosureNarrativeModel.section_id)
+                )
+            )
+            if any(
+                row.status != "APPROVED" or row.source_digest != note.source_digest
+                for row in narratives
+            ):
+                raise StateConflict()
+            columns = ("section", "source_type", "source_code", "label", "amount", "source_id")
+            value_rows: list[tuple[str, ...]] = []
+            for value in note_values:
+                if value.decimal_value is None:
+                    raise StateConflict()
+                value_rows.append(
+                    (
+                        sections_by_id[value.section_id],
+                        value.source_type,
+                        value.source_code,
+                        value.label,
+                        format(value.decimal_value, "f"),
+                        str(value.source_id),
+                    )
+                )
+            rows = tuple(value_rows)
+            sections = (
+                (
+                    "ApprovedNarratives",
+                    ("section", "text", "source_digest"),
+                    tuple(
+                        (sections_by_id[row.section_id], row.text_value, row.source_digest)
+                        for row in narratives
+                    ),
+                ),
+            )
+            if note.approved_at is None or note.approved_by is None:
+                raise StateConflict()
+            metadata += (
+                ("disclosure_instance_id", str(note.id)),
+                ("disclosure_revision", str(note.revision)),
+                ("disclosure_template_version", str(note.template_version)),
+                ("disclosure_approved_by", str(note.approved_by)),
+                ("disclosure_approved_at", note.approved_at.isoformat()),
+                ("disclosure_validation", "INTERNAL_VALIDATION_ONLY"),
             )
         elif run.report_code == "CASH_FLOW":
             cash = uow.cash_snapshots.by_digest(run.company_id, run.period_id, run.source_digest)

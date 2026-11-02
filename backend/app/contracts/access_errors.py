@@ -31,6 +31,12 @@ class StateConflict(ApplicationError):
     message = "이미 처리되었거나 현재 사용할 수 없는 요청입니다."
 
 
+class DisclosureStale(ApplicationError):
+    code = "DISCLOSURE_STALE"
+    status_code = 409
+    message = "주석 원천이 변경되었습니다. 현재 재무제표를 다시 확인해 주세요."
+
+
 class InvalidInput(ApplicationError):
     code = "INVALID_INPUT"
     status_code = 422
