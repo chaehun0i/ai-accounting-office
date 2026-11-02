@@ -157,7 +157,12 @@ class DisclosureValueModel(UUIDPrimaryKey, Base):
     validation_status: Mapped[str] = mapped_column(String(16))
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
-        UniqueConstraint("instance_id", "source_type", "source_id"),
+        UniqueConstraint(
+            "instance_id",
+            "source_type",
+            "source_id",
+            name="uq_disclosure_values_instance_source",
+        ),
         Index("ix_disclosure_values_company_instance", "company_id", "instance_id"),
         ForeignKeyConstraint(
             ["company_id", "instance_id"],
@@ -262,7 +267,12 @@ class DisclosureCommandModel(UUIDPrimaryKey, Base):
     instance_id: Mapped[UUID]
     created_at: Mapped[datetime]
     __table_args__ = (
-        UniqueConstraint("company_id", "actor_id", "idempotency_key"),
+        UniqueConstraint(
+            "company_id",
+            "actor_id",
+            "idempotency_key",
+            name="uq_disclosure_commands_company_actor_key",
+        ),
         ForeignKeyConstraint(
             ["company_id", "instance_id"],
             ["disclosure_instances.company_id", "disclosure_instances.id"],

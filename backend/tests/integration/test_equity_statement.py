@@ -404,6 +404,127 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         headers={**writer, "X-Company-ID": str(uuid4())},
         json={"cash_flow_event_id": event_ids[first_payment["id"]]},
     ).status_code in {403, 404}
+
+    march_equity_ready = api_client.get(
+        "/equity/reconciliation", headers=writer, params={"period_id": march["id"]}
+    )
+    assert march_equity_ready.status_code == 200, march_equity_ready.text
+    assert march_equity_ready.json()["status"] == "READY", march_equity_ready.json()
+    march_equity = request(
+        api_client, writer, "/equity/statements/generate", {"period_id": march["id"]}
+    )
+    assert march_equity.status_code == 201, march_equity.text
+
+    notes_ready = api_client.get(
+        "/disclosures/readiness", headers=writer, params={"period_id": march["id"]}
+    )
+    assert notes_ready.status_code == 200, notes_ready.text
+    assert notes_ready.json()["status"] == "READY", notes_ready.json()
+    template = api_client.get("/disclosures/templates", headers=writer)
+    assert template.status_code == 200, template.text
+    sections = template.json()[0]["sections"]
+    notes_key = str(uuid4())
+    notes = request(
+        api_client,
+        writer,
+        "/disclosures/instances/generate",
+        {"period_id": march["id"]},
+        notes_key,
+    )
+    assert notes.status_code == 201, notes.text
+    notes_instance = notes.json()
+    assert notes_instance["status"] == "DRAFT"
+    assert notes_instance["reconciliation_status"] == "RECONCILED"
+    assert len(notes_instance["values"]) > len(sections)
+    replay = request(
+        api_client,
+        writer,
+        "/disclosures/instances/generate",
+        {"period_id": march["id"]},
+        notes_key,
+    )
+    assert replay.status_code == 201 and replay.json()["id"] == notes_instance["id"]
+    source_value = next(
+        value for value in notes_instance["values"] if value["source_type"] == "BALANCE_SHEET"
+    )
+    source = api_client.get(
+        f"/disclosures/instances/{notes_instance['id']}/values/{source_value['id']}/source",
+        headers=writer,
+    )
+    assert source.status_code == 200, source.text
+    assert source.json()["source_id"] == source_value["source_id"]
+    assert source.json()["source_path"].startswith("/financial-statements/sets/")
+    assert api_client.get(
+        f"/disclosures/instances/{notes_instance['id']}/values/{source_value['id']}/source",
+        headers={**writer, "X-Company-ID": str(uuid4())},
+    ).status_code in {403, 404}
+
+    instance_version = notes_instance["version"]
+    for section in sections:
+        saved = api_client.put(
+            f"/disclosures/instances/{notes_instance['id']}/narratives",
+            headers=writer,
+            json={
+                "section_id": section["id"],
+                "text_value": f"{section['title']}의 검증된 Fact를 검토했습니다.",
+                "expected_version": instance_version,
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        instance_version = saved.json()["instance_version"]
+    requested = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/request-review",
+        headers=writer,
+        json={"expected_version": instance_version},
+    )
+    assert requested.status_code == 200, requested.text
+    assert requested.json()["status"] == "REVIEW_REQUESTED"
+    assert (
+        api_client.post(
+            f"/disclosures/instances/{notes_instance['id']}/approve",
+            headers=writer,
+            json={"expected_version": requested.json()["version"]},
+        ).status_code
+        == 409
+    )
+    approved = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/approve",
+        headers=owner,
+        json={"expected_version": requested.json()["version"]},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "APPROVED"
+    assert approved.json()["approved_by"] != approved.json()["created_by"]
+
+    for report_format in ("CSV", "XLSX", "PDF"):
+        report = api_client.post(
+            "/reports/generations",
+            headers={**writer, "Idempotency-Key": str(uuid4())},
+            json={
+                "report_code": "NOTES",
+                "format": report_format,
+                "period_id": march["id"],
+                "period_preset": "CUSTOM",
+                "date_from": march["start_date"],
+                "date_to": march["end_date"],
+            },
+        )
+        assert report.status_code == 201, report.text
+        artifact = api_client.get(
+            f"/reports/generations/{report.json()['id']}/artifact", headers=writer
+        )
+        assert artifact.status_code == 200, artifact.text
+        download = api_client.get(
+            f"/reports/generations/{report.json()['id']}/download", headers=writer
+        )
+        assert download.status_code == 200
+        assert download.headers["x-content-sha256"] == artifact.json()["file_sha256"]
+        assert (
+            notes_instance["source_digest"] in download.content.decode("utf-8", errors="ignore")
+            if report_format == "CSV"
+            else True
+        )
+
     april = next(p for p in periods if p["period_no"] == 4)
     invalid_declaration = post_journal(
         api_client,
