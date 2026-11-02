@@ -53,13 +53,14 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def internal_error(request: Request, exc: Exception) -> JSONResponse:
-        return internal_error_response(request)
+        return internal_error_response(request, exc)
 
 
-def internal_error_response(request: Request) -> JSONResponse:
+def internal_error_response(request: Request, exc: Exception | None = None) -> JSONResponse:
     logging.getLogger("accounting_office").error(
         "요청 처리 중 예기치 않은 오류가 발생했습니다. 요청 ID=%s",
         getattr(request.state, "request_id", "unknown"),
+        exc_info=(type(exc), exc, exc.__traceback__) if exc is not None else None,
     )
     return error_response(
         request, 500, "INTERNAL_ERROR", "처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
