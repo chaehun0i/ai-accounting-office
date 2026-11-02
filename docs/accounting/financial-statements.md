@@ -47,3 +47,19 @@ PostgreSQL API 회귀 검증은 현금 범위·활동 분류 및 증빙 배분, 
 Bookkeeper의 `financial_statement.read`는 기존 읽기 Application Service와 `financial_statement.read` 사용자 권한을 재사용합니다. `AI 회계팀` 화면은 CLOSED 기간의 기존 스냅샷 금액·버전·digest를 표시하며 재무제표를 새로 생성하거나 승인하지 않습니다.
 
 BS/IS 각 항목의 **계정·전표 보기**는 원장 출처 조회이며, **AI에게 묻기**는 해당 기간·제표 종류·항목 코드만 `/ai-team` 질문 초안으로 전달합니다. 현금흐름표는 지원되는 합계 항목에서 **원천·전표 보기**와 **AI에게 묻기**를 제공합니다. 회사 ID와 금액은 URL에 넣지 않습니다. AI 회계팀은 현재 회사의 기간 목록을 다시 확인하고 사용자가 질문을 제출한 뒤에만 기존 `financial_statement.read` 또는 `cash_flow.read`를 호출합니다. 항목 코드는 허용 목록으로 검증하며, 답변 금액과 출처는 Reporting Application의 스냅샷이 정본입니다.
+
+## 재무제표 주석 · Disclosure Registry
+
+`/disclosures/templates`는 v1 `INTERNAL_CORE_NOTES` Registry와 BS/IS/CF/SCE 섹션을 제공합니다. 이 template은 내부 검증용이며 K-IFRS·일반기업회계기준 공식 공시 목록으로 검증되지 않았습니다. 법정 공시 요구사항으로 표현하지 않습니다.
+
+`GET /disclosures/readiness?period_id=…`는 CLOSED 마감 버전의 BS/IS와 대사 완료 CF/SCE Snapshot을 확인합니다. 제표 digest, CF/SCE source digest, 현재 마감·원천 상태를 재검증하고 BS 등식, IS 순이익과 CF 순이익, SCE 기말 자본과 BS 자본을 Decimal로 교차 확인합니다. 필수 원천이 없거나 stale·차이가 있으면 `BLOCKED`와 오류 코드를 반환합니다. 필수 숫자를 0 또는 추정치로 채우지 않습니다.
+
+`POST /disclosures/instances/generate`는 네 Snapshot 식별자와 digest, template version을 고정하고 제표 line, CF line, SCE component/movement를 관계형 Decimal Fact로 복사합니다. BS/IS Fact에는 별도로 제표 mapping에 실제 연결된 GL 계정별 합계도 생성하며, 원천 journal line을 따라가고 계정별 합계와 제표 leaf line의 차이가 있으면 생성을 차단합니다. 계정명으로 현금·채권·채무 등 공시 유형을 추정하지 않습니다. 동일 기간·source digest 재요청은 기존 revision을 재사용하며 동일 idempotency key의 다른 payload는 거부합니다. Fact와 audit는 DB trigger로 수정·삭제할 수 없습니다. Asset Register, Inventory Subledger, AR aging/대손충당, Tax computation 또는 accounting policy 원천이 필요한 세부 주석은 제공하지 않습니다.
+
+`PUT /disclosures/instances/{id}/narratives`는 네 필수 섹션의 사용자 설명 초안을 작성합니다. `POST …/request-review`는 필수 설명과 현재 source digest를 재검증합니다. 독립 Reviewer/Owner가 `POST …/approve` 또는 `/reject`에 expected version을 보내 상태를 전이합니다. 작성자는 자신의 revision을 승인할 수 없습니다. 승인 이후 instance, Fact, narrative 및 audit는 불변이며 원천이 바뀌면 새 revision을 생성합니다. 기존 승인본은 생성 당시 원천을 보존하지만 현재 원천과 달라지면 stale 표시를 하며 Export에서 제외합니다.
+
+각 Fact의 `/disclosures/instances/{id}/values/{value_id}/source` 응답은 제표 drill-down 경로와 POSTED Journal·Evidence 식별자를 제공합니다. 계정별 Fact는 고정된 `statement_line_id`와 계정 ID로 GL source row를 조회해 원천 전표까지 연결합니다. `/financial-statements`의 Notes 영역은 원천 준비, 차단 사유, Fact, 설명 초안, 독립 승인과 원천 상세를 표시합니다. AI는 금액·정책·근거를 생성하지 않으며 현재 경로는 결정론적 Fact와 사용자 작성 설명을 사용합니다.
+
+Report Center `NOTES`는 현재 원천 digest와 일치하는 독립 승인 revision에서만 PDF/XLSX/CSV Run을 생성합니다. 기존 Artifact/History/Download 및 SHA-256 검증을 재사용하고 파일에 revision·template/source digest·`INTERNAL_VALIDATION_ONLY`를 표시합니다. 승인된 Notes는 내부 검토본이며 법정 승인·감사 완료·외부 제출 적합성을 뜻하지 않습니다.
+
+Notes의 PostgreSQL 핵심 회귀는 `test_equity_statement.py`의 CLOSED 원천 생성·Fact/전표 추적·작성자와 Reviewer 분리·승인 불변성·세 형식 Export 정상 경로, `test_disclosures.py`의 미완료 원천 차단, Report Center 회사 범위 및 migration lifecycle 테스트를 포함합니다. 로컬 PostgreSQL 없이 이 검증을 통과로 표시하지 않으며, CI PostgreSQL job에서 실제 DB로 실행합니다.
