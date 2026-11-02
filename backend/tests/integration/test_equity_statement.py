@@ -456,6 +456,14 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         notes_key,
     )
     assert replay.status_code == 201 and replay.json()["id"] == notes_instance["id"]
+    conflicting_replay = request(
+        api_client,
+        writer,
+        "/disclosures/instances/generate",
+        {"period_id": february["id"]},
+        notes_key,
+    )
+    assert conflicting_replay.status_code == 409, conflicting_replay.text
     source_value = next(
         value for value in notes_instance["values"] if value["source_type"] == "BALANCE_SHEET"
     )
@@ -484,6 +492,12 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         )
         assert saved.status_code == 200, saved.text
         instance_version = saved.json()["instance_version"]
+    stale_review = api_client.post(
+        f"/disclosures/instances/{notes_instance['id']}/request-review",
+        headers=writer,
+        json={"expected_version": notes_instance["version"]},
+    )
+    assert stale_review.status_code == 409, stale_review.text
     requested = api_client.post(
         f"/disclosures/instances/{notes_instance['id']}/request-review",
         headers=writer,
