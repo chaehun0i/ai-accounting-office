@@ -499,7 +499,9 @@ FOR EACH ROW EXECUTE FUNCTION disclosure_narrative_guard();
                 sa.text("""INSERT INTO disclosure_fields
                 (id,template_id,section_id,field_code,label,data_type,required,source_fact_type,aggregation_handler_key)
                 VALUES (:id,:template,:section,'GL_ACCOUNT_BALANCE','매핑된 원장 계정 잔액','DECIMAL',TRUE,'GL_ACCOUNT','SUM_STATEMENT_SOURCES')""").bindparams(
-                    id=field_ids[index + 4], template=template_id, section=section_ids[index],
+                    id=field_ids[index + 4],
+                    template=template_id,
+                    section=section_ids[index],
                 )
             )
         op.execute(
