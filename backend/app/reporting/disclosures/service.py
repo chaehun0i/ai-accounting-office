@@ -462,7 +462,7 @@ class DisclosureService:
             )
             uow.session.add(instance)
             uow.session.flush()
-            facts: list[tuple[str, UUID, str, str, Decimal, UUID | None, UUID | None]] = []
+            facts: list[tuple[str, UUID, str, str, Decimal, UUID | None, UUID]] = []
             for view in (sources["balance"], sources["income"]):
                 for line in view.lines:
                     facts.append(
@@ -473,7 +473,7 @@ class DisclosureService:
                             line.label,
                             line.current_amount,
                             None,
-                            None,
+                            UUID(int=0),
                         )
                     )
             for line in uow.session.scalars(
@@ -485,7 +485,15 @@ class DisclosureService:
                 .order_by(CashFlowLineModel.display_order)
             ):
                 facts.append(
-                    ("CASH_FLOW", line.id, line.line_code, line.line_code, line.amount, None, None)
+                    (
+                        "CASH_FLOW",
+                        line.id,
+                        line.line_code,
+                        line.line_code,
+                        line.amount,
+                        None,
+                        UUID(int=0),
+                    )
                 )
             equity_lines = uow.session.execute(
                 select(EquityStatementLineModel, EquityComponentModel)
@@ -508,7 +516,7 @@ class DisclosureService:
                         f"{component.name} · {line.movement_type}",
                         line.amount,
                         None,
-                        None,
+                        UUID(int=0),
                     )
                 )
             for view in (sources["balance"], sources["income"]):
@@ -537,18 +545,18 @@ class DisclosureService:
                     )
                 }
                 line_codes = {line.id: line.line_code for line in view.lines}
-                for (line_id, account_id), amount in grouped.items():
-                    account = accounts.get(account_id)
+                for (line_id, group_account_id), amount in grouped.items():
+                    account = accounts.get(group_account_id)
                     if account is None:
                         raise StateConflict()
                     facts.append(
                         (
                             view.statement_type,
-                            account_id,
+                            group_account_id,
                             f"{line_codes[line_id]}.{account.account_code}",
                             account.account_name,
                             amount,
-                            account_id,
+                            group_account_id,
                             line_id,
                         )
                     )
