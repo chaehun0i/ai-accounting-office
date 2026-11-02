@@ -715,7 +715,8 @@ class DisclosureService:
                     uow.session.scalars(
                         select(StatementSourceModel).where(
                             StatementSourceModel.company_id == company,
-                            StatementSourceModel.statement_line_id == value.source_id,
+                            StatementSourceModel.statement_line_id
+                            == (value.statement_line_id or value.source_id),
                             *(
                                 [StatementSourceModel.account_id == value.account_id]
                                 if value.account_id is not None
