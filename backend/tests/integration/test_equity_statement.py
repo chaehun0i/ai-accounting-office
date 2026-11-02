@@ -589,6 +589,7 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
             },
         )
         assert report.status_code == 201, report.text
+        assert report.json()["status"] == "COMPLETED", report.text
         artifact = api_client.get(
             f"/reports/generations/{report.json()['id']}/artifact", headers=writer
         )
