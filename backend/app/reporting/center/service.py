@@ -190,7 +190,7 @@ class ReportCenterService:
                 )
                 if notes is None:
                     raise StateConflict()
-                equity = uow.session.scalar(
+                notes_equity = uow.session.scalar(
                     select(EquityStatementModel).where(
                         EquityStatementModel.company_id == company,
                         EquityStatementModel.period_id == period_id,
@@ -199,11 +199,11 @@ class ReportCenterService:
                     )
                 )
                 if (
-                    equity is None
-                    or equity.statement_set_id != statement_set.id
-                    or equity.balance_sheet_digest != balance.snapshot_digest
-                    or equity.income_statement_digest != income.snapshot_digest
-                    or equity.status != "RECONCILED"
+                    notes_equity is None
+                    or notes_equity.statement_set_id != statement_set.id
+                    or notes_equity.balance_sheet_digest != balance.snapshot_digest
+                    or notes_equity.income_statement_digest != income.snapshot_digest
+                    or notes_equity.status != "RECONCILED"
                 ):
                     raise StateConflict()
             formula_version = max(formula.version for formula in FORMULAS)
