@@ -417,17 +417,17 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert march_equity.status_code == 201, march_equity.text
 
     notes_ready = api_client.get(
-        "/disclosures/readiness", headers=writer, params={"period_id": march["id"]}
+        "/disclosures/readiness", headers=owner, params={"period_id": march["id"]}
     )
     assert notes_ready.status_code == 200, notes_ready.text
     assert notes_ready.json()["status"] == "READY", notes_ready.json()
-    template = api_client.get("/disclosures/templates", headers=writer)
+    template = api_client.get("/disclosures/templates", headers=owner)
     assert template.status_code == 200, template.text
     sections = template.json()[0]["sections"]
     notes_key = str(uuid4())
     notes = request(
         api_client,
-        writer,
+        owner,
         "/disclosures/instances/generate",
         {"period_id": march["id"]},
         notes_key,
@@ -454,7 +454,7 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert account_source.json()["amount"] == account_fact["decimal_value"]
     replay = request(
         api_client,
-        writer,
+        owner,
         "/disclosures/instances/generate",
         {"period_id": march["id"]},
         notes_key,
@@ -462,7 +462,7 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert replay.status_code == 201 and replay.json()["id"] == notes_instance["id"]
     conflicting_replay = request(
         api_client,
-        writer,
+        owner,
         "/disclosures/instances/generate",
         {"period_id": february["id"]},
         notes_key,
@@ -473,7 +473,7 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     )
     source = api_client.get(
         f"/disclosures/instances/{notes_instance['id']}/values/{source_value['id']}/source",
-        headers=writer,
+        headers=owner,
     )
     assert source.status_code == 200, source.text
     assert source.json()["source_id"] == source_value["source_id"]
@@ -487,7 +487,7 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     for section in sections:
         saved = api_client.put(
             f"/disclosures/instances/{notes_instance['id']}/narratives",
-            headers=writer,
+            headers=owner,
             json={
                 "section_id": section["id"],
                 "text_value": f"{section['title']}의 검증된 Fact를 검토했습니다.",
@@ -498,13 +498,13 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         instance_version = saved.json()["instance_version"]
     stale_review = api_client.post(
         f"/disclosures/instances/{notes_instance['id']}/request-review",
-        headers=writer,
+        headers=owner,
         json={"expected_version": notes_instance["version"]},
     )
     assert stale_review.status_code == 409, stale_review.text
     requested = api_client.post(
         f"/disclosures/instances/{notes_instance['id']}/request-review",
-        headers=writer,
+        headers=owner,
         json={"expected_version": instance_version},
     )
     assert requested.status_code == 200, requested.text
@@ -523,18 +523,18 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
             headers=writer,
             json={"expected_version": requested.json()["version"]},
         ).status_code
-        == 409
+        == 403
     )
     rejected = api_client.post(
         f"/disclosures/instances/{notes_instance['id']}/reject",
-        headers=owner,
+        headers=review,
         json={"expected_version": requested.json()["version"], "reason": "표현 보완"},
     )
     assert rejected.status_code == 200, rejected.text
     assert rejected.json()["status"] == "REJECTED"
     revised_narrative = api_client.put(
         f"/disclosures/instances/{notes_instance['id']}/narratives",
-        headers=writer,
+        headers=owner,
         json={
             "section_id": sections[0]["id"],
             "text_value": "검토 의견을 반영해 원천을 다시 확인했습니다.",
@@ -544,13 +544,13 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert revised_narrative.status_code == 200, revised_narrative.text
     requested_again = api_client.post(
         f"/disclosures/instances/{notes_instance['id']}/request-review",
-        headers=writer,
+        headers=owner,
         json={"expected_version": revised_narrative.json()["instance_version"]},
     )
     assert requested_again.status_code == 200, requested_again.text
     approved = api_client.post(
         f"/disclosures/instances/{notes_instance['id']}/approve",
-        headers=owner,
+        headers=review,
         json={"expected_version": requested_again.json()["version"]},
     )
     assert approved.status_code == 200, approved.text
