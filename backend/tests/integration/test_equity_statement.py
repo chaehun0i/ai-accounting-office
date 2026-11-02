@@ -437,7 +437,11 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert notes_instance["status"] == "DRAFT"
     assert notes_instance["reconciliation_status"] == "RECONCILED"
     assert len(notes_instance["values"]) > len(sections)
-    account_facts = [value for value in notes_instance["values"] if value.get("account_id")]
+    account_facts = [
+        value
+        for value in notes_instance["values"]
+        if value.get("account_id") and Decimal(value["decimal_value"]) != 0
+    ]
     assert account_facts
     account_fact = account_facts[0]
     account_source = api_client.get(
