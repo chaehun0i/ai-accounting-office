@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
+from app.accounting.accounts.infrastructure.models import AccountModel
 from app.accounting.journals.infrastructure.models import JournalEvidenceModel
 from app.accounting.periods.infrastructure.models import PeriodModel
 from app.closing.domain.errors import ClosingRunStale
@@ -92,7 +93,9 @@ class DisclosureService:
         }
         required_sources = {
             ("BALANCE_SHEET", "STATEMENT_LINE"),
+            ("BALANCE_SHEET", "GL_ACCOUNT"),
             ("INCOME_STATEMENT", "STATEMENT_LINE"),
+            ("INCOME_STATEMENT", "GL_ACCOUNT"),
             ("CASH_FLOW", "CASH_FLOW_LINE"),
             ("CHANGES_IN_EQUITY", "EQUITY_LINE"),
         }
@@ -102,7 +105,12 @@ class DisclosureService:
             or any(
                 field.data_type != "DECIMAL"
                 or not field.required
-                or field.aggregation_handler_key != "COPY_VERIFIED_LINE"
+                or field.aggregation_handler_key
+                != (
+                    "SUM_STATEMENT_SOURCES"
+                    if field.source_fact_type == "GL_ACCOUNT"
+                    else "COPY_VERIFIED_LINE"
+                )
                 or section.requirement_rule_key != "SOURCE_STATEMENT_REQUIRED"
                 for section, field in rows
             )
@@ -238,6 +246,27 @@ class DisclosureService:
             except (ClosingRunStale, ReportSourceStale, StateConflict):
                 issues.append("REPORT_SOURCE_STALE")
         reconciliation_facts: list[tuple[str, str, str]] = []
+        for view in (balance, income):
+            if view is None:
+                continue
+            leaf_ids = {line.id for line in view.lines if line.subtotal_type == "LEAF"}
+            source_rows = uow.session.scalars(
+                select(StatementSourceModel).where(
+                    StatementSourceModel.company_id == company,
+                    StatementSourceModel.statement_line_id.in_(leaf_ids or {UUID(int=0)}),
+                )
+            )
+            totals: dict[UUID, Decimal] = {}
+            for source_row in source_rows:
+                totals[source_row.statement_line_id] = (
+                    totals.get(source_row.statement_line_id, Decimal("0")) + source_row.amount
+                )
+            if any(
+                line.current_amount != totals.get(line.id, Decimal("0"))
+                for line in view.lines
+                if line.subtotal_type == "LEAF"
+            ):
+                issues.append("DISCLOSURE_GL_SOURCE_MISMATCH")
         if balance is not None:
             balance_amounts = {line.line_code: line.current_amount for line in balance.lines}
             assets = balance_amounts.get("ASSETS")
@@ -433,7 +462,7 @@ class DisclosureService:
             )
             uow.session.add(instance)
             uow.session.flush()
-            facts: list[tuple[str, UUID, str, str, Decimal]] = []
+            facts: list[tuple[str, UUID, str, str, Decimal, UUID | None, UUID | None]] = []
             for view in (sources["balance"], sources["income"]):
                 for line in view.lines:
                     facts.append(
@@ -443,6 +472,8 @@ class DisclosureService:
                             line.line_code,
                             line.label,
                             line.current_amount,
+                            None,
+                            None,
                         )
                     )
             for line in uow.session.scalars(
@@ -453,7 +484,9 @@ class DisclosureService:
                 )
                 .order_by(CashFlowLineModel.display_order)
             ):
-                facts.append(("CASH_FLOW", line.id, line.line_code, line.line_code, line.amount))
+                facts.append(
+                    ("CASH_FLOW", line.id, line.line_code, line.line_code, line.amount, None, None)
+                )
             equity_lines = uow.session.execute(
                 select(EquityStatementLineModel, EquityComponentModel)
                 .join(
@@ -474,18 +507,79 @@ class DisclosureService:
                         f"{component.component_code}.{line.movement_type}",
                         f"{component.name} · {line.movement_type}",
                         line.amount,
+                        None,
+                        None,
                     )
                 )
-            for source_type, source_id, source_code, label, amount in facts:
+            for view in (sources["balance"], sources["income"]):
+                line_ids = {line.id for line in view.lines}
+                source_rows = list(
+                    uow.session.scalars(
+                        select(StatementSourceModel).where(
+                            StatementSourceModel.company_id == company,
+                            StatementSourceModel.statement_line_id.in_(line_ids or {UUID(int=0)}),
+                        )
+                    )
+                )
+                grouped: dict[tuple[UUID, UUID], Decimal] = {}
+                for source_row in source_rows:
+                    key_pair = (source_row.statement_line_id, source_row.account_id)
+                    grouped[key_pair] = grouped.get(key_pair, Decimal("0")) + source_row.amount
+                accounts = {
+                    account.id: account
+                    for account in uow.session.scalars(
+                        select(AccountModel).where(
+                            AccountModel.company_id == company,
+                            AccountModel.id.in_(
+                                {account_id for _, account_id in grouped} or {UUID(int=0)}
+                            ),
+                        )
+                    )
+                }
+                line_codes = {line.id: line.line_code for line in view.lines}
+                for (line_id, account_id), amount in grouped.items():
+                    account = accounts.get(account_id)
+                    if account is None:
+                        raise StateConflict()
+                    facts.append(
+                        (
+                            view.statement_type,
+                            account_id,
+                            f"{line_codes[line_id]}.{account.account_code}",
+                            account.account_name,
+                            amount,
+                            account_id,
+                            line_id,
+                        )
+                    )
+            for (
+                source_type,
+                source_id,
+                source_code,
+                label,
+                amount,
+                account_id,
+                parent_line_id,
+            ) in facts:
                 section_code, fact_type = {
-                    "BALANCE_SHEET": ("BALANCE_SHEET", "STATEMENT_LINE"),
-                    "INCOME_STATEMENT": ("INCOME_STATEMENT", "STATEMENT_LINE"),
+                    "BALANCE_SHEET": (
+                        "BALANCE_SHEET",
+                        "GL_ACCOUNT" if account_id else "STATEMENT_LINE",
+                    ),
+                    "INCOME_STATEMENT": (
+                        "INCOME_STATEMENT",
+                        "GL_ACCOUNT" if account_id else "STATEMENT_LINE",
+                    ),
                     "CASH_FLOW": ("CASH_FLOW", "CASH_FLOW_LINE"),
                     "CHANGES_IN_EQUITY": ("CHANGES_IN_EQUITY", "EQUITY_LINE"),
                 }[source_type]
                 section, field = registry[(section_code, fact_type)]
                 statement_line_id = (
-                    source_id if source_type in {"BALANCE_SHEET", "INCOME_STATEMENT"} else None
+                    parent_line_id
+                    if account_id
+                    else source_id
+                    if source_type in {"BALANCE_SHEET", "INCOME_STATEMENT"}
+                    else None
                 )
                 cash_flow_line_id = source_id if source_type == "CASH_FLOW" else None
                 equity_line_id = source_id if source_type == "CHANGES_IN_EQUITY" else None
@@ -501,6 +595,7 @@ class DisclosureService:
                         statement_line_id=statement_line_id,
                         cash_flow_line_id=cash_flow_line_id,
                         equity_line_id=equity_line_id,
+                        account_id=account_id,
                         source_code=source_code,
                         label=label,
                         decimal_value=amount,
@@ -613,9 +708,31 @@ class DisclosureService:
                         select(StatementSourceModel).where(
                             StatementSourceModel.company_id == company,
                             StatementSourceModel.statement_line_id == value.source_id,
+                            *(
+                                [StatementSourceModel.account_id == value.account_id]
+                                if value.account_id is not None
+                                else []
+                            ),
                         )
                     )
                 )
+                if value.account_id is not None:
+                    account = uow.session.scalar(
+                        select(AccountModel).where(
+                            AccountModel.company_id == company,
+                            AccountModel.id == value.account_id,
+                        )
+                    )
+                    if account is None:
+                        raise ResourceNotFound()
+                    result["account_id"] = account.id
+                    result["account_code"] = account.account_code
+                    result["account_name"] = account.account_name
+                    statement_line_code = value.source_code.split(".", 1)[0]
+                    result["source_path"] = (
+                        f"/financial-statements/sets/{instance.statement_set_id}/drilldown"
+                        f"?statement_type={value.source_type}&line_code={statement_line_code}"
+                    )
                 for row in source_rows:
                     journal_line_ids.add(row.journal_line_id)
                 # Journal identity is resolved from the company scoped line relation.

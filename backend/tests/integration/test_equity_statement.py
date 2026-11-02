@@ -437,6 +437,17 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert notes_instance["status"] == "DRAFT"
     assert notes_instance["reconciliation_status"] == "RECONCILED"
     assert len(notes_instance["values"]) > len(sections)
+    account_facts = [value for value in notes_instance["values"] if value.get("account_id")]
+    assert account_facts
+    account_fact = account_facts[0]
+    account_source = api_client.get(
+        f"/disclosures/instances/{notes_instance['id']}/values/{account_fact['id']}/source",
+        headers=writer,
+    )
+    assert account_source.status_code == 200, account_source.text
+    assert account_source.json()["account_id"] == account_fact["account_id"]
+    assert account_source.json()["journal_line_ids"]
+    assert account_source.json()["amount"] == account_fact["decimal_value"]
     replay = request(
         api_client,
         writer,
@@ -574,6 +585,9 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
             if report_format == "CSV"
             else True
         )
+        if report_format == "CSV":
+            assert "statement_line_id" in download.content.decode("utf-8")
+            assert "account_id" in download.content.decode("utf-8")
 
     april = next(p for p in periods if p["period_no"] == 4)
     invalid_declaration = post_journal(

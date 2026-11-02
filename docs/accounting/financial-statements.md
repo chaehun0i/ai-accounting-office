@@ -54,7 +54,7 @@ BS/IS 각 항목의 **계정·전표 보기**는 원장 출처 조회이며, **A
 
 `GET /disclosures/readiness?period_id=…`는 CLOSED 마감 버전의 BS/IS와 대사 완료 CF/SCE Snapshot을 확인합니다. 제표 digest, CF/SCE source digest, 현재 마감·원천 상태를 재검증하고 BS 등식, IS 순이익과 CF 순이익, SCE 기말 자본과 BS 자본을 Decimal로 교차 확인합니다. 필수 원천이 없거나 stale·차이가 있으면 `BLOCKED`와 오류 코드를 반환합니다. 필수 숫자를 0 또는 추정치로 채우지 않습니다.
 
-`POST /disclosures/instances/generate`는 네 Snapshot 식별자와 digest, template version을 고정하고 제표 line, CF line, SCE component/movement를 관계형 Decimal Fact로 복사합니다. Fact는 회사 범위 FK로 원천 line을 참조합니다. 동일 기간·source digest 재요청은 기존 revision을 재사용하며 동일 idempotency key의 다른 payload는 거부합니다. Fact와 audit는 DB trigger로 수정·삭제할 수 없습니다. 이 범위는 현재 제표에서 검증 가능한 Fact입니다. Asset Register, Inventory Subledger, Tax computation 또는 policy 원천이 필요한 세부 주석은 제공하지 않습니다.
+`POST /disclosures/instances/generate`는 네 Snapshot 식별자와 digest, template version을 고정하고 제표 line, CF line, SCE component/movement를 관계형 Decimal Fact로 복사합니다. BS/IS Fact에는 별도로 제표 mapping에 실제 연결된 GL 계정별 합계도 생성하며, 원천 journal line을 따라가고 계정별 합계와 제표 leaf line의 차이가 있으면 생성을 차단합니다. 계정명으로 현금·채권·채무 등 공시 유형을 추정하지 않습니다. 동일 기간·source digest 재요청은 기존 revision을 재사용하며 동일 idempotency key의 다른 payload는 거부합니다. Fact와 audit는 DB trigger로 수정·삭제할 수 없습니다. Asset Register, Inventory Subledger, AR aging/대손충당, Tax computation 또는 accounting policy 원천이 필요한 세부 주석은 제공하지 않습니다.
 
 `PUT /disclosures/instances/{id}/narratives`는 네 필수 섹션의 사용자 설명 초안을 작성합니다. `POST …/request-review`는 필수 설명과 현재 source digest를 재검증합니다. 독립 Reviewer/Owner가 `POST …/approve` 또는 `/reject`에 expected version을 보내 상태를 전이합니다. 작성자는 자신의 revision을 승인할 수 없습니다. 승인 이후 instance, Fact, narrative 및 audit는 불변이며 원천이 바뀌면 새 revision을 생성합니다. 기존 승인본은 생성 당시 원천을 보존하지만 현재 원천과 달라지면 stale 표시를 하며 Export에서 제외합니다.
 

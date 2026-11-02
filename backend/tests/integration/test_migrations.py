@@ -19,7 +19,13 @@ def test_empty_database_migration_lifecycle(db_connection: Connection) -> None:
     assert set(inspect(db_connection).get_table_names(schema="public")) <= expected
     # 016은 회사 데이터가 아닌 고정 KR_INTERNAL taxonomy v1과 표시 항목을 seed합니다.
     # 나머지 업무 데이터는 여전히 비어 있어야 downgrade 검증을 시작할 수 있습니다.
-    reference_rows = {"report_taxonomies": 1, "report_lines": 18}
+    reference_rows = {
+        "report_taxonomies": 1,
+        "report_lines": 18,
+        "disclosure_templates": 1,
+        "disclosure_sections": 4,
+        "disclosure_fields": 6,
+    }
     for table in Base.metadata.sorted_tables:
         if inspect(db_connection).has_table(table.name):
             assert db_connection.scalar(

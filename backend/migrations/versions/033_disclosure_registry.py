@@ -106,7 +106,7 @@ def upgrade() -> None:
             name=op.f("ck_disclosure_fields_data_type"),
         ),
         sa.CheckConstraint(
-            "source_fact_type IN ('STATEMENT_LINE','CASH_FLOW_LINE','EQUITY_LINE')",
+            "source_fact_type IN ('STATEMENT_LINE','GL_ACCOUNT','CASH_FLOW_LINE','EQUITY_LINE')",
             name=op.f("ck_disclosure_fields_source_fact"),
         ),
     )
@@ -206,6 +206,7 @@ def upgrade() -> None:
         sa.Column("statement_line_id", UUID(as_uuid=True), nullable=True),
         sa.Column("cash_flow_line_id", UUID(as_uuid=True), nullable=True),
         sa.Column("equity_line_id", UUID(as_uuid=True), nullable=True),
+        sa.Column("account_id", UUID(as_uuid=True), nullable=True),
         sa.Column("source_code", sa.String(60), nullable=False),
         sa.Column("label", sa.String(160), nullable=False),
         sa.Column("text_value", sa.Text(), nullable=True),
@@ -246,6 +247,12 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
+            ["company_id", "account_id"],
+            ["chart_of_accounts.company_id", "chart_of_accounts.id"],
+            name=op.f("fk_disclosure_values_company_id_account_id_chart_of_accounts"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
             ["section_id", "field_id"],
             ["disclosure_fields.section_id", "disclosure_fields.id"],
             name=op.f("fk_disclosure_values_section_field"),
@@ -256,6 +263,7 @@ def upgrade() -> None:
             "instance_id",
             "source_type",
             "source_id",
+            "statement_line_id",
             name=op.f("uq_disclosure_values_instance_source"),
         ),
         sa.CheckConstraint(
@@ -263,7 +271,7 @@ def upgrade() -> None:
             name=op.f("ck_disclosure_values_source_type"),
         ),
         sa.CheckConstraint(
-            "(source_type IN ('BALANCE_SHEET','INCOME_STATEMENT') AND statement_line_id = source_id AND cash_flow_line_id IS NULL AND equity_line_id IS NULL) OR (source_type = 'CASH_FLOW' AND statement_line_id IS NULL AND cash_flow_line_id = source_id AND equity_line_id IS NULL) OR (source_type = 'CHANGES_IN_EQUITY' AND statement_line_id IS NULL AND cash_flow_line_id IS NULL AND equity_line_id = source_id)",
+            "(source_type IN ('BALANCE_SHEET','INCOME_STATEMENT') AND statement_line_id = source_id AND account_id IS NULL AND cash_flow_line_id IS NULL AND equity_line_id IS NULL) OR (source_type IN ('BALANCE_SHEET','INCOME_STATEMENT') AND statement_line_id IS NOT NULL AND account_id = source_id AND cash_flow_line_id IS NULL AND equity_line_id IS NULL) OR (source_type = 'CASH_FLOW' AND statement_line_id IS NULL AND account_id IS NULL AND cash_flow_line_id = source_id AND equity_line_id IS NULL) OR (source_type = 'CHANGES_IN_EQUITY' AND statement_line_id IS NULL AND account_id IS NULL AND cash_flow_line_id IS NULL AND equity_line_id = source_id)",
             name=op.f("ck_disclosure_values_source_reference"),
         ),
         sa.CheckConstraint(
@@ -464,7 +472,7 @@ FOR EACH ROW EXECUTE FUNCTION disclosure_narrative_guard();
 """)
     template_id = uuid4()
     section_ids = [uuid4() for _ in range(4)]
-    field_ids = [uuid4() for _ in range(4)]
+    field_ids = [uuid4() for _ in range(6)]
     op.execute(
         sa.text("""INSERT INTO disclosure_templates
         (id,framework_code,template_code,title,version,status,effective_from,effective_to)
@@ -486,6 +494,14 @@ FOR EACH ROW EXECUTE FUNCTION disclosure_narrative_guard();
                 id=section_ids[index], template=template_id, code=code, title=title, order=index + 1
             )
         )
+        if code in {"BALANCE_SHEET", "INCOME_STATEMENT"}:
+            op.execute(
+                sa.text("""INSERT INTO disclosure_fields
+                (id,template_id,section_id,field_code,label,data_type,required,source_fact_type,aggregation_handler_key)
+                VALUES (:id,:template,:section,'GL_ACCOUNT_BALANCE','매핑된 원장 계정 잔액','DECIMAL',TRUE,'GL_ACCOUNT','SUM_STATEMENT_SOURCES')""").bindparams(
+                    id=field_ids[index + 4], template=template_id, section=section_ids[index],
+                )
+            )
         op.execute(
             sa.text("""INSERT INTO disclosure_fields
             (id,template_id,section_id,field_code,label,data_type,required,source_fact_type,aggregation_handler_key)

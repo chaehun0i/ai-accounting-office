@@ -11,7 +11,7 @@ type Section = { id: string; section_code: string; title: string; display_order:
 type Template = { id: string; title: string; version: number; sections: Section[] };
 type Value = {
   id: string; section_id: string; source_type: string; source_code: string;
-  source_id: string; label: string; decimal_value: string;
+  source_id: string; account_id: string | null; label: string; decimal_value: string;
 };
 type Narrative = { section_id: string; text_value: string; status: string };
 type Instance = {
@@ -37,6 +37,7 @@ const labels: Record<string, string> = {
   EQUITY_SOURCE_STALE: "자본변동표 원천이 현재 재무제표와 다릅니다.",
   DISCLOSURE_TEMPLATE_REQUIRED: "기간에 유효한 주석 템플릿과 필수 항목 연결이 필요합니다.",
   DISCLOSURE_RECONCILIATION_MISMATCH: "제표 간 금액 대사가 맞지 않아 주석 생성을 차단했습니다.",
+  DISCLOSURE_GL_SOURCE_MISMATCH: "재무제표 계정별 원장 출처 합계가 제표 항목과 일치하지 않습니다.",
   REPORT_SOURCE_STALE: "현재 마감 또는 보고서 원천이 변경되어 다시 확인해야 합니다.",
   EQUITY_ROLLFORWARD_MISMATCH: "자본변동과 재무상태표 자본 합계가 일치하지 않습니다.",
   PROFIT_TRANSFER_IS_MISMATCH: "손익 대체 전표와 손익계산서 순이익 표시를 먼저 확인해 주세요.",
@@ -167,7 +168,7 @@ export function DisclosureWorkspace({ company, period }: { company: Company; per
         return <section className="disclosure-section" key={section.id}>
           <h3>{section.title}</h3>
           {sectionValues.length === 0 ? <p>이 원천에는 표시할 검증 Fact가 없습니다.</p> : <div className="table-scroll"><table><thead><tr><th>항목</th><th>금액</th><th>원천</th></tr></thead><tbody>
-            {sectionValues.map(value => <tr key={value.id}><th scope="row">{value.label}<small>{value.source_code}</small></th><td>{formatMoney(value.decimal_value)}</td><td><button onClick={() => void inspect(value)}>원천 보기</button></td></tr>)}
+            {sectionValues.map(value => <tr key={value.id}><th scope="row">{value.label}<small>{value.account_id ? `GL 계정 · ${value.source_code}` : value.source_code}</small></th><td>{formatMoney(value.decimal_value)}</td><td><button onClick={() => void inspect(value)}>원천 보기</button></td></tr>)}
           </tbody></table></div>}
           <form onSubmit={event => void saveNarrative(event, section)}>
             <label>{section.title} 설명 초안<textarea value={drafts[section.id] ?? narrative?.text_value ?? ""} disabled={!canEdit || instance.status === "REVIEW_REQUESTED" || instance.status === "APPROVED" || instance.source_stale} onChange={event => setDrafts(current => ({ ...current, [section.id]: event.target.value }))} maxLength={4000} /></label>

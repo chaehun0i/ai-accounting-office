@@ -74,7 +74,7 @@ class DisclosureFieldModel(UUIDPrimaryKey, Base):
         ),
         CheckConstraint("data_type IN ('TEXT','DECIMAL','DATE','BOOLEAN')", name="data_type"),
         CheckConstraint(
-            "source_fact_type IN ('STATEMENT_LINE','CASH_FLOW_LINE','EQUITY_LINE')",
+            "source_fact_type IN ('STATEMENT_LINE','GL_ACCOUNT','CASH_FLOW_LINE','EQUITY_LINE')",
             name="source_fact",
         ),
     )
@@ -148,6 +148,7 @@ class DisclosureValueModel(UUIDPrimaryKey, Base):
     statement_line_id: Mapped[UUID | None]
     cash_flow_line_id: Mapped[UUID | None]
     equity_line_id: Mapped[UUID | None]
+    account_id: Mapped[UUID | None]
     source_code: Mapped[str] = mapped_column(String(60))
     label: Mapped[str] = mapped_column(String(160))
     text_value: Mapped[str | None] = mapped_column(Text)
@@ -161,6 +162,7 @@ class DisclosureValueModel(UUIDPrimaryKey, Base):
             "instance_id",
             "source_type",
             "source_id",
+            "statement_line_id",
             name="uq_disclosure_values_instance_source",
         ),
         Index("ix_disclosure_values_company_instance", "company_id", "instance_id"),
@@ -185,6 +187,11 @@ class DisclosureValueModel(UUIDPrimaryKey, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
+            ["company_id", "account_id"],
+            ["chart_of_accounts.company_id", "chart_of_accounts.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["section_id", "field_id"],
             ["disclosure_fields.section_id", "disclosure_fields.id"],
             ondelete="RESTRICT",
@@ -195,13 +202,16 @@ class DisclosureValueModel(UUIDPrimaryKey, Base):
         ),
         CheckConstraint(
             "(source_type IN ('BALANCE_SHEET','INCOME_STATEMENT') "
-            "AND statement_line_id = source_id "
+            "AND statement_line_id = source_id AND account_id IS NULL "
+            "AND cash_flow_line_id IS NULL AND equity_line_id IS NULL) OR "
+            "(source_type IN ('BALANCE_SHEET','INCOME_STATEMENT') "
+            "AND statement_line_id IS NOT NULL AND account_id = source_id "
             "AND cash_flow_line_id IS NULL AND equity_line_id IS NULL) OR "
             "(source_type = 'CASH_FLOW' AND statement_line_id IS NULL "
-            "AND cash_flow_line_id = source_id "
+            "AND account_id IS NULL AND cash_flow_line_id = source_id "
             "AND equity_line_id IS NULL) OR "
             "(source_type = 'CHANGES_IN_EQUITY' AND statement_line_id IS NULL "
-            "AND cash_flow_line_id IS NULL AND equity_line_id = source_id)",
+            "AND account_id IS NULL AND cash_flow_line_id IS NULL AND equity_line_id = source_id)",
             name="source_reference",
         ),
         CheckConstraint("validation_status = 'VALIDATED'", name="validation_status"),

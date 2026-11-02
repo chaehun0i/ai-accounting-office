@@ -544,7 +544,16 @@ class ReportCenterService:
                 for row in narratives
             ):
                 raise StateConflict()
-            columns = ("section", "source_type", "source_code", "label", "amount", "source_id")
+            columns = (
+                "section",
+                "source_type",
+                "source_code",
+                "label",
+                "amount",
+                "source_id",
+                "statement_line_id",
+                "account_id",
+            )
             value_rows: list[tuple[str, ...]] = []
             for value in note_values:
                 if value.decimal_value is None:
@@ -557,6 +566,8 @@ class ReportCenterService:
                         value.label,
                         format(value.decimal_value, "f"),
                         str(value.source_id),
+                        str(value.statement_line_id) if value.statement_line_id else "",
+                        str(value.account_id) if value.account_id else "",
                     )
                 )
             rows = tuple(value_rows)
