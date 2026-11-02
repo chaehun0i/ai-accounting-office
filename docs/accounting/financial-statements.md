@@ -58,7 +58,7 @@ BS/IS 각 항목의 **계정·전표 보기**는 원장 출처 조회이며, **A
 
 `PUT /disclosures/instances/{id}/narratives`는 네 필수 섹션의 사용자 설명 초안을 작성합니다. `POST …/request-review`는 필수 설명과 현재 source digest를 재검증합니다. 독립 Reviewer/Owner가 `POST …/approve` 또는 `/reject`에 expected version을 보내 상태를 전이합니다. 작성자는 자신의 revision을 승인할 수 없습니다. 승인 이후 instance, Fact, narrative 및 audit는 불변이며 원천이 바뀌면 새 revision을 생성합니다. 기존 승인본은 생성 당시 원천을 보존하지만 현재 원천과 달라지면 stale 표시를 하며 Export에서 제외합니다.
 
-각 Fact의 `/disclosures/instances/{id}/values/{value_id}/source` 응답은 제표 drill-down 경로와 POSTED Journal·Evidence 식별자를 제공합니다. `/financial-statements`의 Notes 영역은 원천 준비, 차단 사유, Fact, 설명 초안, 독립 승인과 원천 상세를 표시합니다. AI는 금액·정책·근거를 생성하지 않으며 현재 경로는 결정론적 Fact와 사용자 작성 설명을 사용합니다.
+각 Fact의 `/disclosures/instances/{id}/values/{value_id}/source` 응답은 제표 drill-down 경로와 POSTED Journal·Evidence 식별자를 제공합니다. 계정별 Fact는 고정된 `statement_line_id`와 계정 ID로 GL source row를 조회해 원천 전표까지 연결합니다. `/financial-statements`의 Notes 영역은 원천 준비, 차단 사유, Fact, 설명 초안, 독립 승인과 원천 상세를 표시합니다. AI는 금액·정책·근거를 생성하지 않으며 현재 경로는 결정론적 Fact와 사용자 작성 설명을 사용합니다.
 
 Report Center `NOTES`는 현재 원천 digest와 일치하는 독립 승인 revision에서만 PDF/XLSX/CSV Run을 생성합니다. 기존 Artifact/History/Download 및 SHA-256 검증을 재사용하고 파일에 revision·template/source digest·`INTERNAL_VALIDATION_ONLY`를 표시합니다. 승인된 Notes는 내부 검토본이며 법정 승인·감사 완료·외부 제출 적합성을 뜻하지 않습니다.
 
