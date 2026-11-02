@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
+import { isCurrentDisclosureRequest, type DisclosureRequestScope } from "./disclosure-model";
 import { formatMoney, type Period } from "./model";
 
 type Section = { id: string; section_code: string; title: string; display_order: number };
@@ -57,15 +58,22 @@ export function DisclosureWorkspace({ company, period }: { company: Company; per
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const request = useRef<{ companyId: string; periodId: string; key: string } | null>(null);
+  const scopeGeneration = useRef(0);
+  const requestScope = useRef<DisclosureRequestScope>({
+    companyId: company.id, periodId: period.id, generation: 0,
+  });
   const scope = { "X-Company-ID": company.id };
   const canEdit = company.permissions.includes("disclosure.edit");
   const canApprove = company.permissions.includes("disclosure.approve");
 
   useEffect(() => {
     let active = true;
+    const generation = scopeGeneration.current + 1;
+    scopeGeneration.current = generation;
+    requestScope.current = { companyId: company.id, periodId: period.id, generation };
     request.current = null;
     setLoading(true); setError(""); setInstance(null); setSource(null); setInstances([]);
-    setReadiness(null); setDrafts({});
+    setReadiness(null); setDrafts({}); setBusy(false); setNotice("");
     Promise.all([
       authenticatedRequest<Template[]>("/disclosures/templates", { headers: scope }),
       authenticatedRequest<Readiness>(`/disclosures/readiness?period_id=${encodeURIComponent(period.id)}`, { headers: scope }),
@@ -81,17 +89,19 @@ export function DisclosureWorkspace({ company, period }: { company: Company; per
     return () => { active = false; };
   }, [company.id, company.permissions, period.id, period.close_version]);
 
-  async function refreshInstance(id: string) {
+  async function refreshInstance(id: string, expectedScope = requestScope.current) {
     const [value, rows] = await Promise.all([
       authenticatedRequest<Instance>(`/disclosures/instances/${id}`, { headers: scope }),
       authenticatedRequest<Instance[]>(`/disclosures/instances?period_id=${encodeURIComponent(period.id)}`, { headers: scope }),
     ]);
+    if (!isCurrentDisclosureRequest(expectedScope, requestScope.current)) return;
     setInstance(value); setInstances(rows);
     setDrafts(Object.fromEntries(value.narratives.map(row => [row.section_id, row.text_value])));
   }
 
   async function generate() {
     if (!readiness?.source_digest || !canEdit) return;
+    const expectedScope = requestScope.current;
     if (
       !request.current ||
       request.current.companyId !== company.id ||
@@ -105,46 +115,53 @@ export function DisclosureWorkspace({ company, period }: { company: Company; per
         method: "POST", headers: { ...scope, "Idempotency-Key": request.current.key },
         body: JSON.stringify({ period_id: period.id }),
       });
+      if (!isCurrentDisclosureRequest(expectedScope, requestScope.current)) return;
       request.current = null;
-      if ("id" in value) { await refreshInstance(value.id); setNotice("현재 BS/IS/CF/SCE 원천에서 주석 Fact를 고정했습니다."); }
+      if ("id" in value) { await refreshInstance(value.id, expectedScope); setNotice("현재 BS/IS/CF/SCE 원천에서 주석 Fact를 고정했습니다."); }
       else setNotice("필수 원천이 없어 주석 생성을 차단했습니다.");
-    } catch (reason) { setError(failure(reason)); }
-    finally { setBusy(false); }
+    } catch (reason) { if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setError(failure(reason)); }
+    finally { if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setBusy(false); }
   }
 
   async function saveNarrative(event: FormEvent<HTMLFormElement>, section: Section) {
     event.preventDefault();
     if (!instance) return;
+    const expectedScope = requestScope.current;
     setBusy(true); setError("");
     try {
       const value = await authenticatedRequest<{ instance_version: number }>(`/disclosures/instances/${instance.id}/narratives`, {
         method: "PUT", headers: scope,
         body: JSON.stringify({ section_id: section.id, text_value: drafts[section.id] ?? "", expected_version: instance.version }),
       });
-      await refreshInstance(instance.id); setNotice(`“${section.title}” 설명 초안을 저장했습니다. 버전 ${value.instance_version}`);
-    } catch (reason) { setError(failure(reason)); }
-    finally { setBusy(false); }
+      if (!isCurrentDisclosureRequest(expectedScope, requestScope.current)) return;
+      await refreshInstance(instance.id, expectedScope); setNotice(`“${section.title}” 설명 초안을 저장했습니다. 버전 ${value.instance_version}`);
+    } catch (reason) { if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setError(failure(reason)); }
+    finally { if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setBusy(false); }
   }
 
   async function transition(path: "request-review" | "approve" | "reject") {
     if (!instance) return;
+    const expectedScope = requestScope.current;
     setBusy(true); setError("");
     try {
       await authenticatedRequest(`/disclosures/instances/${instance.id}/${path}`, {
         method: "POST", headers: scope,
         body: JSON.stringify({ expected_version: instance.version, ...(path === "reject" ? { reason: rejectReason } : {}) }),
       });
-      await refreshInstance(instance.id); setNotice(path === "approve" ? "독립 검토자가 내부 검증용 주석 revision을 승인했습니다." : path === "reject" ? "검토 의견을 기록했습니다." : "독립 검토를 요청했습니다.");
-    } catch (reason) { setError(failure(reason)); }
-    finally { setBusy(false); }
+      if (!isCurrentDisclosureRequest(expectedScope, requestScope.current)) return;
+      await refreshInstance(instance.id, expectedScope); setNotice(path === "approve" ? "독립 검토자가 내부 검증용 주석 revision을 승인했습니다." : path === "reject" ? "검토 의견을 기록했습니다." : "독립 검토를 요청했습니다.");
+    } catch (reason) { if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setError(failure(reason)); }
+    finally { if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setBusy(false); }
   }
 
   async function inspect(value: Value) {
     if (!instance) return;
+    const expectedScope = requestScope.current;
     setError(""); setSource(null);
     try {
-      setSource(await authenticatedRequest<Source>(`/disclosures/instances/${instance.id}/values/${value.id}/source`, { headers: scope }));
-    } catch (reason) { setError(failure(reason)); }
+      const result = await authenticatedRequest<Source>(`/disclosures/instances/${instance.id}/values/${value.id}/source`, { headers: scope });
+      if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setSource(result);
+    } catch (reason) { if (isCurrentDisclosureRequest(expectedScope, requestScope.current)) setError(failure(reason)); }
   }
 
   if (loading) return <section className="panel"><p role="status">재무제표 주석 원천을 확인하고 있습니다…</p></section>;
