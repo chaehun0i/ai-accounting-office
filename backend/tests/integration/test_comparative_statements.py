@@ -46,7 +46,11 @@ def _post_income(client, owner, writer, period_id, date, amount):
     )
 
 
-def test_closed_comparison_reclass_approval_and_report_export(api_client, auth_service):
+def test_closed_comparison_reclass_approval_and_report_export(
+    api_client, auth_service, monkeypatch
+):
+    # 이 정상 경로에서 예기치 않은 예외를 INTERNAL_ERROR 응답으로 감추지 않고 CI에 표시합니다.
+    monkeypatch.delitem(api_client.app.exception_handlers, Exception, raising=False)
     owner, writer, _, connection = prepare(api_client, auth_service)
     review = reviewer(api_client, owner, connection)
     periods = api_client.get("/closing/periods", headers=writer).json()
@@ -70,7 +74,8 @@ def test_closed_comparison_reclass_approval_and_report_export(api_client, auth_s
     readiness = api_client.get(
         "/financial-statements/comparatives/readiness", headers=writer, params=query
     )
-    assert readiness.status_code == 200 and readiness.json()["status"] == "READY"
+    assert readiness.status_code == 200, readiness.text
+    assert readiness.json()["status"] == "READY"
     blocked = api_client.get(
         "/financial-statements/comparatives/readiness",
         headers=writer,
