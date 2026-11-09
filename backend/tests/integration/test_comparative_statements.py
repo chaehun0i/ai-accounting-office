@@ -52,7 +52,7 @@ def test_closed_comparison_reclass_approval_and_report_export(
     from app.main import RequestIdMiddleware
 
     async def propagate_exception(self, scope, receive, send):
-        scope.setdefault("state", {})["request_id"] = "comparative-test"
+        scope.setdefault("state", {})["request_id"] = str(uuid4())
         await self.app(scope, receive, send)
 
     monkeypatch.setattr(RequestIdMiddleware, "__call__", propagate_exception)
