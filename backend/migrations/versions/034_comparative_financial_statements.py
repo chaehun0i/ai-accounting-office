@@ -6,6 +6,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
 
+from app.core.database.types import MoneyNumeric
+
 revision: str = "034_statement_comparatives"
 down_revision: str | Sequence[str] | None = "033_disclosure_registry"
 branch_labels: str | Sequence[str] | None = None
@@ -110,8 +112,8 @@ def upgrade() -> None:
         ["company_id", "id"],
         ondelete="RESTRICT",
     )
-    op.add_column("financial_statement_lines", sa.Column("prior_amount", sa.Numeric(28, 4)))
-    op.add_column("financial_statement_lines", sa.Column("presentation_amount", sa.Numeric(28, 4)))
+    op.add_column("financial_statement_lines", sa.Column("prior_amount", MoneyNumeric()))
+    op.add_column("financial_statement_lines", sa.Column("presentation_amount", MoneyNumeric()))
     op.add_column(
         "financial_statement_lines", sa.Column("current_source_line_id", UUID(as_uuid=True))
     )
@@ -163,6 +165,12 @@ def upgrade() -> None:
             ["comparative_statement_snapshots.company_id", "comparative_statement_snapshots.id"],
             ondelete="RESTRICT",
         ),
+        sa.ForeignKeyConstraint(
+            ["company_id"],
+            ["companies.id"],
+            name=op.f("fk_comparative_reclassifications_company_id_companies"),
+            ondelete="RESTRICT",
+        ),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="RESTRICT"),
         sa.CheckConstraint(
             "statement_type IN ('BALANCE_SHEET','INCOME_STATEMENT')",
@@ -198,6 +206,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["company_id", "comparative_statement_id"],
             ["comparative_statement_snapshots.company_id", "comparative_statement_snapshots.id"],
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id"],
+            ["companies.id"],
+            name=op.f("fk_comparative_statement_audit_events_company_id_companies"),
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(["actor_id"], ["users.id"], ondelete="RESTRICT"),

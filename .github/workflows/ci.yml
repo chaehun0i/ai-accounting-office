@@ -117,6 +117,7 @@ jobs:
           tests/integration/test_agent_reporting_tools.py
           tests/integration/test_equity_statement.py
           tests/integration/test_disclosures.py
+          tests/integration/test_comparative_statements.py
           tests/integration/test_report_center.py
           tests/integration/test_migrations.py
           --require-postgres
