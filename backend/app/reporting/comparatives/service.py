@@ -127,7 +127,7 @@ class ComparativeStatementsService:
         source = digest(
             {
                 "current": [
-                    current_set.id,
+                    str(current_set.id),
                     current_set.close_version,
                     current_tb,
                     current_set.mapping_digest,
@@ -136,7 +136,7 @@ class ComparativeStatementsService:
                     current_is.snapshot_digest,
                 ],
                 "prior": [
-                    prior_set.id,
+                    str(prior_set.id),
                     prior_set.close_version,
                     prior_tb,
                     prior_set.mapping_digest,
