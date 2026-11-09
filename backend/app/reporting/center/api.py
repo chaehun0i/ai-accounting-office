@@ -38,6 +38,7 @@ class ReportCatalogRead(BaseModel):
         "CASH_FLOW",
         "CHANGES_IN_EQUITY",
         "NOTES",
+        "COMPARATIVE_FINANCIAL_STATEMENTS",
     ]
     label: str
     period_mode: Literal["AS_OF", "RANGE"]
@@ -55,9 +56,11 @@ class ReportRequest(BaseModel):
         "CASH_FLOW",
         "CHANGES_IN_EQUITY",
         "NOTES",
+        "COMPARATIVE_FINANCIAL_STATEMENTS",
     ]
     format: Literal["PDF", "XLSX", "CSV"]
     period_id: UUID
+    comparison_period_id: UUID | None = None
     period_preset: Preset
     date_from: date | None = None
     date_to: date | None = None
@@ -78,6 +81,8 @@ class ReportRunRead(BaseModel):
     as_of: date | None
     period_id: UUID
     statement_set_id: UUID
+    comparison_period_id: UUID | None
+    comparative_statement_id: UUID | None
     close_version: int
     taxonomy_version: int
     trial_balance_digest: str

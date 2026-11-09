@@ -68,6 +68,7 @@ def test_report_catalog_and_run_are_company_scoped(api_client, auth_service):
         "CASH_FLOW",
         "CHANGES_IN_EQUITY",
         "NOTES",
+        "COMPARATIVE_FINANCIAL_STATEMENTS",
     }
     assert all(row["can_generate"] for row in catalog.json())
     generated = api_client.post(
