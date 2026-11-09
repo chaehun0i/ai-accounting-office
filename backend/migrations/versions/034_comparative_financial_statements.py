@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "034_comparative_financial_statements"
+revision: str = "034_statement_comparatives"
 down_revision: str | Sequence[str] | None = "033_disclosure_registry"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
