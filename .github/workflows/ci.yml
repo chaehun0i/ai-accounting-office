@@ -4,6 +4,17 @@ on:
     branches: [main, feat/repository-skeleton, feat/database-foundation, feat/identity-company, feat/accounting-master, feat/storage-evidence-intake, feat/onboarding-data-exchange, feat/transaction-journal-ledger, feat/finance-subledger-settlement, feat/p0-agent-runtime-foundation, feat/accounting-dimensions, feat/import-transaction-promotion, feat/bank-card-reconciliation]
   pull_request:
   workflow_dispatch:
+    inputs:
+      full_postgresql:
+        description: Run the full PostgreSQL integration suite
+        type: boolean
+        required: false
+        default: false
+      full_infrastructure:
+        description: Run the full local-stack infrastructure check
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -24,10 +35,12 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          FULL_POSTGRESQL: ${{ inputs.full_postgresql }}
+          FULL_INFRASTRUCTURE: ${{ inputs.full_infrastructure }}
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            echo "full_postgresql=true" >> "$GITHUB_OUTPUT"
-            echo "full_infrastructure=true" >> "$GITHUB_OUTPUT"
+            echo "full_postgresql=${FULL_POSTGRESQL:-false}" >> "$GITHUB_OUTPUT"
+            echo "full_infrastructure=${FULL_INFRASTRUCTURE:-false}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
