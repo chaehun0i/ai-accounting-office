@@ -51,6 +51,7 @@ def test_closed_comparison_reclass_approval_and_report_export(
 ):
     # 이 정상 경로에서 예기치 않은 예외를 INTERNAL_ERROR 응답으로 감추지 않고 CI에 표시합니다.
     monkeypatch.delitem(api_client.app.exception_handlers, Exception, raising=False)
+    api_client.app.middleware_stack = api_client.app.build_middleware_stack()
     owner, writer, _, connection = prepare(api_client, auth_service)
     review = reviewer(api_client, owner, connection)
     periods = api_client.get("/closing/periods", headers=writer).json()
