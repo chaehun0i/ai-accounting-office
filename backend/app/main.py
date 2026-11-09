@@ -68,11 +68,11 @@ class RequestIdMiddleware:
 
         try:
             await self.app(scope, receive, send_with_id)
-        except Exception as exc:
+        except Exception:
             # ASGI 서버가 민감정보를 포함할 수 있는 예외 원문을 로그에 남기지 않도록 합니다.
             if response_started:
                 raise RuntimeError("응답 전송이 중단되었습니다.") from None
-            response = internal_error_response(Request(scope), exception_type=type(exc).__name__)
+            response = internal_error_response(Request(scope))
             await response(scope, receive, send_with_id)
 
 

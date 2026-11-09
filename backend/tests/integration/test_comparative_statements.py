@@ -46,16 +46,7 @@ def _post_income(client, owner, writer, period_id, date, amount):
     )
 
 
-def test_closed_comparison_reclass_approval_and_report_export(
-    api_client, auth_service, monkeypatch
-):
-    from app.main import RequestIdMiddleware
-
-    async def propagate_exception(self, scope, receive, send):
-        scope.setdefault("state", {})["request_id"] = str(uuid4())
-        await self.app(scope, receive, send)
-
-    monkeypatch.setattr(RequestIdMiddleware, "__call__", propagate_exception)
+def test_closed_comparison_reclass_approval_and_report_export(api_client, auth_service):
     owner, writer, _, connection = prepare(api_client, auth_service)
     review = reviewer(api_client, owner, connection)
     periods = api_client.get("/closing/periods", headers=writer).json()
