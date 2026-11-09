@@ -165,6 +165,7 @@ class StatementRepository:
             select(StatementSnapshotModel).where(
                 StatementSnapshotModel.company_id == company,
                 StatementSnapshotModel.statement_id == row.id,
+                StatementSnapshotModel.comparative_statement_id.is_(None),
             )
         )
         assert snapshot is not None
@@ -236,12 +237,19 @@ class StatementRepository:
             for source, account, journal_line, journal in self.session.execute(query)
         )
 
-    def replay(self, company: UUID, actor: UUID, key: str, fingerprint: str) -> UUID | None:
+    def replay(
+        self,
+        company: UUID,
+        actor: UUID,
+        key: str,
+        fingerprint: str,
+        command_code: str = "financial_statement.generate",
+    ) -> UUID | None:
         row = self.session.scalar(
             select(StatementCommandModel).where(
                 StatementCommandModel.company_id == company,
                 StatementCommandModel.actor_id == actor,
-                StatementCommandModel.command_code == "financial_statement.generate",
+                StatementCommandModel.command_code == command_code,
                 StatementCommandModel.idempotency_key == key,
             )
         )
@@ -257,13 +265,14 @@ class StatementRepository:
         fingerprint: str,
         statement_set: UUID,
         now: datetime,
+        command_code: str = "financial_statement.generate",
     ) -> None:
         self.session.add(
             StatementCommandModel(
                 id=uuid4(),
                 company_id=company,
                 actor_id=actor,
-                command_code="financial_statement.generate",
+                command_code=command_code,
                 idempotency_key=key,
                 fingerprint=fingerprint,
                 statement_set_id=statement_set,

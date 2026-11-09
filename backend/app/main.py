@@ -31,6 +31,7 @@ from app.intake.api.router import router as intake_router
 from app.onboarding.api.router import router as onboarding_router
 from app.reporting.cash_flow.api import router as cash_flow_router
 from app.reporting.center.api import router as report_center_router
+from app.reporting.comparatives.api import router as comparative_statements_router
 from app.reporting.disclosures.api import router as disclosure_router
 from app.reporting.equity.api import router as equity_router
 from app.reporting.financial_metrics.api import router as metric_router
@@ -126,6 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(banking_router)
     app.include_router(closing_router)
     app.include_router(statement_router)
+    app.include_router(comparative_statements_router)
     app.include_router(report_period_router)
     app.include_router(report_center_router)
     app.include_router(cash_flow_router)

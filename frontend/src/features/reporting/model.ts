@@ -29,7 +29,7 @@ export function formatMoney(value: string): string {
 }
 
 export type ReportDefinition = {
-  code: "BALANCE_SHEET" | "INCOME_STATEMENT" | "FINANCIAL_METRICS" | "CASH_FLOW" | "CHANGES_IN_EQUITY" | "NOTES";
+  code: "BALANCE_SHEET" | "INCOME_STATEMENT" | "FINANCIAL_METRICS" | "CASH_FLOW" | "CHANGES_IN_EQUITY" | "NOTES" | "COMPARATIVE_FINANCIAL_STATEMENTS";
   label: string;
   period_mode: "AS_OF" | "RANGE";
   formats: ("PDF" | "XLSX" | "CSV")[];
@@ -45,7 +45,7 @@ export type ReportRun = {
   id: string; company_id: string; report_code: string; format: string;
   period_preset: ReportPreset; period_mode: "AS_OF" | "RANGE";
   date_from: string | null; date_to: string | null; as_of: string | null;
-  period_id: string; statement_set_id: string; close_version: number;
+  period_id: string; statement_set_id: string; comparison_period_id: string | null; comparative_statement_id: string | null; close_version: number;
   taxonomy_version: number; source_digest: string; template_version: number;
   status: "REQUESTED" | "GENERATING" | "COMPLETED" | "FAILED";
   requested_by: string; requested_at: string; started_at: string | null;

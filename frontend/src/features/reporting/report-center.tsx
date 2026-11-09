@@ -38,6 +38,7 @@ export function ReportCenter({ company }: { company: Company }) {
   const [history, setHistory] = useState<ReportRun[]>([]);
   const [reportCode, setReportCode] = useState("");
   const [periodId, setPeriodId] = useState("");
+  const [comparisonPeriodId, setComparisonPeriodId] = useState("");
   const [preset, setPreset] = useState<ReportPreset>("CUSTOM");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -77,10 +78,13 @@ export function ReportCenter({ company }: { company: Company }) {
       const closed = available.filter(row => row.status === "CLOSED");
       setCatalog(reports); setPeriods(closed); setHistory(runs);
       setReportCode(reports[0]?.code ?? "");
-      setPeriodId(closed[0]?.id ?? "");
-      setDateFrom(closed[0]?.start_date ?? "");
-      setDateTo(closed[0]?.end_date ?? "");
-      setAsOf(closed[0]?.end_date ?? "");
+      const current = closed.at(-1);
+      const previous = closed.filter(row => row.end_date < (current?.end_date ?? "")).at(-1);
+      setPeriodId(current?.id ?? "");
+      setComparisonPeriodId(previous?.id ?? "");
+      setDateFrom(current?.start_date ?? "");
+      setDateTo(current?.end_date ?? "");
+      setAsOf(current?.end_date ?? "");
     }).catch(reason => { if (active) setError(failure(reason)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -112,6 +116,8 @@ export function ReportCenter({ company }: { company: Company }) {
   function selectPeriod(nextId: string) {
     const next = periods.find(row => row.id === nextId);
     setPeriodId(nextId); setPreset("CUSTOM"); setResolved(null);
+    const earlier = periods.filter(row => row.id !== nextId && row.end_date < (next?.end_date ?? ""));
+    setComparisonPeriodId(earlier.at(-1)?.id ?? "");
     setDateFrom(next?.start_date ?? ""); setDateTo(next?.end_date ?? ""); setAsOf(next?.end_date ?? "");
   }
 
@@ -119,6 +125,7 @@ export function ReportCenter({ company }: { company: Company }) {
     if (!definition || !selectedPeriod || !resolved || !periodMatches) return;
     const payload = {
       report_code: definition.code, format, period_id: selectedPeriod.id, period_preset: preset,
+      ...(definition.code === "COMPARATIVE_FINANCIAL_STATEMENTS" ? { comparison_period_id: comparisonPeriodId } : {}),
       ...(preset === "CUSTOM" ? definition.period_mode === "AS_OF"
         ? { as_of: asOf } : { date_from: dateFrom, date_to: dateTo } : {}),
     };
@@ -172,6 +179,7 @@ export function ReportCenter({ company }: { company: Company }) {
       {definition?.code === "CASH_FLOW" && <p>현금흐름표는 대사 완료된 스냅샷에서만 생성합니다. <Link href="/financial-statements">현금흐름표 원천·대사 확인</Link>을 먼저 마쳐 주세요. 내려받는 파일은 내부 검증용입니다.</p>}
       {definition?.code === "CHANGES_IN_EQUITY" && <p>자본변동표는 대사 완료된 스냅샷에서만 생성합니다. <Link href="/financial-statements">자본 구성요소·원천·대사 확인</Link>을 먼저 마쳐 주세요. 내려받는 파일은 내부 검증용이며 법정 승인이나 감사 완료를 뜻하지 않습니다.</p>}
       {definition?.code === "NOTES" && <p>주석 Export는 현재 원천과 일치하는 독립 승인 revision에서만 생성합니다. <Link href="/financial-statements">재무제표 주석 작성·검토·승인</Link>을 먼저 마쳐 주세요. 파일은 내부 검증용이며 법정 공시 적합성을 뜻하지 않습니다.</p>}
+      {definition?.code === "COMPARATIVE_FINANCIAL_STATEMENTS" && <p>비교 보고서는 독립 승인된 BS/IS 비교 Snapshot에서만 생성합니다. 재무제표 화면에서 비교 원천·재분류·승인을 먼저 확인하세요. 파일은 내부 검증용입니다.</p>}
       {catalog.length === 0 ? <p>현재 사용할 수 있는 보고서가 없습니다.</p> : <div className="report-center-form">
         <label>보고서 종류<select aria-label="보고서 종류" value={reportCode} onChange={event => { setReportCode(event.target.value); setResolved(null); }}>
           {catalog.map(row => <option key={row.code} value={row.code}>{row.label}</option>)}
@@ -180,6 +188,9 @@ export function ReportCenter({ company }: { company: Company }) {
           <label>마감된 회계기간<select aria-label="보고서 회계기간" value={periodId} onChange={event => selectPeriod(event.target.value)}>
             {periods.map(row => <option key={row.id} value={row.id}>{row.start_date} ~ {row.end_date} · 마감 v{row.close_version}</option>)}
           </select></label>
+          {definition?.code === "COMPARATIVE_FINANCIAL_STATEMENTS" && <label>비교 전기<select aria-label="비교 전기" value={comparisonPeriodId} onChange={event => { setComparisonPeriodId(event.target.value); requestKey.current = null; }}>
+            {periods.filter(row => row.id !== periodId && row.end_date < (selectedPeriod?.end_date ?? "")).map(row => <option key={row.id} value={row.id}>{row.start_date} ~ {row.end_date}</option>)}
+          </select></label>}
           <label>기간 선택<select aria-label="보고기간 프리셋" value={preset} onChange={event => { setPreset(event.target.value as ReportPreset); setResolved(null); }}>
             {presets.map(row => <option key={row.code} value={row.code}>{row.label}</option>)}
           </select></label>

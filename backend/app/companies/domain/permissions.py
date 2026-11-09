@@ -50,6 +50,7 @@ PERMISSION_GRANTS: dict[str, tuple[str, ...]] = {
     "trial_balance.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "financial_statement.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),
     "financial_statement.generate": ("OWNER", "ADMIN", "ACCOUNTANT"),
+    "financial_statement.approve": ("OWNER", "REVIEWER"),
     "disclosure.edit": ("OWNER", "ADMIN", "ACCOUNTANT"),
     "disclosure.approve": ("OWNER", "REVIEWER"),
     "report.read": ("OWNER", "ADMIN", "ACCOUNTANT", "REVIEWER", "VIEWER", "AUDITOR"),

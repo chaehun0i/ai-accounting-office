@@ -53,4 +53,7 @@ else:
     except SchemaPolicyError as error:
         raise CommandError(str(error)) from None
     except SQLAlchemyError as error:
-        raise CommandError(map_database_error(error).message) from None
+        original = getattr(error, "orig", None)
+        sqlstate = getattr(original, "sqlstate", None)
+        diagnostic = f" (database error: {type(original).__name__}, SQLSTATE {sqlstate})"
+        raise CommandError(f"{map_database_error(error).message}{diagnostic}") from None

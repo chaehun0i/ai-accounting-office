@@ -41,6 +41,8 @@ class ReportRun:
     error_code: str | None
     retry_of_run_id: UUID | None
     version: int
+    comparison_period_id: UUID | None = None
+    comparative_statement_id: UUID | None = None
 
 
 @dataclass(frozen=True)

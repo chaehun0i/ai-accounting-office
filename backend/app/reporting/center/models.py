@@ -31,6 +31,8 @@ class ReportRunModel(UUIDPrimaryKey, Base):
     as_of: Mapped[date | None]
     period_id: Mapped[UUID]
     statement_set_id: Mapped[UUID]
+    comparison_period_id: Mapped[UUID | None]
+    comparative_statement_id: Mapped[UUID | None]
     close_version: Mapped[int]
     taxonomy_version: Mapped[int]
     trial_balance_digest: Mapped[str] = mapped_column(String(64))
@@ -64,6 +66,18 @@ class ReportRunModel(UUIDPrimaryKey, Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
+            ["company_id", "comparison_period_id"],
+            ["accounting_periods.company_id", "accounting_periods.id"],
+            name="fk_report_generation_runs_comparison_period",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "comparative_statement_id"],
+            ["comparative_statement_snapshots.company_id", "comparative_statement_snapshots.id"],
+            name="fk_report_generation_runs_comparative_statement",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["company_id", "retry_of_run_id"],
             ["report_generation_runs.company_id", "report_generation_runs.id"],
             ondelete="RESTRICT",
@@ -71,10 +85,18 @@ class ReportRunModel(UUIDPrimaryKey, Base):
         Index("ix_report_generation_runs_company_requested", "company_id", "requested_at"),
         CheckConstraint(
             "report_code IN ('BALANCE_SHEET','INCOME_STATEMENT',"
-            "'FINANCIAL_METRICS','CASH_FLOW','CHANGES_IN_EQUITY','NOTES')",
+            "'FINANCIAL_METRICS','CASH_FLOW','CHANGES_IN_EQUITY','NOTES',"
+            "'COMPARATIVE_FINANCIAL_STATEMENTS')",
             name="report_code",
         ),
         CheckConstraint("format IN ('PDF','XLSX','CSV')", name="format"),
+        CheckConstraint(
+            "(report_code = 'COMPARATIVE_FINANCIAL_STATEMENTS' AND "
+            "comparison_period_id IS NOT NULL AND comparative_statement_id IS NOT NULL) OR "
+            "(report_code <> 'COMPARATIVE_FINANCIAL_STATEMENTS' AND "
+            "comparison_period_id IS NULL AND comparative_statement_id IS NULL)",
+            name="comparative_source",
+        ),
         CheckConstraint("period_mode IN ('AS_OF','RANGE')", name="period_mode"),
         CheckConstraint(
             "(period_mode = 'AS_OF' AND as_of IS NOT NULL AND date_from IS NULL "

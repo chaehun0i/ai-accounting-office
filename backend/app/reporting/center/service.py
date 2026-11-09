@@ -17,6 +17,8 @@ from app.reporting.cash_flow.service import CashFlowService
 from app.reporting.center.render import ReportDocument, render
 from app.reporting.center.repository import ReportArtifact, ReportRun
 from app.reporting.center.unit_of_work import ReportCenterUnitOfWork
+from app.reporting.comparatives.models import ComparativeStatementModel
+from app.reporting.comparatives.service import ComparativeStatementsService
 from app.reporting.disclosures.models import (
     DisclosureInstanceModel,
     DisclosureNarrativeModel,
@@ -31,6 +33,13 @@ from app.reporting.equity.models import (
 )
 from app.reporting.equity.service import MOVEMENTS, EquityService
 from app.reporting.financial_metrics.rules import FORMULAS, calculate
+from app.reporting.financial_statements.domain.rules import ReportSourceStale
+from app.reporting.financial_statements.infrastructure.models import (
+    ReportLineModel,
+    StatementLineModel,
+    StatementModel,
+    StatementSnapshotModel,
+)
 from app.reporting.periods.rules import Preset, resolve
 from app.storage.domain.contracts import ObjectStorage, StorageUnavailable
 
@@ -41,6 +50,7 @@ REPORTS = (
     ("CASH_FLOW", "현금흐름표", "RANGE"),
     ("CHANGES_IN_EQUITY", "자본변동표", "RANGE"),
     ("NOTES", "재무제표 주석", "RANGE"),
+    ("COMPARATIVE_FINANCIAL_STATEMENTS", "비교 재무제표", "RANGE"),
 )
 FORMATS = ("PDF", "XLSX", "CSV")
 
@@ -80,6 +90,7 @@ class ReportCenterService:
         date_from: date | None = None,
         date_to: date | None = None,
         as_of: date | None = None,
+        comparison_period_id: UUID | None = None,
     ) -> ReportRun:
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
             raise InvalidInput()
@@ -91,6 +102,7 @@ class ReportCenterService:
                 report_code,
                 format,
                 str(period_id),
+                str(comparison_period_id) if comparison_period_id else None,
                 period_preset,
                 date_from.isoformat() if date_from else None,
                 date_to.isoformat() if date_to else None,
@@ -125,6 +137,39 @@ class ReportCenterService:
                 if modes[report_code] == "AS_OF"
                 else (resolved.date_from, resolved.date_to) != (period.start_date, period.end_date)
             ):
+                raise InvalidInput()
+            comparative = None
+            if report_code == "COMPARATIVE_FINANCIAL_STATEMENTS":
+                if comparison_period_id is None:
+                    raise InvalidInput()
+                comparison_period = uow.periods.get(
+                    company_id=company, resource_id=comparison_period_id
+                )
+                if comparison_period is None or comparison_period.status != "CLOSED":
+                    raise StateConflict()
+                source_values = ComparativeStatementsService(self.factory)._sources(
+                    uow, company, period_id, comparison_period_id
+                )
+                comparative = uow.session.scalar(
+                    select(ComparativeStatementModel)
+                    .where(
+                        ComparativeStatementModel.company_id == company,
+                        ComparativeStatementModel.period_id == period_id,
+                        ComparativeStatementModel.comparison_period_id == comparison_period_id,
+                        ComparativeStatementModel.source_digest == source_values[-1],
+                        ComparativeStatementModel.status == "APPROVED",
+                    )
+                    .order_by(ComparativeStatementModel.revision.desc())
+                    .limit(1)
+                )
+                if (
+                    comparative is None
+                    or comparative.review_digest is None
+                    or comparative.review_digest
+                    != ComparativeStatementsService._review_digest(uow, company, comparative)
+                ):
+                    raise StateConflict()
+            elif comparison_period_id is not None:
                 raise InvalidInput()
             statement_set = next(
                 (
@@ -216,26 +261,30 @@ class ReportCenterService:
                 ):
                     raise StateConflict()
             formula_version = max(formula.version for formula in FORMULAS)
-            source_digest = (
-                cash.snapshot_digest
-                if cash is not None
-                else equity.snapshot_digest
-                if equity is not None
-                else notes.source_digest
-                if notes is not None
-                else digest(
-                    (
-                        str(statement_set.id),
-                        statement_set.close_version,
-                        statement_set.trial_balance_digest,
-                        statement_set.mapping_digest,
-                        statement_set.taxonomy_version,
-                        balance.snapshot_digest,
-                        income.snapshot_digest,
-                        formula_version if report_code == "FINANCIAL_METRICS" else None,
+            if comparative is not None:
+                assert comparative.review_digest is not None
+                source_digest = comparative.review_digest
+            else:
+                source_digest = (
+                    cash.snapshot_digest
+                    if cash is not None
+                    else equity.snapshot_digest
+                    if equity is not None
+                    else notes.source_digest
+                    if notes is not None
+                    else digest(
+                        (
+                            str(statement_set.id),
+                            statement_set.close_version,
+                            statement_set.trial_balance_digest,
+                            statement_set.mapping_digest,
+                            statement_set.taxonomy_version,
+                            balance.snapshot_digest,
+                            income.snapshot_digest,
+                            formula_version if report_code == "FINANCIAL_METRICS" else None,
+                        )
                     )
                 )
-            )
             now = uow.now()
             run = ReportRun(
                 id=uuid4(),
@@ -249,6 +298,8 @@ class ReportCenterService:
                 as_of=resolved.as_of,
                 period_id=period_id,
                 statement_set_id=statement_set.id,
+                comparison_period_id=comparison_period_id,
+                comparative_statement_id=comparative.id if comparative is not None else None,
                 close_version=statement_set.close_version,
                 taxonomy_version=statement_set.taxonomy_version,
                 trial_balance_digest=statement_set.trial_balance_digest,
@@ -333,7 +384,7 @@ class ReportCenterService:
                     content, content_type, extension = render(document, run.format)
                     file_name = f"{run.report_code.lower()}_{run.id.hex}.{extension}"
                     storage_key = self.storage.put(company, content)
-                except (ResourceNotFound, StateConflict):
+                except (ResourceNotFound, ReportSourceStale, StateConflict):
                     failure = "REPORT_SOURCE_STALE"
                     raise _GenerationFailed() from None
                 except StorageUnavailable:
@@ -413,7 +464,12 @@ class ReportCenterService:
             or income.snapshot_digest != run.income_statement_digest
         ):
             raise StateConflict()
-        if run.report_code not in {"CASH_FLOW", "CHANGES_IN_EQUITY", "NOTES"}:
+        if run.report_code not in {
+            "CASH_FLOW",
+            "CHANGES_IN_EQUITY",
+            "NOTES",
+            "COMPARATIVE_FINANCIAL_STATEMENTS",
+        }:
             formula_version = max(formula.version for formula in FORMULAS)
             source = digest(
                 (
@@ -438,6 +494,86 @@ class ReportCenterService:
             ("snapshot_version", str(run.close_version)),
             ("source_digest", run.source_digest),
         )
+        if run.report_code == "COMPARATIVE_FINANCIAL_STATEMENTS":
+            comparative = uow.session.scalar(
+                select(ComparativeStatementModel).where(
+                    ComparativeStatementModel.company_id == run.company_id,
+                    ComparativeStatementModel.id == run.comparative_statement_id,
+                    ComparativeStatementModel.status == "APPROVED",
+                )
+            )
+            if comparative is None or run.comparison_period_id != comparative.comparison_period_id:
+                raise StateConflict()
+            if comparative.review_digest is None:
+                raise StateConflict()
+            comparative_period = uow.periods.get(
+                company_id=run.company_id, resource_id=comparative.comparison_period_id
+            )
+            if comparative_period is None:
+                raise StateConflict()
+            current = ComparativeStatementsService(lambda: uow)._sources(
+                uow, run.company_id, comparative.period_id, comparative.comparison_period_id
+            )
+            if (
+                current[-1] != comparative.source_digest
+                or comparative.review_digest != run.source_digest
+                or ComparativeStatementsService._review_digest(uow, run.company_id, comparative)
+                != run.source_digest
+            ):
+                raise StateConflict()
+            snapshots = list(
+                uow.session.scalars(
+                    select(StatementSnapshotModel).where(
+                        StatementSnapshotModel.company_id == run.company_id,
+                        StatementSnapshotModel.comparative_statement_id == comparative.id,
+                    )
+                )
+            )
+            comparative_rows: list[tuple[str, ...]] = []
+            for snapshot in snapshots:
+                statement = uow.session.get(StatementModel, snapshot.statement_id)
+                assert statement is not None
+                line_records = uow.session.execute(
+                    select(StatementLineModel, ReportLineModel)
+                    .join(ReportLineModel, ReportLineModel.id == StatementLineModel.report_line_id)
+                    .where(
+                        StatementLineModel.company_id == run.company_id,
+                        StatementLineModel.snapshot_id == snapshot.id,
+                    )
+                    .order_by(ReportLineModel.display_order)
+                ).all()
+                comparative_rows.extend(
+                    (
+                        statement.statement_type,
+                        report.line_code,
+                        format(line.current_amount, "f"),
+                        format(line.prior_amount or 0, "f"),
+                        format(line.presentation_amount or 0, "f"),
+                        format(line.current_amount - (line.presentation_amount or 0), "f"),
+                    )
+                    for line, report in line_records
+                )
+            metadata += (
+                (
+                    "comparison_period",
+                    str(comparative_period.start_date) + "/" + str(comparative_period.end_date),
+                ),
+                ("approval_status", "APPROVED"),
+                ("validation_scope", "INTERNAL_VALIDATION_ONLY"),
+                ("comparative_snapshot_id", str(comparative.id)),
+            )
+            return ReportDocument(
+                metadata=metadata,
+                columns=(
+                    "statement",
+                    "line_code",
+                    "current",
+                    "prior_original",
+                    "prior_presented",
+                    "variance",
+                ),
+                rows=tuple(comparative_rows),
+            )
         columns: tuple[str, ...]
         rows: tuple[tuple[str, ...], ...]
         sections: tuple[tuple[str, tuple[str, ...], tuple[tuple[str, ...], ...]], ...] = ()
@@ -502,7 +638,7 @@ class ReportCenterService:
                 ("equity_validation", "INTERNAL_VALIDATION_ONLY"),
             )
         elif run.report_code == "NOTES":
-            current, issues = DisclosureService(lambda: uow)._sources(
+            notes_source_state, issues = DisclosureService(lambda: uow)._sources(
                 uow, run.company_id, run.period_id
             )
             note = uow.session.scalar(
@@ -515,9 +651,9 @@ class ReportCenterService:
                 )
             )
             if (
-                current is None
+                notes_source_state is None
                 or issues
-                or current["source_digest"] != run.source_digest
+                or notes_source_state["source_digest"] != run.source_digest
                 or note is None
             ):
                 raise StateConflict()
