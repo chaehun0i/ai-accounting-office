@@ -157,6 +157,7 @@ class StatementSnapshotModel(UUIDPrimaryKey, Base):
     __tablename__ = "financial_statement_snapshots"
     company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id", ondelete="RESTRICT"))
     statement_id: Mapped[UUID]
+    comparative_statement_id: Mapped[UUID | None]
     statement_version: Mapped[int]
     source_digest: Mapped[str] = mapped_column(String(64))
     mapping_digest: Mapped[str] = mapped_column(String(64))
@@ -169,6 +170,12 @@ class StatementSnapshotModel(UUIDPrimaryKey, Base):
             ["financial_statements.company_id", "financial_statements.id"],
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["company_id", "comparative_statement_id"],
+            ["comparative_statement_snapshots.company_id", "comparative_statement_snapshots.id"],
+            name="fk_financial_statement_snapshots_comparative_statement",
+            ondelete="RESTRICT",
+        ),
         CheckConstraint("statement_version >= 1", name="version"),
     )
 
@@ -179,6 +186,10 @@ class StatementLineModel(UUIDPrimaryKey, Base):
     snapshot_id: Mapped[UUID]
     report_line_id: Mapped[UUID] = mapped_column(ForeignKey("report_lines.id", ondelete="RESTRICT"))
     current_amount: Mapped[Decimal]
+    prior_amount: Mapped[Decimal | None]
+    presentation_amount: Mapped[Decimal | None]
+    current_source_line_id: Mapped[UUID | None]
+    prior_source_line_id: Mapped[UUID | None]
     source_digest: Mapped[str] = mapped_column(String(64))
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
@@ -187,6 +198,25 @@ class StatementLineModel(UUIDPrimaryKey, Base):
             ["company_id", "snapshot_id"],
             ["financial_statement_snapshots.company_id", "financial_statement_snapshots.id"],
             ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "current_source_line_id"],
+            ["financial_statement_lines.company_id", "financial_statement_lines.id"],
+            name="fk_financial_statement_lines_current_source_line",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["company_id", "prior_source_line_id"],
+            ["financial_statement_lines.company_id", "financial_statement_lines.id"],
+            name="fk_financial_statement_lines_prior_source_line",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "(prior_amount IS NULL AND presentation_amount IS NULL "
+            "AND current_source_line_id IS NULL AND prior_source_line_id IS NULL) OR "
+            "(prior_amount IS NOT NULL AND presentation_amount IS NOT NULL "
+            "AND current_source_line_id IS NOT NULL AND prior_source_line_id IS NOT NULL)",
+            name="comparative_amounts",
         ),
     )
 

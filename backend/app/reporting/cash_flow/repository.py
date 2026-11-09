@@ -273,6 +273,7 @@ class CashFlowRepository:
             .join(StatementModel, StatementModel.id == StatementSnapshotModel.statement_id)
             .where(
                 StatementSnapshotModel.company_id == company,
+                StatementSnapshotModel.comparative_statement_id.is_(None),
                 StatementModel.company_id == company,
                 StatementModel.statement_set_id == set_id,
             )
@@ -305,6 +306,7 @@ class CashFlowRepository:
             .where(
                 StatementLineModel.company_id == company,
                 StatementSnapshotModel.company_id == company,
+                StatementSnapshotModel.comparative_statement_id.is_(None),
                 StatementModel.company_id == company,
                 StatementModel.statement_set_id == set_id,
                 StatementLineModel.source_digest != source_digest,
