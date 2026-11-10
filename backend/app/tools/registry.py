@@ -46,7 +46,12 @@ class ToolRegistry:
     def register(self, definition: ToolDefinition) -> None:
         if definition.tool_code in self._tools or definition.tool_code in FORBIDDEN:
             raise ValueError("중복되거나 금지된 도구입니다.")
-        if definition.tool_class not in {"READ", "PROPOSE"}:
+        approved_export = (
+            definition.tool_code == "reports.export_approved_comparison"
+            and definition.tool_class == "COMMAND"
+            and definition.side_effect_level == "REPORT"
+        )
+        if definition.tool_class not in {"READ", "PROPOSE"} and not approved_export:
             raise ValueError("이 런타임은 조회와 제안 도구만 허용합니다.")
         self._tools[definition.tool_code] = definition
 
@@ -66,6 +71,8 @@ class ToolRegistry:
             if self.started:
                 self.started(context, code)
             self.authorize(context, definition.required_permission)
+            if definition.tool_class == "COMMAND" and not context.human_confirmed:
+                raise AuthorizationDenied()
             authorized = True
             try:
                 payload = definition.input_schema.model_validate(arguments)

@@ -22,6 +22,8 @@ def create_mcp_server(registry: ToolRegistry, context: Callable[[], ToolContext]
         current = context()
         definitions = []
         for tool in registry.definitions():
+            if tool.tool_class == "COMMAND":
+                continue
             try:
                 await anyio.to_thread.run_sync(
                     registry.authorize, current, tool.required_permission

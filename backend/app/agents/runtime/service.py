@@ -23,6 +23,7 @@ from app.identity.users.domain.entities import Principal
 from app.jobs.application.runtime import RuntimeAudit
 from app.jobs.domain.runtime import RunRead
 from app.llm.gateway import LLMGateway
+from app.tools.approved_reports import ApprovedReportInput, ApprovedReportResult
 from app.tools.comparatives import ComparisonReadiness
 from app.tools.contracts import Result, ToolContext
 from app.tools.registry import ToolRegistry
@@ -312,6 +313,69 @@ class AgentRuntime:
                 )
                 + " INTERNAL_VALIDATION_ONLY",
                 answer_resource_id=period_id,
+                answer_source_digest=result.data.source_digest,
+            )
+        except Exception as error:
+            code = getattr(error, "code", "AGENT_RUNTIME_FAILED")
+            self.audit.finish_step(context, "FAILED", code)
+            self.audit.finish(context, "FAILED", "FAILED", error=code)
+        return self.audit.get(actor, company, run.id)
+
+    def export_approved_comparison(
+        self, actor: Principal, company: UUID, payload: ApprovedReportInput, key: str
+    ) -> RunRead:
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
+            raise InvalidInput()
+        scope = ToolContext(actor, company)
+        for permission in (
+            "period.read",
+            "financial_statement.read",
+            "report.generate",
+            "report.export",
+        ):
+            self.registry.authorize(scope, permission)
+        self.registry.execute(
+            "financial_statement.comparison_readiness",
+            {
+                "period_id": str(payload.period_id),
+                "comparison_period_id": str(payload.comparison_period_id),
+            },
+            scope,
+        )
+        arguments = payload.model_dump(mode="json")
+        run = self.audit.create_query(
+            actor,
+            company,
+            payload.period_id,
+            "승인 비교 보고서 Export",
+            "deterministic",
+            "application-service",
+            key,
+            digest({"workflow": "approved-export-1", "target": arguments}),
+            graph_name="accounting_approved_report_export",
+        )
+        if run.status in ("COMPLETED", "BLOCKED") or not self.audit.claim(actor, company, run.id):
+            return self.audit.get(actor, company, run.id)
+        context = ToolContext(actor, company, run.id, invocation_id=run.id, human_confirmed=True)
+        step = self.audit.begin_step(context, "export_approved_comparison")
+        context = ToolContext(actor, company, run.id, step, run.id, True)
+        try:
+            result = Result[ApprovedReportResult].model_validate(
+                self.registry.execute(
+                    "reports.export_approved_comparison", arguments, context
+                ).model_dump()
+            )
+            self.audit.finish_step(context, "SUCCEEDED")
+            self.audit.finish(
+                context,
+                "COMPLETED",
+                "FINALIZING",
+                "PASS",
+                answer_text=(
+                    "승인 revision의 보고서를 생성했습니다. "
+                    "Report Center에서 다운로드하세요. INTERNAL_VALIDATION_ONLY"
+                ),
+                answer_resource_id=result.data.report_run_id,
                 answer_source_digest=result.data.source_digest,
             )
         except Exception as error:

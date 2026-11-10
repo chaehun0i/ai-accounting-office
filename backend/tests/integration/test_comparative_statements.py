@@ -174,6 +174,51 @@ def test_closed_comparison_reclass_approval_and_report_export(api_client, auth_s
         json={"expected_version": own_approval.json()["version"]},
     )
     assert approved.status_code == 200 and approved.json()["status"] == "APPROVED"
+    action_payload = {
+        "period_id": current["id"],
+        "comparison_period_id": prior["id"],
+        "approved_snapshot_id": snapshot["id"],
+        "expected_version": approved.json()["version"],
+        "expected_review_digest": approved.json()["review_digest"],
+        "date_from": current["start_date"],
+        "date_to": current["end_date"],
+        "format": "CSV",
+        "confirmed": True,
+    }
+    unconfirmed = api_client.post(
+        "/agent/actions/approved-comparison-export",
+        headers={**writer, "Idempotency-Key": str(uuid4())},
+        json={**action_payload, "confirmed": False},
+    )
+    assert unconfirmed.status_code == 422
+    stale_action = api_client.post(
+        "/agent/actions/approved-comparison-export",
+        headers={**writer, "Idempotency-Key": str(uuid4())},
+        json={**action_payload, "expected_version": 1},
+    )
+    assert stale_action.status_code == 200, stale_action.text
+    assert stale_action.json()["status"] == "FAILED"
+    assert stale_action.json()["error_code"] == "REPORT_SOURCE_STALE"
+    for report_format in ("CSV", "PDF", "XLSX"):
+        action_headers = {**writer, "Idempotency-Key": str(uuid4())}
+        payload = {**action_payload, "format": report_format}
+        action = api_client.post(
+            "/agent/actions/approved-comparison-export", headers=action_headers, json=payload
+        )
+        assert action.status_code == 200, action.text
+        assert action.json()["status"] == "COMPLETED", action.json()
+        assert action.json()["answer_source_digest"] == approved.json()["review_digest"]
+        repeat = api_client.post(
+            "/agent/actions/approved-comparison-export", headers=action_headers, json=payload
+        )
+        assert repeat.json()["id"] == action.json()["id"]
+        report_id = action.json()["answer_resource_id"]
+        download = api_client.get(f"/reports/generations/{report_id}/download", headers=writer)
+        assert download.status_code == 200
+        from hashlib import sha256
+
+        assert download.headers["X-Content-SHA256"] == sha256(download.content).hexdigest()
+
     immutable = api_client.post(
         f"/financial-statements/comparatives/{snapshot['id']}/reclassifications",
         headers=writer,

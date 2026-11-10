@@ -77,6 +77,9 @@ class RuntimeAudit:
                 company,
                 "period.read" if value.period_id is not None else "journal.read",
             )
+            if value.graph_name == "accounting_approved_report_export":
+                for permission in ("financial_statement.read", "report.generate", "report.export"):
+                    require_company(uow, actor, company, permission)
             if value.graph_name == "accounting_comparison_review":
                 require_company(uow, actor, company, "financial_statement.read")
             if value.graph_name == "accounting_team_period_review":

@@ -21,6 +21,7 @@ from app.llm.gateway import LLMGateway
 from app.llm.providers.fake import FakeProvider
 from app.tools.accounting import build_registry
 from app.tools.adapters.mcp import create_mcp_server
+from app.tools.approved_reports import definition as approved_report_tool
 from app.tools.comparatives import definition as comparison_tool
 from app.tools.contracts import ToolContext
 from tests.integration.test_cash_flow_snapshot import ready_snapshot
@@ -50,6 +51,7 @@ def runtime_for(client, connection, engine):
         services.cash_flow,
     )
     registry.register(comparison_tool(services.comparative_statements))
+    registry.register(approved_report_tool(services.report_center))
     registry.record = audit.record_tool
     registry.started = audit.tool_started
     checkpoints = PostgresCheckpoints(
