@@ -7,7 +7,7 @@ import { useAccountingQuery } from "./use-accounting-query";
 
 export function AccountingQueryWorkspace({ company, context }: { company: Company; context: AskContext | null }) {
   const {
-    periods, periodId, question, run, steps, mode, loading, busy, error, contextNotice, showSource,
+    comparisonPeriodId, setComparisonPeriodId, periods, periodId, question, run, steps, mode, loading, busy, error, contextNotice, showSource,
     setPeriodId, setQuestion, setMode, setShowSource, clearResult, submit, reloadPeriods,
   } = useAccountingQuery(company.id, context);
   const selected = periods.find(period => period.id === periodId);
@@ -33,7 +33,9 @@ export function AccountingQueryWorkspace({ company, context }: { company: Compan
             <legend>검토 방식</legend>
             <label><input type="radio" name="ai-mode" checked={mode === "question"} onChange={() => { setMode("question"); clearResult(); }} disabled={busy} /> 기간별 질문</label>
             <label><input type="radio" name="ai-mode" checked={mode === "team"} onChange={() => { setMode("team"); clearResult(); }} disabled={busy || !teamAllowed} /> AI 회계팀 공동 검토</label>
+            {company.permissions.includes("financial_statement.read") && <label><input type="radio" name="ai-mode" checked={mode === "comparison"} onChange={() => { setMode("comparison"); clearResult(); }} disabled={busy} /> 비교 재무제표 검토</label>}
           </fieldset>
+          {mode === "comparison" && <label>비교 전기<select value={comparisonPeriodId} onChange={event => { setComparisonPeriodId(event.target.value); clearResult(); }} disabled={busy}><option value="">전기 선택</option>{periods.filter(period => period.status === "CLOSED" && period.end_date < (selected?.start_date ?? "")).map(period => <option key={period.id} value={period.id}>{period.start_date} ~ {period.end_date}</option>)}</select></label>}
           {!teamAllowed && <p className="muted">공동 검토에는 기간·채권·채무 조회 권한이 모두 필요합니다. 기간별 질문은 계속 사용할 수 있습니다.</p>}
           <div>
             <label htmlFor="ai-period">기준 회계기간</label>
@@ -47,12 +49,13 @@ export function AccountingQueryWorkspace({ company, context }: { company: Compan
           </div>}
           <div className="ai-query-actions">
             <small>{mode === "team" ? "Closing·AR·AP 대사를 읽고 Controller가 차이와 출처를 검증합니다. 장부를 변경하지 않습니다." : "마감 가능 여부 · 손익 · 자산 총액 등을 물어보세요."}</small>
-            <button className="button-accent" type="submit" disabled={busy || !periodId || (mode === "question" && !question.trim())}>{busy ? "자료 확인 중…" : run && !isFinal(run.status) ? "계속 확인" : mode === "team" ? "공동 검토 실행" : "질문하기"}</button>
+            <button className="button-accent" type="submit" disabled={busy || !periodId || (mode === "comparison" && !comparisonPeriodId) || (mode === "question" && !question.trim())}>{busy ? "자료 확인 중…" : run && !isFinal(run.status) ? "계속 확인" : mode === "team" ? "공동 검토 실행" : mode === "comparison" ? "비교 검토 실행" : "질문하기"}</button>
           </div>
         </form>}
       {error && <p role="alert" className="error">{error}</p>}
       {!loading && periods.length === 0 && error && <button type="button" onClick={reloadPeriods}>회계기간 다시 불러오기</button>}
     </section>
+    {run?.graph_name === "accounting_comparison_review" && <section className="panel"><a href="/financial-statements">비교 재무제표 원천·재분류·독립 승인 화면으로 이동</a><p>검토 결과는 조회 시점 기준입니다. 승인 시 원천과 버전은 업무 서비스에서 다시 검증합니다.</p></section>}
     {run && <section className="panel ai-query-result" aria-live="polite" aria-labelledby="ai-result-heading">
       <div className="ai-query-result-heading">
         <h2 id="ai-result-heading">조회 결과</h2>
@@ -62,7 +65,7 @@ export function AccountingQueryWorkspace({ company, context }: { company: Compan
       {run.status === "COMPLETED" && run.answer_amount !== null && <div className="ai-query-amount"><span>장부 기준 금액</span><strong>{run.answer_amount}</strong></div>}
       <div className="ai-query-verdict"><span>검증 상태</span><strong>{run.controller_verdict ?? "확인 중"}</strong></div>
       {run.controller_verdict === "REVIEW" && <p role="alert">사람 검토 필요 · 아래 차단 항목과 채권·채무 차이를 확인하고 해당 업무 화면에서 정정해 주세요. 이 검토는 장부를 수정하지 않습니다.</p>}
-      {run.graph_name === "accounting_team_period_review" && steps.length > 0 && <div>
+      {(run.graph_name === "accounting_team_period_review" || run.graph_name === "accounting_comparison_review") && steps.length > 0 && <div>
         <h3>역할별 검토 이력</h3>
         <ol>{steps.map(step => <li key={step.step_no}>{teamStepLabel[step.node_name] ?? step.node_name} · {step.status === "SUCCEEDED" ? "완료" : step.status === "FAILED" ? "실패" : "진행 중"}</li>)}</ol>
       </div>}
