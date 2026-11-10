@@ -9,3 +9,15 @@ AI 회계팀에서 당기와 비교 전기를 선택해 비교 검토를 실행�
 API: POST /agent/queries/comparison-review. period_id, comparison_period_id와 Idempotency-Key, 회사 scope, CSRF가 필요하다. 기존 run/steps/events API에서 이력을 조회한다. 모든 결과는 INTERNAL_VALIDATION_ONLY이다.
 
 지원 범위는 기존 비교 서비스와 같은 BS/IS이다. CF/SCE/Notes 비교, 변경성 Tool, 자동 생성·승인·Posting은 지원하지 않는다. Tool 실패는 FAILED로 기록하며 회계 상태를 변경하지 않는다. 사용자는 기존 재무제표 화면에서 직접 검토를 계속할 수 있다.
+
+## 구현 및 검증 기록
+
+기준 main은 `e9033d8c0dea659911eb8f09a3c418456233eeaa`이며, 구현은 [Issue #120](https://github.com/chaehun0i/ai-accounting-office/issues/120)과 [PR #121](https://github.com/chaehun0i/ai-accounting-office/pull/121)에서 관리한다. 아래 수치는 기능 커밋 `d75d91ed3f73a840849f3a5ca5a6871645d997d1`의 검증 기록이다.
+
+- 신규 비교 Tool 및 Registry 단위 검증: 7건 통과. READY/BLOCKED 보존, 회사 문맥 전달, 권한 거부 시 서비스 미호출, 임의 company 입력 거부를 확인했다.
+- 기존 PostgreSQL 비교 업무 통합 테스트에 Agent 검토를 추가했다. 정상 완료, Application readiness와 원천 digest 일치, 동일 요청 replay, 같은 키의 다른 요청 충돌, Step 감사 기록과 후속 독립 승인·Export를 확인했다.
+- [Quality CI 실행](https://github.com/chaehun0i/ai-accounting-office/actions/runs/42761010714)의 backend/frontend/PostgreSQL/infrastructure/scope가 모두 통과했다. backend Ruff·format·mypy 및 frontend lint·test·typecheck·build가 포함된다.
+- 개발 PC에서는 TEST_POSTGRES_URL 부재로 PostgreSQL 테스트 1건이 skip됐다. PostgreSQL 통과 근거는 CI 실행이다.
+- 전체 Golden, 연간 synthetic, 전체 PostgreSQL 회귀, 전체 브라우저 E2E는 실행하지 않았다.
+
+이 검증은 변경성 Agent Action의 승인·동시 실행 검증을 뜻하지 않는다. 이번 Workflow에는 변경성 Tool이 없으며, 향후 추가 시 독립 승인·expected_version·원천 stale·중복 실행 계약을 별도로 검증해야 한다. #112와 #117의 전체 DoD 재감사 및 Issue 정리는 이번 변경에서 완료하지 않았다.
