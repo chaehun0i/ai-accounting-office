@@ -21,3 +21,9 @@ API: POST /agent/queries/comparison-review. period_id, comparison_period_id와 I
 - 전체 Golden, 연간 synthetic, 전체 PostgreSQL 회귀, 전체 브라우저 E2E는 실행하지 않았다.
 
 이 검증은 변경성 Agent Action의 승인·동시 실행 검증을 뜻하지 않는다. 이번 Workflow에는 변경성 Tool이 없으며, 향후 추가 시 독립 승인·expected_version·원천 stale·중복 실행 계약을 별도로 검증해야 한다. #112와 #117의 전체 DoD 재감사 및 Issue 정리는 이번 변경에서 완료하지 않았다.
+
+## 로컬 PostgreSQL 추가 검증
+
+2026-11-10 기존 `ai-accounting-office-postgres-1` 컨테이너를 실행하고 개발 DB와 분리된 `agent_workflow_test` DB에서 검증했다. `127.0.0.1:5433`을 사용했으며 자격 증명은 기존 컨테이너 설정에서 실행 환경으로만 전달했다.
+
+실행 범위: `test_comparative_statements.py`, `test_agent_reporting_tools.py`, `test_report_center.py`에 `--require-postgres -q` 적용. 결과는 **9 passed, 1 warning, 130.79초**, skip 0건이다. 경고는 Google GenAI 의존성의 Python 향후 버전 deprecation이며 테스트 실패는 없다. 앞의 로컬 DB 미실행 기록은 이 추가 검증 이전 상태다.
