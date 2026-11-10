@@ -59,3 +59,5 @@
 원본 테스트 expected, skip/xfail 및 핵심 assertion은 변경하지 않았다. 신규 회계 규칙이나 물리적 손익 대체 지원을 추정하지 않았으며 기존 차단 계약을 유지한다.
 
 최종 Report Center 멱등 fingerprint 호환성 보완 후 비교·Report Center 집중 PostgreSQL 4건을 추가 실행해 모두 통과했다(47.57초). Notes #117은 지원 범위의 검증 증거를 남기고 종료했으며, SCE #112는 물리적 손익 대체 표시 계약의 제한을 기록하고 유지했다. #83 로드맵도 실제 지원 범위에 맞춰 현행화했다. 각 Pilot 실행 결과는 고유한 하위 폴더에 기록해 이전 검증을 덮어쓰지 않는다.
+
+[PR #123](https://github.com/chaehun0i/ai-accounting-office/pull/123)의 기능 HEAD `939b604`에서 [Quality CI](https://github.com/chaehun0i/ai-accounting-office/actions/runs/42770642875) backend/frontend/PostgreSQL/infrastructure/scope 5개 작업이 모두 통과했다. PR은 코드 리뷰 대상으로 준비하며 자동 merge·운영 배포·출시 승인으로 해석하지 않는다.
