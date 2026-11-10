@@ -11,7 +11,7 @@
 
 회계 장부와 세무 계산·신고 정본을 분리하고, AI의 제안을 결정적 검증과 사람의 승인으로 연결하는 서비스입니다.
 
-현재 구현 범위는 **Identity/Company + 회계 마스터·관리차원·Control Account 역할 + Onboarding/Cutover + Transaction/Journal/Ledger + AR/AP·은행/카드 대사 + Closing V1 + BS/IS Snapshot·재무비율 + Report Center V1 + Bookkeeper Agent 읽기·제안 경로**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격과 Opening Journal 승인/POST 후 AR/AP Opening 승격을 제공합니다. [온보딩 구조와 기초자료 이관](docs/onboarding/onboarding-data-exchange.md#완료-후-기초자료-이관), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/onboarding/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting/accounting-master.md), [인증·회사 구조](docs/platform/identity-company.md)를 참고하세요.
+현재 구현 범위는 **Identity/Company + 회계 마스터·관리차원·Control Account 역할 + Onboarding/Cutover + Transaction/Journal/Ledger + AR/AP·은행/카드 대사 + Closing V1 + BS/IS/CF/SCE/Notes Snapshot·재무비율 + BS/IS 비교·표시 재분류·독립 승인 + Report Center + Agent 읽기·제안·비교 검토 경로**입니다. 직접입력 초안, Excel 충돌 병합, 검증/재계산, 지원 Domain의 원자적 승격과 Opening Journal 승인/POST 후 AR/AP Opening 승격을 제공합니다. [온보딩 구조와 기초자료 이관](docs/onboarding/onboarding-data-exchange.md#완료-후-기초자료-이관), [약어 풀이](docs/abbreviations.md)를 참고하세요. 사용자·회사·권한·인증 세션과 회사별 거래처·지급조건·회계 설정·계정과목·기간·전표번호 기반과 CSV/XLSX 업로드·항목 연결·검증·미리보기·명시적 접수·증빙 출처·Receipt를 제공합니다. [파일·증빙·인테이크 구조](docs/onboarding/storage-evidence-intake.md), [회계 마스터 구조와 API](docs/accounting/accounting-master.md), [인증·회사 구조](docs/platform/identity-company.md)를 참고하세요.
 
 **채권·채무** 메뉴에서 확정 전표 연결 → 수금·지급 등록 → 배분 → 확정 → 기준일 잔액·기한 분석·원장 대사를 사용할 수 있습니다. 수금·지급은 먼저 사람 승인과 장부 반영을 마친 회계 전표를 참조합니다. 실제 은행 이체 기능은 아닙니다. [재무 보조부 사용법과 경계](docs/accounting/finance-subledger.md), [검증 결과](docs/verification/finance-verification.md)를 참고하세요.
 
@@ -23,6 +23,8 @@
 **월마감**에서 기간을 `OPEN → CLOSING → CLOSED`로 전환하고 미처리 거래·미승인 전표·은행/카드 미대사·채권채무 원장 차이·시산표·필수 조정을 결정론적으로 검사합니다. 결산조정은 기존 전표 초안 → 별도 담당자 승인 → 기표를 거치며, 최종 마감과 재개에도 별도 사람 승인이 필요합니다. [월마감 계약과 제한](docs/accounting/period-closing.md), [검증 범위와 남은 항목](docs/verification/period-closing-verification.md)을 참고하세요. **재무제표** 메뉴에서는 CLOSED 기간의 조정 시산표로 BS/IS를 생성하고 계정·전표까지 조회할 수 있습니다. [BS/IS 계약과 제한](docs/accounting/financial-statements.md)을 참고하세요.
 
 온보딩 기초잔액은 OPENING 전표로만 장부에 반영합니다. 다른 입력 항목만 수정한 재시도는 기존 전표를 재사용하고, 이미 고정한 기초잔액을 바꾸면 409로 거부합니다. [기초잔액 재시도 계약](docs/accounting/transaction-journal-ledger.md)을 참고하세요.
+
+현재 지원 범위와 검증 증거, 미완료 Release 조건은 [제품 검증과 릴리즈 준비도](docs/verification/release-readiness.md)를 확인하세요. 기능 존재와 실제 고객 Pilot·운영 승인은 구분합니다.
 
 ## 바로 실행하고 테스트하기
 

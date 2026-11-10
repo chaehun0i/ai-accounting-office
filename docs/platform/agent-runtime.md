@@ -119,3 +119,13 @@ Internal Graph는 MCP 서버를 HTTP로 호출하지 않고 Registry를 직접 �
 실 Gemini 네트워크 테스트는 키·모델을 제공한 별도 opt-in으로만 수행합니다. 일반 CI는 Fake이며 키가 없어도 Core/health가 동작합니다. Remote MCP OAuth/host별 서비스 인증, checkpoint retention/운영 role 분리, 장기 대화형 Chat UI, 다른 Domain의 Agent 협업·Tax/RAG/자율 Posting은 이번 범위가 아닙니다. 정적 import guard는 Python sandbox가 아닙니다.
 
 실 Gemini 검증 명령은 `RUN_GEMINI_INTEGRATION=1`과 `GEMINI_API_KEY`, `GEMINI_MODEL`을 OS 환경에 지정한 후 `python -m pytest -m gemini tests/integration/test_gemini_live.py`입니다. 일반 실행은 skip하며 이번 검증에서 실 호출은 하지 않았습니다.
+
+## 사람 확인을 거친 승인 비교 보고서 Export
+
+`POST /agent/actions/approved-comparison-export`는 사람이 화면에서 파일 형식과 독립 승인 revision을 확인한 뒤 실행한다. `confirmed=true`, 대상 revision ID/version/review digest, 기간 및 Idempotency-Key를 받는다. 이 확인은 재무제표의 독립 승인을 대체하지 않는다.
+
+Registry의 `reports.export_approved_comparison` COMMAND는 서버가 주입한 `human_confirmed` 문맥이 있어야 실행된다. 이 capability는 LangChain/MCP Tool 목록에서 제외하며, 이름을 추측해 직접 호출해도 기본 문맥에서는 거부된다. 기간·제표 조회와 report.generate/report.export 권한을 재검증한다. 임의 COMMAND나 Posting/Close Tool은 계속 금지한다.
+
+Report Center가 같은 요청 transaction에서 승인 snapshot ID/version/review digest와 현재 회계 원천을 검사한다. 생성 단계도 기존 source validation을 다시 수행한다. 중단 후 같은 요청 키는 같은 Agent Run 및 Report Run을 재사용하므로 중복 Artifact를 만들지 않는다. 생성 실패를 완료 상태로 표시하지 않는다. 파일과 실행 이력은 기존 Report Center에서 조회한다. 변경된 요청을 같은 키로 보내면 충돌한다.
+
+이 경로는 자동 승인·자율 회계처리가 아니며, READ 검토와 사람 확인 및 승인된 결과의 산출물 생성만 연결한다. 운영 queue worker·취소·외부 스케줄러는 여전히 미구현이다.

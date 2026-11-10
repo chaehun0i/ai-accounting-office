@@ -8,7 +8,7 @@ BS는 마감일 누적 잔액을, IS는 선택 기간의 수익·비용 movement
 
 `POST /financial-statements/generate`에는 회사 헤더와 Idempotency-Key가 필요합니다. 동일 마감 버전·시산표 digest·taxonomy·매핑 digest의 재요청은 기존 세트를 반환합니다. 마감 장부가 바뀌면 생성은 실패합니다. 세트, BS/IS, 항목별 계정·전표 라인 출처는 각각 조회 API로 확인할 수 있습니다. 다른 회사의 세트는 조회되지 않습니다.
 
-`/financial-statements`는 BS/IS 스냅샷 생성·조회·출처 확인과 현금흐름표 점검·조회 화면입니다. 파일 생성은 스냅샷을 읽는 [Report Center V1](report-periods.md#report-center-v1-사용자-경로)의 `/reports` 화면에서 제공합니다. Report Center의 PDF/XLSX/CSV 파일은 스냅샷을 표현하는 파생 산출물이며 승인된 공식 재무제표가 아닙니다. 승인, 비교재무제표와 주석은 후속 범위입니다.
+`/financial-statements`는 BS/IS 스냅샷 생성·조회·출처 확인과 현금흐름표 점검·조회 화면입니다. 파일 생성은 스냅샷을 읽는 [Report Center V1](report-periods.md#report-center-v1-사용자-경로)의 `/reports` 화면에서 제공합니다. Report Center의 PDF/XLSX/CSV 파일은 스냅샷을 표현하는 파생 산출물이며 승인된 공식 재무제표가 아닙니다. Notes는 독립 승인 revision을 지원하며, BS/IS 비교·표시 재분류·독립 승인은 [비교 재무제표 계약](comparative-financial-statements.md)을 따릅니다. 전체 제표 세트의 별도 최종 승인·법정 제출 적합성은 제공하지 않습니다.
 
 ## 자본변동표 원천·대사 API
 
