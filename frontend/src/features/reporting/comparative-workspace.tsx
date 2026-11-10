@@ -6,6 +6,7 @@ import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
 import { formatMoney, type Period } from "./model";
+import { RequestScope } from "./request-scope";
 
 type Snapshot = {
   id: string;
@@ -14,6 +15,7 @@ type Snapshot = {
   status: "DRAFT" | "REVIEW_REQUESTED" | "APPROVED" | "REJECTED" | "SUPERSEDED";
   version: number;
   source_digest: string;
+  review_digest?: string;
   mapping_changed?: boolean;
   statements?: Record<string, {
     line_code: string;
@@ -42,8 +44,13 @@ export function ComparativeWorkspace({ company }: { company: Company }) {
   const [reclassAmount, setReclassAmount] = useState("");
   const [reclassReason, setReclassReason] = useState("");
   const [error, setError] = useState("");
+  const [exportConfirmed, setExportConfirmed] = useState(false);
+  const [exportFormat, setExportFormat] = useState("CSV");
+  const [exportResult, setExportResult] = useState<{ status: string; answer_resource_id: string | null; error_code: string | null } | null>(null);
+  const exportRetry = useRef<{ fingerprint: string; key: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const retry = useRef<{ fingerprint: string; key: string } | null>(null);
+  const requests = useRef(new RequestScope());
   const scope = { "X-Company-ID": company.id };
 
   useEffect(() => {
@@ -74,27 +81,43 @@ export function ComparativeWorkspace({ company }: { company: Company }) {
     return () => { active = false; };
   }, [company.id, currentId, priorId]);
 
-  async function refresh(snapshotId?: string) {
-    if (!snapshotId) { setSelected(null); return; }
-    try { setSelected(await authenticatedRequest<Snapshot>(`/financial-statements/comparatives/${snapshotId}`, { headers: scope })); }
-    catch (reason) { setError(message(reason)); }
+  function changeScope() {
+    requests.current.invalidate(); retry.current = null; exportRetry.current = null;
+    setExportConfirmed(false); setExportResult(null);
+    setSelected(null); setSourceRows(null); setError(""); setBusy(false);
   }
 
-  async function command(path: string, body: object) {
-    if (!selected) return;
+  useEffect(() => () => { requests.current.invalidate(); }, [company.id, currentId, priorId]);
+
+  async function refresh(snapshotId?: string) {
+    const valid = requests.current.start("detail");
+    setSourceRows(null);
+    if (!snapshotId) { setSelected(null); return; }
+    try {
+      const result = await authenticatedRequest<Snapshot>(`/financial-statements/comparatives/${snapshotId}`, { headers: scope });
+      if (valid()) setSelected(result);
+    } catch (reason) { if (valid()) setError(message(reason)); }
+  }
+
+  async function command(path: string, body: object): Promise<boolean> {
+    if (!selected) return false;
+    const valid = requests.current.start("mutation");
     setBusy(true); setError("");
     try {
       const updated = await authenticatedRequest<Snapshot>(`/financial-statements/comparatives/${selected.id}/${path}`, {
         method: "POST", headers: scope, body: JSON.stringify(body),
       });
+      if (!valid()) return false;
       setSnapshots(rows => [updated, ...rows.filter(row => row.id !== updated.id)]);
       await refresh(updated.id);
-    } catch (reason) { setError(message(reason)); }
-    finally { setBusy(false); }
+      return valid();
+    } catch (reason) { if (valid()) setError(message(reason)); return false; }
+    finally { if (valid()) setBusy(false); }
   }
 
   async function generate() {
     if (!currentId || !priorId) return;
+    const valid = requests.current.start("mutation");
     const fingerprint = JSON.stringify([currentId, priorId]);
     if (retry.current?.fingerprint !== fingerprint) {
       retry.current = { fingerprint, key: crypto.randomUUID() };
@@ -104,29 +127,52 @@ export function ComparativeWorkspace({ company }: { company: Company }) {
       const created = await authenticatedRequest<Snapshot>("/financial-statements/comparatives", {
         method: "POST", headers: { ...scope, "Idempotency-Key": retry.current.key }, body: JSON.stringify({ period_id: currentId, comparison_period_id: priorId }),
       });
+      if (!valid()) return;
       retry.current = null;
       setSnapshots(rows => [created, ...rows.filter(row => row.id !== created.id)]);
       await refresh(created.id);
-    } catch (reason) { setError(message(reason)); }
-    finally { setBusy(false); }
+    } catch (reason) { if (valid()) setError(message(reason)); }
+    finally { if (valid()) setBusy(false); }
   }
 
   async function showSources(kind: string, lineCode: string) {
     if (!selected) return;
+    const valid = requests.current.start("sources");
     try {
       const query = new URLSearchParams({ statement_type: kind, line_code: lineCode });
-      setSourceRows(await authenticatedRequest<Sources>(`/financial-statements/comparatives/${selected.id}/sources?${query}`, { headers: scope }));
-    } catch (reason) { setError(message(reason)); }
+      const result = await authenticatedRequest<Sources>(`/financial-statements/comparatives/${selected.id}/sources?${query}`, { headers: scope });
+      if (valid()) setSourceRows(result);
+    } catch (reason) { if (valid()) setError(message(reason)); }
+  }
+
+  async function exportApproved() {
+    const period = periods.find(row => row.id === currentId);
+    if (!selected || !period || !selected.review_digest || !exportConfirmed) return;
+    const valid = requests.current.start("mutation");
+    const payload = { period_id: currentId, comparison_period_id: priorId,
+      approved_snapshot_id: selected.id, expected_version: selected.version,
+      expected_review_digest: selected.review_digest, date_from: period.start_date,
+      date_to: period.end_date, format: exportFormat, confirmed: true };
+    const fingerprint = JSON.stringify(payload);
+    if (exportRetry.current?.fingerprint !== fingerprint) exportRetry.current = { fingerprint, key: crypto.randomUUID() };
+    setBusy(true); setError("");
+    try {
+      const result = await authenticatedRequest<{ status: string; answer_resource_id: string | null; error_code: string | null }>("/agent/actions/approved-comparison-export", {
+        method: "POST", headers: { ...scope, "Idempotency-Key": exportRetry.current.key }, body: JSON.stringify(payload),
+      });
+      if (valid()) { setExportResult(result); if (result.status === "COMPLETED") exportRetry.current = null; }
+    } catch (reason) { if (valid()) setError(message(reason)); }
+    finally { if (valid()) setBusy(false); }
   }
 
   async function submitReclassification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
-    await command("reclassifications", {
+    const applied = await command("reclassifications", {
       statement_type: "INCOME_STATEMENT", from_line_code: fromCode, to_line_code: toCode,
       amount: reclassAmount, reason: reclassReason, expected_version: selected.version,
     });
-    setReclassAmount(""); setReclassReason("");
+    if (applied) { setReclassAmount(""); setReclassReason(""); }
   }
 
   const current = periods.find(row => row.id === currentId);
@@ -135,12 +181,12 @@ export function ComparativeWorkspace({ company }: { company: Company }) {
     <h2>비교 재무제표</h2>
     <p>동일 분류 체계로 검증할 수 있는 재무상태표와 손익계산서만 비교합니다. 현금흐름표·자본변동표·주석 비교는 아직 지원하지 않습니다.</p>
     <div className="form-row">
-      <label>당기 <select aria-label="비교 당기" value={currentId} onChange={event => setCurrentId(event.target.value)}>{periods.map(row => <option key={row.id} value={row.id}>{row.start_date} ~ {row.end_date}</option>)}</select></label>
-      <label>전기 <select aria-label="비교 전기" value={priorId} onChange={event => setPriorId(event.target.value)}>{periods.filter(row => row.id !== currentId && row.end_date < (current?.end_date ?? "")).map(row => <option key={row.id} value={row.id}>{row.start_date} ~ {row.end_date}</option>)}</select></label>
+      <label>당기 <select aria-label="비교 당기" value={currentId} onChange={event => { changeScope(); setCurrentId(event.target.value); }}>{periods.map(row => <option key={row.id} value={row.id}>{row.start_date} ~ {row.end_date}</option>)}</select></label>
+      <label>전기 <select aria-label="비교 전기" value={priorId} onChange={event => { changeScope(); setPriorId(event.target.value); }}>{periods.filter(row => row.id !== currentId && row.end_date < (current?.end_date ?? "")).map(row => <option key={row.id} value={row.id}>{row.start_date} ~ {row.end_date}</option>)}</select></label>
     </div>
     {readiness && <p role="status">준비 상태: {readiness.status}{readiness.reasons.length ? ` · ${readiness.reasons.join(", ")}` : ""}</p>}
     {readiness?.status === "READY" && company.permissions.includes("financial_statement.generate") && <button disabled={busy} onClick={() => void generate()}>비교 Snapshot 생성</button>}
-    {snapshots.length > 0 && <label>비교 버전 <select aria-label="비교 버전" value={selected?.id ?? ""} onChange={event => void refresh(event.target.value)}><option value="">선택</option>{snapshots.map(row => <option key={row.id} value={row.id}>{row.status} · v{row.version}</option>)}</select></label>}
+    {snapshots.length > 0 && <label>비교 버전 <select aria-label="비교 버전" value={selected?.id ?? ""} onChange={event => { changeScope(); void refresh(event.target.value); }}><option value="">선택</option>{snapshots.map(row => <option key={row.id} value={row.id}>{row.status} · v{row.version}</option>)}</select></label>}
     {selected && <>
       <p>상태 {selected.status} · 원천 {selected.source_digest.slice(0, 12)}…</p>
       {selected.mapping_changed && <p>전기와 당기 계정 표시 매핑이 다릅니다. 아래 금액을 원본과 대조하고 필요한 표시 재분류 근거를 기록하세요.</p>}
@@ -162,7 +208,15 @@ export function ComparativeWorkspace({ company }: { company: Company }) {
         <button disabled={busy} onClick={() => void command("approve", { expected_version: selected.version })}>독립 승인</button>
         <button disabled={busy} onClick={() => void command("reject", { expected_version: selected.version, reason: "수정 필요" })}>반려</button>
       </>}
-      {selected.status === "APPROVED" && <Link href="/reports">승인된 비교 보고서 내보내기</Link>}
+      {selected.status === "APPROVED" && <section aria-label="승인 보고서 실행">
+        <Link href="/reports">보고서 센터 이력·다운로드</Link>
+        {company.permissions.includes("report.generate") && company.permissions.includes("report.export") && <>
+          <label>파일 형식<select value={exportFormat} disabled={busy} onChange={event => { setExportFormat(event.target.value); setExportConfirmed(false); }}><option>CSV</option><option>PDF</option><option>XLSX</option></select></label>
+          <label><input type="checkbox" checked={exportConfirmed} disabled={busy} onChange={event => setExportConfirmed(event.target.checked)} />이 독립 승인 revision의 내부 검증용 보고서 생성을 확인합니다.</label>
+          <button disabled={busy || !exportConfirmed} onClick={() => void exportApproved()}>승인본 검증 후 보고서 생성</button>
+          {exportResult && <p role="status">실행 {exportResult.status} · {exportResult.answer_resource_id ?? exportResult.error_code ?? "처리 중"}</p>}
+        </>}
+      </section>}
     </>}
     {error && <p role="alert" className="error">{error}</p>}
     {current && previous && <p>당기 {current.close_version}차 마감 · 전기 {previous.close_version}차 마감 · 내부 검증용</p>}
