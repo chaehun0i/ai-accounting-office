@@ -46,7 +46,7 @@ def _post_income(client, owner, writer, period_id, date, amount):
     )
 
 
-def test_closed_comparison_reclass_approval_and_report_export(api_client, auth_service):
+def test_closed_comparison_reclass_approval_and_report_export(api_client, auth_service, db_engine):
     owner, writer, _, connection = prepare(api_client, auth_service)
     review = reviewer(api_client, owner, connection)
     periods = api_client.get("/closing/periods", headers=writer).json()
@@ -72,6 +72,31 @@ def test_closed_comparison_reclass_approval_and_report_export(api_client, auth_s
     )
     assert readiness.status_code == 200, readiness.text
     assert readiness.json()["status"] == "READY"
+    from tests.integration.test_agent_reporting_tools import runtime_for
+
+    runtime_for(api_client, connection, db_engine)
+    workflow_headers = {**writer, "Idempotency-Key": str(uuid4())}
+    workflow = api_client.post(
+        "/agent/queries/comparison-review", headers=workflow_headers, json=query
+    )
+    assert workflow.status_code == 200, workflow.text
+    assert workflow.json()["status"] == "COMPLETED"
+    assert workflow.json()["controller_verdict"] == "PASS"
+    assert workflow.json()["answer_source_digest"] == readiness.json()["source_digest"]
+    replay_workflow = api_client.post(
+        "/agent/queries/comparison-review", headers=workflow_headers, json=query
+    )
+    assert replay_workflow.json()["id"] == workflow.json()["id"]
+    conflict_workflow = api_client.post(
+        "/agent/queries/comparison-review",
+        headers=workflow_headers,
+        json={"period_id": prior["id"], "comparison_period_id": current["id"]},
+    )
+    assert conflict_workflow.status_code == 409
+    trace = api_client.get(f"/agent/runs/{workflow.json()['id']}/steps", headers=writer)
+    assert trace.status_code == 200 and len(trace.json()) == 1
+    assert trace.json()[0]["status"] == "SUCCEEDED"
+
     blocked = api_client.get(
         "/financial-statements/comparatives/readiness",
         headers=writer,

@@ -77,6 +77,8 @@ class RuntimeAudit:
                 company,
                 "period.read" if value.period_id is not None else "journal.read",
             )
+            if value.graph_name == "accounting_comparison_review":
+                require_company(uow, actor, company, "financial_statement.read")
             if value.graph_name == "accounting_team_period_review":
                 require_company(uow, actor, company, "receivable.read")
                 require_company(uow, actor, company, "payable.read")
