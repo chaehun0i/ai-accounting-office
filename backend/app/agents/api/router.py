@@ -1,6 +1,6 @@
 """실행 조회와 재개 API입니다. 사람 응답은 회계 승인이 아닙니다."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query
@@ -13,6 +13,7 @@ from app.agents.runtime.service import AgentProposalPreview, AgentRuntime
 from app.contracts.errors import DatabaseUnavailable
 from app.identity.auth.api.dependencies import csrf
 from app.jobs.domain.runtime import EventRead, RunRead, StepRead
+from app.tools.approved_reports import ApprovedReportInput
 from app.tools.comparatives import ComparisonInput
 
 router = APIRouter(tags=["회계 제안 실행"])
@@ -32,6 +33,10 @@ class AskAccounting(BaseModel):
 class ReviewPeriod(BaseModel):
     model_config = ConfigDict(extra="forbid")
     period_id: UUID
+
+
+class ConfirmApprovedExport(ApprovedReportInput):
+    confirmed: Literal[True]
 
 
 class ResumeRun(HumanDecision):
@@ -77,6 +82,26 @@ def review_comparison(
 ) -> RunRead:
     return service.review_comparison(
         actor, company_id, payload.period_id, payload.comparison_period_id, key
+    )
+
+
+@router.post(
+    "/agent/actions/approved-comparison-export",
+    response_model=RunRead,
+    dependencies=[Depends(csrf)],
+)
+def export_approved_comparison(
+    payload: ConfirmApprovedExport,
+    actor: Actor,
+    company_id: CompanyScope,
+    key: Key,
+    service: Service,
+) -> RunRead:
+    return service.export_approved_comparison(
+        actor,
+        company_id,
+        ApprovedReportInput.model_validate(payload.model_dump(exclude={"confirmed"})),
+        key,
     )
 
 

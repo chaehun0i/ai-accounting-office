@@ -58,6 +58,7 @@ class ToolContext:
     run_id: UUID | None = None
     step_id: UUID | None = None
     invocation_id: UUID | None = None
+    human_confirmed: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,5 +71,5 @@ class ToolDefinition:
     handler: Callable[[ToolContext, BaseModel], BaseModel]
     version: str = "1"
     tool_class: Literal["READ", "PROPOSE", "COMMAND", "EXTERNAL"] = "READ"
-    side_effect_level: Literal["NONE", "PROPOSAL"] = "NONE"
+    side_effect_level: Literal["NONE", "PROPOSAL", "REPORT"] = "NONE"
     timeout_seconds: int = 10

@@ -11,6 +11,8 @@ from app.tools.registry import ToolRegistry
 def langchain_tools(registry: ToolRegistry, context: ToolContext) -> list[StructuredTool]:
     tools = []
     for definition in registry.definitions():
+        if definition.tool_class == "COMMAND":
+            continue
 
         def execute(_code: str = definition.tool_code, **arguments: Any) -> dict[str, Any]:
             return registry.execute(_code, arguments, context).model_dump(mode="json")

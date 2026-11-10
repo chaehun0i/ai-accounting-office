@@ -74,6 +74,7 @@ from app.storage.infrastructure.local import LocalObjectStorage
 from app.tax.service import TaxService
 from app.tax.unit_of_work import TaxUnitOfWork
 from app.tools.accounting import build_registry
+from app.tools.approved_reports import definition as approved_report_tool
 from app.tools.comparatives import definition as comparative_tool
 from app.tools.registry import ToolRegistry
 
@@ -199,6 +200,8 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
     )
     assert container.comparative_statements is not None
     registry.register(comparative_tool(container.comparative_statements))
+    assert container.report_center is not None
+    registry.register(approved_report_tool(container.report_center))
     audit = RuntimeAudit(lambda: RuntimeSQLAlchemyUnitOfWork(sessions))
     registry.record = audit.record_tool
     registry.started = audit.tool_started

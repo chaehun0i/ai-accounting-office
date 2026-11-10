@@ -91,8 +91,17 @@ class ReportCenterService:
         date_to: date | None = None,
         as_of: date | None = None,
         comparison_period_id: UUID | None = None,
+        approved_snapshot_id: UUID | None = None,
+        expected_version: int | None = None,
+        expected_review_digest: str | None = None,
     ) -> ReportRun:
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
+            raise InvalidInput()
+        frozen_target = (approved_snapshot_id, expected_version, expected_review_digest)
+        if any(value is not None for value in frozen_target) and (
+            any(value is None for value in frozen_target)
+            or report_code != "COMPARATIVE_FINANCIAL_STATEMENTS"
+        ):
             raise InvalidInput()
         modes = {code: mode for code, _, mode in REPORTS}
         if report_code not in modes or format not in FORMATS:
@@ -109,6 +118,10 @@ class ReportCenterService:
                 as_of.isoformat() if as_of else None,
             )
         )
+        if approved_snapshot_id is not None:
+            fingerprint = digest(
+                (fingerprint, str(approved_snapshot_id), expected_version, expected_review_digest)
+            )
         with self.factory() as uow:
             access = require_company(uow, actor, company, "report.generate")
             require_company(uow, actor, company, "report.export")
@@ -169,6 +182,12 @@ class ReportCenterService:
                     != ComparativeStatementsService._review_digest(uow, company, comparative)
                 ):
                     raise StateConflict()
+                if approved_snapshot_id is not None and (
+                    comparative.id != approved_snapshot_id
+                    or comparative.version != expected_version
+                    or comparative.review_digest != expected_review_digest
+                ):
+                    raise ReportSourceStale()
             elif comparison_period_id is not None:
                 raise InvalidInput()
             statement_set = next(
