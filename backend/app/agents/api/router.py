@@ -13,6 +13,7 @@ from app.agents.runtime.service import AgentProposalPreview, AgentRuntime
 from app.contracts.errors import DatabaseUnavailable
 from app.identity.auth.api.dependencies import csrf
 from app.jobs.domain.runtime import EventRead, RunRead, StepRead
+from app.tools.comparatives import ComparisonInput
 
 router = APIRouter(tags=["회계 제안 실행"])
 
@@ -66,6 +67,17 @@ def review_period(
     payload: ReviewPeriod, actor: Actor, company_id: CompanyScope, key: Key, service: Service
 ) -> RunRead:
     return service.review_period(actor, company_id, payload.period_id, key)
+
+
+@router.post(
+    "/agent/queries/comparison-review", response_model=RunRead, dependencies=[Depends(csrf)]
+)
+def review_comparison(
+    payload: ComparisonInput, actor: Actor, company_id: CompanyScope, key: Key, service: Service
+) -> RunRead:
+    return service.review_comparison(
+        actor, company_id, payload.period_id, payload.comparison_period_id, key
+    )
 
 
 @router.get("/agent/runs/{run_id}", response_model=RunRead)

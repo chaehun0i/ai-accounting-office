@@ -25,3 +25,10 @@ export function getQuerySteps(companyId: string, runId: string) {
 export function getQueryRun(companyId: string, runId: string) {
   return authenticatedRequest<QueryRun>(`/agent/runs/${runId}`, { headers: { "X-Company-ID": companyId } });
 }
+
+export function reviewComparison(companyId: string, periodId: string, comparisonPeriodId: string, key: string) {
+  return authenticatedRequest<QueryRun>("/agent/queries/comparison-review", {
+    method: "POST", headers: { "X-Company-ID": companyId, "Idempotency-Key": key },
+    body: JSON.stringify({ period_id: periodId, comparison_period_id: comparisonPeriodId }),
+  });
+}

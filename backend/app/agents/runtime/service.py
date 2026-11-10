@@ -23,7 +23,8 @@ from app.identity.users.domain.entities import Principal
 from app.jobs.application.runtime import RuntimeAudit
 from app.jobs.domain.runtime import RunRead
 from app.llm.gateway import LLMGateway
-from app.tools.contracts import ToolContext
+from app.tools.comparatives import ComparisonReadiness
+from app.tools.contracts import Result, ToolContext
 from app.tools.registry import ToolRegistry
 
 
@@ -256,6 +257,67 @@ class AgentRuntime:
             self.audit.finish(
                 context, "FAILED", "FAILED", error=getattr(error, "code", "AGENT_RUNTIME_FAILED")
             )
+        return self.audit.get(actor, company, run.id)
+
+    def review_comparison(
+        self,
+        actor: Principal,
+        company: UUID,
+        period_id: UUID,
+        comparison_period_id: UUID,
+        key: str,
+    ) -> RunRead:
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,100}", key):
+            raise InvalidInput()
+        arguments: dict[str, object] = {
+            "period_id": str(period_id),
+            "comparison_period_id": str(comparison_period_id),
+        }
+        scope = ToolContext(actor, company)
+        code = "financial_statement.comparison_readiness"
+        self.registry.execute(code, arguments, scope)
+        run = self.audit.create_query(
+            actor,
+            company,
+            period_id,
+            "비교 재무제표 검토",
+            "deterministic",
+            "application-service",
+            key,
+            digest({**arguments, "workflow": "comparison-review-1"}),
+            graph_name="accounting_comparison_review",
+        )
+        if run.status in ("COMPLETED", "BLOCKED") or not self.audit.claim(actor, company, run.id):
+            return self.audit.get(actor, company, run.id)
+        context = ToolContext(actor, company, run.id)
+        step = self.audit.begin_step(context, "comparison_readiness")
+        context = ToolContext(actor, company, run.id, step)
+        try:
+            result = Result[ComparisonReadiness].model_validate(
+                self.registry.execute(code, arguments, context).model_dump()
+            )
+            ready = result.data.status == "READY"
+            self.audit.finish_step(context, "SUCCEEDED")
+            self.audit.finish(
+                context,
+                "COMPLETED",
+                "FINALIZING",
+                "PASS" if ready else "REVIEW",
+                answer_text=(
+                    "당기·전기 BS/IS 원천을 확인했습니다. "
+                    "비교 재무제표 화면에서 생성·재분류 근거를 검토하고 "
+                    "독립 Reviewer에게 승인을 요청하세요."
+                    if ready
+                    else "비교 검토가 차단됐습니다: " + ", ".join(result.data.reasons)
+                )
+                + " INTERNAL_VALIDATION_ONLY",
+                answer_resource_id=period_id,
+                answer_source_digest=result.data.source_digest,
+            )
+        except Exception as error:
+            code = getattr(error, "code", "AGENT_RUNTIME_FAILED")
+            self.audit.finish_step(context, "FAILED", code)
+            self.audit.finish(context, "FAILED", "FAILED", error=code)
         return self.audit.get(actor, company, run.id)
 
     def resume(
