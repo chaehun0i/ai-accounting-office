@@ -23,3 +23,5 @@ PostgreSQL CI 분할 실행과 migration 테스트 축소 기준은 [PostgreSQL 
 진행 중인 [PR #121](https://github.com/chaehun0i/ai-accounting-office/pull/121)의 [회계 Agent 비교 재무제표 검토](accounting/agent-comparison-review.md)는 당기·전기 선택 → 결정론적 비교 readiness → 근거·감사 이력 → 기존 독립 승인 화면 인계 경로를 설명합니다. 병합 여부는 PR 상태를 확인합니다.
 
 최신 지원 범위와 테스트 증거, 실제 고객 Pilot·출시 조건은 [제품 검증과 릴리즈 준비도](verification/release-readiness.md)에서 확인합니다.
+
+SCE의 현재 대사 기준·원천 전표·차단 해결 흐름과 손익 대체 잔여 계약은 [자본변동 대사 작업함](accounting/equity-reconciliation-workflow.md)을 참고하세요. #112의 물리적 hard-close 지원 완료를 뜻하지 않습니다.

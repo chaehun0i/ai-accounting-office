@@ -168,7 +168,7 @@ export function DisclosureWorkspace({ company, period }: { company: Company; per
   const template = templates[0];
   const stateLabel = instance?.source_stale ? "STALE · 원천 변경" : instance?.status ?? readiness?.status ?? "BLOCKED";
   return <section className="panel disclosure-workspace">
-    <h2>재무제표 주석</h2>
+    <h2 id="disclosure-heading">재무제표 주석</h2>
     <p>내부 검증용 주석 Fact는 CLOSED 기간의 BS/IS/CF/SCE Snapshot에서만 생성합니다. 지원되지 않는 Asset·Inventory·Tax 세부자료는 추정하지 않습니다.</p>
     {readiness?.status === "BLOCKED" && <div role="alert"><strong>생성 차단</strong><ul>{readiness.issues.map(issue => <li key={issue}>{labels[issue] ?? issue}</li>)}</ul></div>}
     {readiness?.status === "READY" && <p role="status">원천 준비 완료 · {readiness.source_digest?.slice(0, 12)}… · 모든 숫자는 서버의 원천 Snapshot 금액입니다.</p>}
