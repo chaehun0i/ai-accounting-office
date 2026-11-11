@@ -50,6 +50,20 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
 ):
     owner, writer, payload, connection = prepare(api_client, auth_service)
     review = reviewer(api_client, owner, connection)
+    open_readiness = api_client.get(
+        "/equity/reconciliation",
+        headers=writer,
+        params={"period_id": payload["accounting_period_id"]},
+    )
+    assert open_readiness.status_code == 200, open_readiness.text
+    assert open_readiness.json()["issues"] == ["PERIOD_NOT_CLOSED"]
+    assert open_readiness.json()["income_statement_profit"] is None
+    foreign = api_client.get(
+        "/equity/reconciliation",
+        headers={**writer, "X-Company-ID": str(uuid4())},
+        params={"period_id": payload["accounting_period_id"]},
+    )
+    assert foreign.status_code in {403, 404}
     periods = api_client.get("/closing/periods", headers=writer).json()
     january = next(p for p in periods if p["period_no"] == 1)
     february = next(p for p in periods if p["period_no"] == 2)
@@ -251,6 +265,24 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         assert ready.json()["status"] == "BLOCKED", ready.json()
         assert "PROFIT_TRANSFER_IS_MISMATCH" in ready.json()["issues"]
         assert Decimal(ready.json()["income_statement_profit"]) == Decimal("-50")
+        check = next(
+            row for row in ready.json()["checks"] if row["code"] == "PROFIT_TRANSFER_IS_MISMATCH"
+        )
+        assert check["status"] == "BLOCKED"
+        assert Decimal(check["reported_amount"]) == Decimal("-50")
+        assert Decimal(check["source_amount"]) == Decimal("50")
+        assert Decimal(check["difference"]) == Decimal("100")
+        assert check["journal_ids"] == [transfer["id"]]
+        assert check["next_action"] == "REVIEW_HARD_CLOSE_CONTRACT"
+        source_rows = [
+            row for row in ready.json()["source_rows"] if row["journal_id"] == transfer["id"]
+        ]
+        assert {row["journal_line_id"] for row in source_rows} == {
+            row["id"] for row in transfer["lines"]
+        }
+        assert sum((Decimal(row["amount"]) for row in source_rows), Decimal("0")) == 0
+        assert ready.json()["close_version"] == 1
+        assert ready.json()["statement_set_id"] is not None
         assert (
             request(
                 api_client, writer, "/equity/statements/generate", {"period_id": february["id"]}
@@ -262,6 +294,9 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert Decimal(ready.json()["balance_sheet_equity"]) == Decimal("365")
     assert Decimal(ready.json()["income_statement_profit"]) == Decimal("50")
     assert Decimal(ready.json()["rollforward_equity"]) == Decimal("365")
+    assert ready.json()["checks"][0]["status"] == "MATCHED"
+    assert Decimal(ready.json()["checks"][0]["difference"]) == 0
+    assert all(not row["classification_required"] for row in ready.json()["source_rows"])
     key = str(uuid4())
     generated = request(
         api_client, writer, "/equity/statements/generate", {"period_id": february["id"]}, key
@@ -746,3 +781,45 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         api_client.get(f"/reports/generations/{csv_run_id}/download", headers=owner).status_code
         == 200
     )
+
+
+def test_equity_stale_readiness_never_invents_amounts_or_changes_snapshots(
+    api_client, auth_service
+):
+    from app.closing.infrastructure.models import ClosingRunModel
+    from tests.integration.test_financial_statements import closed_company
+
+    owner, writer, period_id, run_id, journal, connection = closed_company(api_client, auth_service)
+    generated = request(
+        api_client, writer, "/financial-statements/generate", {"period_id": period_id}
+    )
+    assert generated.status_code == 201, generated.text
+    journal_before = api_client.get(f"/journals/{journal['id']}", headers=owner).json()
+    statement_path = f"/financial-statements/sets/{generated.json()['id']}/INCOME_STATEMENT"
+    statement_before = api_client.get(statement_path, headers=owner)
+    assert statement_before.status_code == 200, statement_before.text
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        session.execute(
+            update(ClosingRunModel)
+            .where(ClosingRunModel.id == UUID(run_id))
+            .values(adjusted_tb_digest="0" * 64)
+        )
+        session.commit()
+    result = api_client.get(
+        "/equity/reconciliation", headers=writer, params={"period_id": period_id}
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["status"] == "BLOCKED"
+    assert result.json()["issues"] == ["REPORT_SOURCE_STALE"]
+    assert result.json()["balance_sheet_equity"] is None
+    assert result.json()["income_statement_profit"] is None
+    assert result.json()["rollforward_equity"] is None
+    assert result.json()["source_rows"] == []
+    attempt = request(api_client, writer, "/equity/statements/generate", {"period_id": period_id})
+    assert attempt.status_code == 409 and attempt.json()["code"] == "REPORT_SOURCE_STALE"
+    assert (
+        api_client.get("/equity/statements", headers=writer, params={"period_id": period_id}).json()
+        == []
+    )
+    assert api_client.get(f"/journals/{journal['id']}", headers=owner).json() == journal_before
+    assert api_client.get(statement_path, headers=owner).json() == statement_before.json()
