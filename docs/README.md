@@ -26,4 +26,6 @@ PostgreSQL CI 분할 실행과 migration 테스트 축소 기준은 [PostgreSQL 
 
 배포 상태 확인은 [서비스 생존과 회계 DB 준비 상태](platform/service-readiness.md)의 `/health`·`/ready` 계약을 사용합니다. 운영 출시 승인과 구분합니다.
 
+기존 구현과 앞으로의 개발·운영 조건은 [제품 지원 범위와 잔여 완료 조건](verification/product-capabilities.md)에서 구분합니다.
+
 SCE의 현재 대사 기준·원천 전표·차단 해결 흐름과 손익 대체 잔여 계약은 [자본변동 대사 작업함](accounting/equity-reconciliation-workflow.md)을 참고하세요. #112의 물리적 hard-close 지원 완료를 뜻하지 않습니다.

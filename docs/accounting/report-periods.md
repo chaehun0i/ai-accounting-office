@@ -8,7 +8,7 @@
 
 `/reports`에서 다음 순서로 진행합니다.
 
-1. 재무상태표(BS), 손익계산서(IS), 재무비율, 현금흐름표(CF), 자본변동표(SCE) 중 하나와 **마감된 회계기간**을 선택합니다. 마감된 기간이 없다면 `/closing`에서 마감 상태를 확인합니다.
+1. 재무상태표(BS), 손익계산서(IS), 재무비율, 현금흐름표(CF), 자본변동표(SCE), 주석 또는 비교 재무제표 중 하나와 **마감된 회계기간**을 선택합니다. 마감된 기간이 없다면 `/closing`에서 마감 상태를 확인합니다. 비교 재무제표는 비교 전기도 선택합니다.
 2. 기간 preset 또는 사용자 지정 날짜를 고르고 **서버가 해석한 실제 기간**을 확인합니다. BS는 기준일(`AS_OF`), IS·재무비율·CF·SCE는 시작·종료일(`RANGE`)을 사용합니다. 회사 timezone·회계연도·주 시작일은 서버의 기존 Resolver가 적용합니다.
 3. 선택한 CLOSED 기간의 종료일 또는 시작·종료일과 해석된 기간이 정확히 일치해야 **보고서 생성** 버튼이 활성화됩니다. Preset이 다른 기간을 가리킨다면 해당 마감 기간을 선택하거나 날짜를 직접 지정합니다. 해당 기간의 BS/IS 관계형 스냅샷이 없다면 `/financial-statements`에서 먼저 생성합니다. CF와 SCE는 같은 화면에서 대사를 마친 `RECONCILED` 스냅샷도 필요합니다.
 4. PDF, XLSX, CSV 중 하나를 선택하고 생성합니다. 작은 V1 산출물은 요청 중 동기 생성되며 화면에 완료 또는 실패 상태가 표시됩니다.
@@ -23,6 +23,8 @@
 | `FINANCIAL_METRICS` | 재무비율 | `RANGE` | PDF/XLSX/CSV |
 | `CASH_FLOW` | 현금흐름표 | `RANGE` | PDF/XLSX/CSV |
 | `CHANGES_IN_EQUITY` | 자본변동표 | `RANGE` | PDF/XLSX/CSV |
+| `NOTES` | 독립 승인된 재무제표 주석 | `RANGE` | PDF/XLSX/CSV |
+| `COMPARATIVE_FINANCIAL_STATEMENTS` | 독립 승인된 BS/IS 비교 | `RANGE` | PDF/XLSX/CSV |
 
 `report.read`는 화면과 catalog·상세 조회, `report.generate`와 `report.export`는 생성·재시도, `report.download_history`는 이력·Artifact 조회·다운로드에 필요합니다. 다운로드 요청마다 인증, 회사 소속, Run과 Artifact의 회사, 권한을 다시 확인합니다. 회사 전환 시 이전 회사의 화면 상태를 버립니다. 화면에서 버튼을 숨기는 것은 서버 권한 검사를 대신하지 않습니다.
 
@@ -34,6 +36,8 @@ SCE Run은 현재 대사 상태를 다시 검사하고 SCE Snapshot digest를 �
 
 API는 `GET /reports/catalog`, `POST /reports/generations`, `GET /reports/generations`, `GET /reports/generations/{run_id}`와 완료 Run의 `/artifact`·`/download`를 제공합니다. 생성과 재시도 요청에는 `X-Company-ID`, CSRF, `Idempotency-Key`가 적용됩니다. 지원 형식은 PDF, XLSX, UTF-8 CSV입니다.
 
-V1은 작은 보고서를 요청 중 동기 생성합니다. CF·SCE 파일에는 `INTERNAL_VALIDATION_ONLY`를 표시합니다. `RECONCILED`는 법정 승인·감사·공시 완료를 뜻하지 않습니다. 구조화된 Notes, DOCX, LLM 설명문, 예약·이메일, Cloud Storage는 지원하지 않습니다.
+V1은 작은 보고서를 요청 중 동기 생성합니다. CF·SCE·주석·비교 파일에는 `INTERNAL_VALIDATION_ONLY`를 표시합니다. `RECONCILED` 또는 주석·비교의 `APPROVED`는 전체 제표의 법정 승인·감사·공시 완료를 뜻하지 않습니다. DOCX, LLM 설명문, 예약·이메일, Cloud Storage는 지원하지 않습니다.
+
+주석은 `/financial-statements`에서 Narrative 작성과 독립 승인을 마친 현재 유효 revision만 생성 대상으로 삼습니다. 비교 보고서는 같은 taxonomy의 CLOSED BS/IS 비교와 표시 재분류·독립 승인을 마친 Snapshot을 사용합니다. 승인 대상 version과 source digest가 달라졌거나 원천이 stale이면 신규 Export를 차단하며, 기존 완료 파일을 최신 원천과 혼합하지 않습니다. CF/SCE/Notes 비교와 taxonomy bridge·restatement는 지원 범위에 포함하지 않습니다. [비교 재무제표 계약](comparative-financial-statements.md)을 함께 확인하세요.
 
 현금흐름표의 회사별 정책·비현금 공시·처분손익 원천을 포함한 새 생성 요청은 현재 스냅샷의 유효성을 확인합니다. 비현금 공시는 PDF/XLSX/CSV에서 현금흐름 합계와 분리해 표시합니다. 기존에 완료된 Run과 Artifact는 생성 당시 스냅샷을 계속 가리킵니다. 세부 검증 범위는 [현금흐름표 회계 계약](cash-flow-policy-remaining-work.md)에 기록합니다.
