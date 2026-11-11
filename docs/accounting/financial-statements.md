@@ -63,3 +63,5 @@ BS/IS 각 항목의 **계정·전표 보기**는 원장 출처 조회이며, **A
 Report Center `NOTES`는 현재 원천 digest와 일치하는 독립 승인 revision에서만 PDF/XLSX/CSV Run을 생성합니다. 기존 Artifact/History/Download 및 SHA-256 검증을 재사용하고 파일에 revision·template/source digest·`INTERNAL_VALIDATION_ONLY`를 표시합니다. 승인된 Notes는 내부 검토본이며 법정 승인·감사 완료·외부 제출 적합성을 뜻하지 않습니다.
 
 Notes의 PostgreSQL 핵심 회귀는 `test_equity_statement.py`의 CLOSED 원천 생성·Fact/전표 추적·작성자와 Reviewer 분리·승인 불변성·세 형식 Export 정상 경로, `test_disclosures.py`의 미완료 원천 차단, Report Center 회사 범위 및 migration lifecycle 테스트를 포함합니다. 로컬 PostgreSQL 없이 이 검증을 통과로 표시하지 않으며, CI PostgreSQL job에서 실제 DB로 실행합니다.
+
+SCE 대사 작업함은 [제표 금액·진단 원천·POSTED 전표·차단 후속 경로](equity-reconciliation-workflow.md)를 제공합니다. 손익 대체 IS 충돌을 보정하지 않으며 #112의 hard-close 표시 계약은 미지원으로 유지합니다.
