@@ -19,6 +19,7 @@ from sqlalchemy.engine import URL
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = (
+    "test_readiness.py",
     "test_journal_flow.py",
     "test_posting_concurrency.py",
     "test_closing_workflow.py",

@@ -23,5 +23,6 @@ def create_database_engine(settings: Settings) -> Engine:
         echo_pool=False,
         hide_parameters=True,
         pool_pre_ping=True,
+        pool_timeout=5,
         connect_args={"connect_timeout": 5, "options": "-c timezone=UTC"},
     )

@@ -54,7 +54,7 @@
 - Frontend: 지연 응답 검증 포함 58건 통과, lint/typecheck 통과. 실제 브라우저 전체 E2E는 미실행이다.
 - PostgreSQL 복원: `agent_workflow_test` → `recovery_6ef6b23dd870_test`, 사용자 테이블 153개, 행 수·SHA-256 모두 일치, 원천 변화 없음, 8.02초. 테스트 DB의 보존된 데이터만 검증한 수치다.
 - Object Storage: `.local/storage` 파일 3개를 새 archive와 새 경로로 복원, SHA-256 일치, 원천 변화 없음. DB와 같은 시점의 일관 백업 및 원격 저장소 재해복구를 검증한 것은 아니다.
-- 사용자 확인: 실제 회사 자료 없음. 실제 Shadow Accounting Pilot은 BLOCKED로 유지한다. 운영 RPO/RTO·오프사이트 보관·독립 담당자 sign-off도 미확정이다.
+- 사용자 확인: 실제 회사 자료 없음. 실제 Shadow Accounting Pilot은 BLOCKED로 유지한다. 설계 목표 RPO 15분 이하·RTO 4시간 이하의 운영 충족, 오프사이트 보관·독립 담당자 sign-off는 미검증이다.
 
 원본 테스트 expected, skip/xfail 및 핵심 assertion은 변경하지 않았다. 신규 회계 규칙이나 물리적 손익 대체 지원을 추정하지 않았으며 기존 차단 계약을 유지한다.
 

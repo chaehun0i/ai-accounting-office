@@ -19,6 +19,7 @@ from app.closing.api.router import router as closing_router
 from app.companies.api.router import router as companies_router
 from app.composition import create_services
 from app.core.config import Settings, load_settings
+from app.core.database.readiness import DatabaseReadiness, migration_heads
 from app.core.errors import internal_error_response, register_error_handlers
 from app.core.logging import configure_logging
 from app.finance.banking.api.router import router as banking_router
@@ -60,7 +61,7 @@ class RequestIdMiddleware:
                 message["headers"] = [
                     (key, value)
                     for key, value in message.get("headers", [])
-                    if key.lower() != b"x-request-id"
+                    if key.lower() not in {b"x-request-id", b"cache-control"}
                 ]
                 message["headers"].append((b"x-request-id", request_id.encode()))
                 message["headers"].append((b"cache-control", b"no-store"))
@@ -90,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="AI Accounting Office", version="0.1.0", debug=False, lifespan=lifespan)
     app.state.services = container
+    app.state.database_readiness = DatabaseReadiness(engine, migration_heads())
     app.state.frontend_origin = str(settings.frontend_origin).rstrip("/")
     app.state.secure_cookies = settings.app_environment in ("staging", "production")
     app.state.refresh_cookie_name = (

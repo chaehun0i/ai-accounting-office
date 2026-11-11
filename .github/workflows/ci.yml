@@ -110,6 +110,7 @@ jobs:
         if: needs.scope.outputs.full_postgresql != 'true'
         run: >-
           python -m pytest
+          tests/integration/test_readiness.py
           tests/integration/test_database_values.py
           tests/integration/test_schema_policy.py
           tests/integration/test_journal_flow.py
