@@ -8,3 +8,8 @@ def digest(value: object) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+def value_digest(value: object) -> str:
+    """Normalize typed values while preserving existing fingerprints."""
+    return digest(json.loads(json.dumps(value, default=str)))
