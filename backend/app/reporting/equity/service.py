@@ -17,6 +17,8 @@ from app.accounting.journals.infrastructure.models import (
     JournalLineModel,
     JournalModel,
 )
+from app.accounting.ledger.domain.entities import LedgerFact
+from app.accounting.periods.domain.entities import Period
 from app.closing.application.service import ClosingService
 from app.closing.domain.errors import ClosingRunStale
 from app.companies.application.service import require_company
@@ -38,6 +40,7 @@ from app.reporting.equity.models import (
     EquityStatementModel,
     EquityStatementSourceModel,
 )
+from app.reporting.financial_statements.domain.entities import StatementView
 from app.reporting.financial_statements.domain.rules import ReportSourceStale
 
 ZERO = Decimal("0")
@@ -82,6 +85,31 @@ class EquityRollforwardMismatch(ApplicationError):
 
 
 @dataclass(frozen=True)
+class EquityReconciliationCheck:
+    code: str
+    status: str
+    reported_amount: Decimal | None
+    source_amount: Decimal | None
+    difference: Decimal | None
+    basis: str
+    next_action: str
+    journal_ids: tuple[UUID, ...] = ()
+
+
+@dataclass(frozen=True)
+class EquityReconciliationSource:
+    journal_id: UUID
+    journal_line_id: UUID
+    journal_no: str
+    account_code: str
+    account_name: str
+    amount: Decimal
+    event_type: str | None
+    classification_required: bool
+    evidence_ids: tuple[UUID, ...]
+
+
+@dataclass(frozen=True)
 class EquityReadiness:
     period_id: UUID
     status: str
@@ -90,6 +118,10 @@ class EquityReadiness:
     income_statement_profit: Decimal | None
     rollforward_equity: Decimal | None
     source_digest: str | None
+    checks: tuple[EquityReconciliationCheck, ...] = ()
+    source_rows: tuple[EquityReconciliationSource, ...] = ()
+    statement_set_id: UUID | None = None
+    close_version: int | None = None
 
 
 def _row(row: object) -> dict[str, object]:
@@ -987,8 +1019,23 @@ class EquityService:
     def reconciliation(self, actor: Principal, company: UUID, period_id: UUID) -> EquityReadiness:
         with self.factory() as uow:
             require_company(uow, actor, company, "financial_statement.read")
-            result = self._calculate(uow, company, period_id)
-            _, _, balance, income, amounts, _, _, identity, _, _, issues = result
+            period = uow.periods.get(company_id=company, resource_id=period_id)
+            if period is None:
+                raise ResourceNotFound()
+            if period.status != "CLOSED":
+                return EquityReadiness(
+                    period_id, "BLOCKED", ("PERIOD_NOT_CLOSED",), None, None, None, None
+                )
+            try:
+                result = self._calculate(uow, company, period_id)
+            except ReportSourceStale:
+                return EquityReadiness(
+                    period_id, "BLOCKED", ("REPORT_SOURCE_STALE",), None, None, None, None
+                )
+            _, statement_set, balance, income, amounts, _, facts, identity, _, _, issues = result
+            checks, source_rows = self._reconciliation_details(
+                uow, company, period, income, amounts, facts, balance, issues
+            )
             return EquityReadiness(
                 period_id,
                 "BLOCKED" if issues else "READY",
@@ -1011,7 +1058,126 @@ class EquityService:
                 else None,
                 sum((v["CLOSING"] for v in amounts.values()), ZERO) if amounts else None,
                 identity,
+                checks,
+                source_rows,
+                statement_set.id if statement_set else None,
+                period.close_version,
             )
+
+    @staticmethod
+    def _reconciliation_details(
+        uow: CashFlowUnitOfWork,
+        company: UUID,
+        period: Period,
+        income: StatementView | None,
+        amounts: dict[UUID, dict[str, Decimal]],
+        facts: list[LedgerFact],
+        balance: StatementView | None,
+        issues: list[str],
+    ) -> tuple[tuple[EquityReconciliationCheck, ...], tuple[EquityReconciliationSource, ...]]:
+        account_types = {account.id: account.account_type for account in uow.accounts.list(company)}
+        events = list(
+            uow.session.scalars(
+                select(EquityEventModel).where(
+                    EquityEventModel.company_id == company,
+                    EquityEventModel.event_date >= period.start_date,
+                    EquityEventModel.event_date <= period.end_date,
+                )
+            )
+        )
+        by_line = {event.source_journal_line_id: event for event in events}
+        transfer_ids = {
+            event.source_journal_id for event in events if event.event_type == "PROFIT_TRANSFER"
+        }
+        net_profit = (
+            next(
+                (line.current_amount for line in income.lines if line.line_code == "NET_PROFIT"),
+                None,
+            )
+            if income
+            else None
+        )
+        bs_equity = (
+            next(
+                (line.current_amount for line in balance.lines if line.line_code == "EQUITY"), None
+            )
+            if balance
+            else None
+        )
+        closing = sum((values["CLOSING"] for values in amounts.values()), ZERO) if amounts else None
+        checks = [
+            EquityReconciliationCheck(
+                "EQUITY_ROLLFORWARD_MISMATCH",
+                "MATCHED" if bs_equity is not None and closing == bs_equity else "BLOCKED",
+                bs_equity,
+                closing,
+                closing - bs_equity if closing is not None and bs_equity is not None else None,
+                "SCE_CLOSING_VS_BS_EQUITY",
+                "REVIEW_EQUITY_SOURCES",
+            )
+        ]
+        if transfer_ids:
+            operational = sum(
+                (
+                    fact.credit_amount - fact.debit_amount
+                    for fact in facts
+                    if period.start_date <= fact.entry_date <= period.end_date
+                    and fact.journal_id not in transfer_ids
+                    and account_types.get(fact.account_id) in {"REVENUE", "EXPENSE"}
+                ),
+                ZERO,
+            )
+            checks.append(
+                EquityReconciliationCheck(
+                    "PROFIT_TRANSFER_IS_MISMATCH",
+                    "BLOCKED" if "PROFIT_TRANSFER_IS_MISMATCH" in issues else "MATCHED",
+                    net_profit,
+                    operational,
+                    operational - net_profit if net_profit is not None else None,
+                    "POSTED_PL_EXCLUDING_CLASSIFIED_TRANSFER_DIAGNOSTIC_ONLY",
+                    "REVIEW_HARD_CLOSE_CONTRACT",
+                    tuple(sorted(transfer_ids)),
+                )
+            )
+        selected = [
+            fact
+            for fact in facts
+            if period.start_date <= fact.entry_date <= period.end_date
+            and (account_types.get(fact.account_id) == "EQUITY" or fact.journal_id in transfer_ids)
+        ]
+        evidence: dict[UUID, list[UUID]] = defaultdict(list)
+        if selected:
+            for journal_id, evidence_id in uow.session.execute(
+                select(
+                    JournalEvidenceModel.journal_entry_id,
+                    JournalEvidenceModel.evidence_id,
+                ).where(
+                    JournalEvidenceModel.company_id == company,
+                    JournalEvidenceModel.journal_entry_id.in_(
+                        {fact.journal_id for fact in selected}
+                    ),
+                )
+            ):
+                evidence[journal_id].append(evidence_id)
+        sources = tuple(
+            EquityReconciliationSource(
+                fact.journal_id,
+                fact.line_id,
+                fact.journal_no,
+                fact.account_code,
+                fact.account_name,
+                fact.credit_amount - fact.debit_amount,
+                by_line[fact.line_id].event_type if fact.line_id in by_line else None,
+                account_types.get(fact.account_id) == "EQUITY"
+                and fact.source_type != "OPENING"
+                and fact.line_id not in by_line,
+                tuple(sorted(evidence[fact.journal_id])),
+            )
+            for fact in sorted(
+                selected, key=lambda row: (row.entry_date, row.journal_no, row.line_id)
+            )
+        )
+        return tuple(checks), sources
 
     def generate(
         self, actor: Principal, company: UUID, period_id: UUID, key: str
