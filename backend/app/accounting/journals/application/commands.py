@@ -19,8 +19,8 @@ from app.contracts.access_errors import (
     ResourceNotFound,
     VersionConflict,
 )
+from app.core.digests import digest, value_digest
 from app.identity.users.domain.entities import Principal
-from app.intake.domain.digest import digest
 
 
 def journal_digest(value: Journal) -> str:
@@ -38,9 +38,7 @@ def journal_digest(value: Journal) -> str:
         "journal_no",
     ):
         data.pop(key)
-    import json
-
-    return digest(json.loads(json.dumps(data, default=str)))
+    return value_digest(data)
 
 
 class JournalCommands:
@@ -59,9 +57,7 @@ class JournalCommands:
             line.pop("id")
         if source_version is not None:
             data["source_version"] = source_version
-        import json
-
-        fingerprint = digest(json.loads(json.dumps(data, default=str)))
+        fingerprint = value_digest(data)
         with self.factory() as uow:
             require_company(uow, actor, value.company_id, "journal.propose")
             replay = uow.governance.replay(

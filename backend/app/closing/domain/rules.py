@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from app.contracts.access_errors import StateConflict
-from app.core.digests import digest
+from app.core.digests import value_digest
 
 ADJUSTMENT_TYPES = frozenset(
     {
@@ -57,6 +57,4 @@ def require_ready(checks: tuple[ClosingCheck, ...]) -> None:
 
 def stable_digest(value: object) -> str:
     """JSON 직렬화는 해시 계산에만 쓰며 업무 DB에 payload를 저장하지 않습니다."""
-    import json
-
-    return digest(json.loads(json.dumps(value, default=str, sort_keys=True)))
+    return value_digest(value)
