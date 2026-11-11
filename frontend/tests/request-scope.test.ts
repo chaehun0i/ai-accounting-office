@@ -27,3 +27,22 @@ test("빠른 연속 원천 선택은 마지막 요청만 표시한다", () => {
   assert.equal(latest(), false);
   assert.equal(detail(), false);
 });
+
+test("기간을 떠났다가 돌아와도 이전 실패가 새 작업 상태를 덮어쓰지 않는다", async () => {
+  const scope = new RequestScope();
+  const oldRequest = scope.start("mutation");
+  let reject!: (reason: Error) => void;
+  const pending = new Promise<void>((_, fail) => { reject = fail; });
+  let error = "";
+  let busy = true;
+  const completion = pending.catch(reason => { if (oldRequest()) error = reason.message; })
+    .finally(() => { if (oldRequest()) busy = false; });
+  scope.invalidate();
+  scope.invalidate();
+  const current = scope.start("mutation");
+  reject(new Error("이전 기간 오류"));
+  await completion;
+  assert.equal(error, "");
+  assert.equal(busy, true);
+  assert.equal(current(), true);
+});
