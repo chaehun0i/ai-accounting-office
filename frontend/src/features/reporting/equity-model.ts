@@ -22,6 +22,13 @@ export type EquityReadiness = {
   period_id: string; status: "READY" | "BLOCKED"; issues: string[];
   balance_sheet_equity: string | null; income_statement_profit: string | null;
   rollforward_equity: string | null; source_digest: string | null;
+  statement_set_id?: string | null; close_version?: number | null;
+  checks?: { code: string; status: "MATCHED" | "BLOCKED"; reported_amount: string | null;
+    source_amount: string | null; difference: string | null; basis: string; next_action: string;
+    journal_ids: string[] }[];
+  source_rows?: { journal_id: string; journal_line_id: string; journal_no: string;
+    account_code: string; account_name: string; amount: string; event_type: string | null;
+    classification_required: boolean; evidence_ids: string[] }[];
 };
 export type EquityLine = {
   id: string; component_id: string; movement_type: string;
@@ -50,6 +57,8 @@ export const equityMovements = [
 ] as const;
 
 export const equityIssueLabels: Record<string, string> = {
+  PERIOD_NOT_CLOSED: "기간을 CLOSED로 마감한 뒤 다시 확인해 주세요.",
+  REPORT_SOURCE_STALE: "마감 원천이 변경됐습니다. 재검토·독립 승인·재마감 후 새 제표를 생성해 주세요.",
   BS_IS_SNAPSHOT_MISSING: "현재 CLOSED 기간의 BS/IS 스냅샷을 먼저 생성해 주세요.",
   EQUITY_COMPONENT_MISSING: "자본 구성요소를 등록해 주세요.",
   RETAINED_EARNINGS_COMPONENT_REQUIRED: "이익잉여금 구성요소를 정확히 하나 등록해 주세요.",
@@ -70,3 +79,16 @@ export const equityIssueLabels: Record<string, string> = {
 export function equityCell(snapshot: EquitySnapshot, componentId: string, movement: string): EquityLine | undefined {
   return snapshot.lines.find(line => line.component_id === componentId && line.movement_type === movement);
 }
+
+export const equityIssueActions: Record<string, { label: string; href: string }> = {
+  PERIOD_NOT_CLOSED: { label: "기간 마감 확인", href: "/closing" },
+  REPORT_SOURCE_STALE: { label: "현재 원천·재마감 확인", href: "/closing" },
+  BS_IS_SNAPSHOT_MISSING: { label: "BS/IS 생성 확인", href: "/financial-statements" },
+  EQUITY_MAPPING_INCOMPLETE: { label: "자본 계정 연결 확인", href: "#equity-settings" },
+  UNCLASSIFIED_EQUITY_SOURCE: { label: "전표 라인과 분류 확인", href: "#equity-source-classification" },
+  PROFIT_TRANSFER_IS_MISMATCH: { label: "미지원 손익마감 기준 확인", href: "#equity-reconciliation-workbench" },
+  PROFIT_TRANSFER_SOURCE_MISMATCH: { label: "대체 전표 원천 확인", href: "/journals" },
+  PRIOR_EQUITY_SNAPSHOT_MISSING: { label: "전기 BS 확인", href: "/financial-statements" },
+  PRIOR_EQUITY_SNAPSHOT_STALE: { label: "전기 마감 확인", href: "/closing" },
+  DIVIDEND_CF_SOURCE_MISMATCH: { label: "실제 지급과 CF 확인", href: "/financial-statements" },
+};

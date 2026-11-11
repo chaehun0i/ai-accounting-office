@@ -7,7 +7,7 @@ import type { Company } from "@/features/companies/selection-state";
 import { ApiError } from "@/shared/api";
 import { formatMoney, type Account, type Period, type StatementSet } from "./model";
 import {
-  equityCell, equityIssueLabels, equityMovements,
+  equityCell, equityIssueLabels, equityIssueActions, equityMovements,
   type DividendDeclaration, type DividendPayment, type EquityComponent, type EquityEvent,
   type EquityMapping, type EquityReadiness, type EquitySnapshot, type EquitySource,
 } from "./equity-model";
@@ -43,6 +43,9 @@ export function EquityWorkspace({ company, period, statementSet }: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [candidateLineId, setCandidateLineId] = useState("");
+  const classificationDetails = useRef<HTMLDetailsElement>(null);
+  const sourceRequest = useRef(0);
   const [revision, setRevision] = useState(0);
   const retry = useRef<{ source: string; key: string } | null>(null);
   const scope = `${company.id}:${period.id}`;
@@ -58,6 +61,7 @@ export function EquityWorkspace({ company, period, statementSet }: {
     setLoading(true); setBusy(false); setError(""); setNotice("");
     setComponents([]); setMappings([]); setAccounts([]); setEvents([]);
     setDeclarations([]); setPayments({}); setReadiness(null); setHistory([]);
+    setCandidateLineId(""); sourceRequest.current += 1;
     setSnapshot(null); setSnapshotId(""); setSources([]); setSourceLine(null);
     retry.current = null;
     Promise.all([
@@ -166,15 +170,16 @@ export function EquityWorkspace({ company, period, statementSet }: {
     if (!snapshot) return;
     const requestScope = scope;
     const statementId = snapshot.id;
+    const request = ++sourceRequest.current;
     setSourceLine(line); setSources([]); setError("");
     try {
       const rows = await authenticatedRequest<EquitySource[]>(
         `/equity/statements/${statementId}/lines/${line.id}/sources`, { headers },
       );
-      if (scopeRef.current === requestScope && selectedSnapshotRef.current === statementId) {
+      if (scopeRef.current === requestScope && selectedSnapshotRef.current === statementId && sourceRequest.current === request) {
         setSources(rows);
       }
-    } catch (reason) { if (scopeRef.current === requestScope) setError(fail(reason)); }
+    } catch (reason) { if (scopeRef.current === requestScope && selectedSnapshotRef.current === statementId && sourceRequest.current === request) setError(fail(reason)); }
   }
 
   const currentSnapshot = snapshot?.snapshot_digest === readiness?.source_digest;
@@ -189,13 +194,30 @@ export function EquityWorkspace({ company, period, statementSet }: {
       {readiness && <div>
         <p role="status">대사 상태: <strong>{readiness.status}</strong></p>
         {readiness.issues.length > 0 && <ul>{readiness.issues.map(issue =>
-          <li key={issue}>{equityIssueLabels[issue] ?? issue} <code>{issue}</code></li>)}</ul>}
+          <li key={issue}>{equityIssueLabels[issue] ?? issue} <code>{issue}</code>{equityIssueActions[issue] && <> · <Link href={equityIssueActions[issue].href}>{equityIssueActions[issue].label}</Link></>}</li>)}</ul>}
+        {readiness.checks && readiness.checks.length > 0 && <section id="equity-reconciliation-workbench" aria-label="자본 대사 근거 작업함">
+          <h3>차이와 원천 확인</h3>
+          <p>표시 금액과 진단 원천의 기준을 구분합니다. 진단금액을 IS 순이익으로 대체하거나 차액을 자동 보정하지 않습니다.</p>
+          <table><thead><tr><th>검사</th><th>제표 금액</th><th>원천 진단금액</th><th>원천−제표 차이</th><th>판정</th></tr></thead><tbody>{readiness.checks.map(check => <tr key={check.code}>
+            <th>{check.basis === "SCE_CLOSING_VS_BS_EQUITY" ? "SCE 기말합계 ↔ BS 자본" : "IS 순이익 ↔ 분류된 대체 전표 제외 손익"}</th>
+            <td>{check.reported_amount === null ? "원천 부족" : formatMoney(check.reported_amount)}</td>
+            <td>{check.source_amount === null ? "원천 부족" : formatMoney(check.source_amount)}</td>
+            <td>{check.difference === null ? "계산 불가" : formatMoney(check.difference)}</td><td>{check.status}</td>
+          </tr>)}</tbody></table>
+          {readiness.checks.some(check => check.next_action === "REVIEW_HARD_CLOSE_CONTRACT") && <p role="alert">현재 ADJUSTED 제표와 물리적 손익마감은 다른 기준입니다. POST_CLOSING·연말 hard close 표시 계약은 아직 지원하지 않으므로, 원천 전표를 검토하고 차단 상태를 유지합니다. 승인·POSTED 전표를 이 화면에서 변경할 수 없습니다.</p>}
+          <p>마감 버전 {readiness.close_version ?? "미확정"} · Statement Set {readiness.statement_set_id ?? "없음"}</p>
+          <Link href="/closing">마감 원천과 독립 승인 확인</Link>{" · "}<a href="#disclosure-heading">Notes 원천 검증·독립 승인 확인</a>{" · "}<Link href="/reports">Report Center 이력·내보내기</Link>
+        </section>}
+        {readiness.source_rows && readiness.source_rows.length > 0 && <details><summary>현재 기간 자본·손익 대체 원천 전표</summary><table><thead><tr><th>전표·계정</th><th>대변−차변</th><th>분류</th><th>증빙</th></tr></thead><tbody>{readiness.source_rows.map(row => <tr key={row.journal_line_id}>
+          <td><Link href="/journals">{row.journal_no}</Link> · {row.account_code} {row.account_name}<br /><code>{row.journal_line_id}</code></td>
+          <td>{formatMoney(row.amount)}</td><td>{row.event_type ?? (row.classification_required ? "분류 필요" : "기초·진단 원천")}{canGenerate && row.classification_required && <button onClick={() => { setCandidateLineId(row.journal_line_id); if (classificationDetails.current) classificationDetails.current.open = true; }}>이 라인 분류 검토</button>}</td><td>{row.evidence_ids.join(", ") || "연결 증빙 없음"}</td>
+        </tr>)}</tbody></table></details>}
         <p>BS 기말자본 {readiness.balance_sheet_equity === null ? "검증 전" : formatMoney(readiness.balance_sheet_equity)} · IS 당기순이익 {readiness.income_statement_profit === null ? "검증 전" : formatMoney(readiness.income_statement_profit)} · SCE 기말합계 {readiness.rollforward_equity === null ? "검증 전" : formatMoney(readiness.rollforward_equity)}</p>
       </div>}
       {canGenerate && <button disabled={busy || readiness?.status !== "READY" || !statementSet}
         onClick={() => void generate()}>자본변동표 생성</button>}
       {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status">{notice}</p>}
-      {canGenerate && <details><summary>자본 구성요소·계정 설정</summary>
+      {canGenerate && <details id="equity-settings"><summary>자본 구성요소·계정 설정</summary>
         <ul>{orderedComponents.map(component => <li key={component.id}>{component.component_code} · {component.name} · v{component.version}</li>)}</ul>
         <form onSubmit={createComponent}><h3>구성요소 등록</h3>
           <label>코드 <input name="component_code" required pattern="[A-Z][A-Z0-9_]+" /></label>
@@ -211,10 +233,10 @@ export function EquityWorkspace({ company, period, statementSet }: {
         </form>}
         <p>기준일 {period.start_date} · 연결 {mappings.filter(mapping => mapping.status === "ACTIVE").length}건</p>
       </details>}
-      {canGenerate && <details><summary>자본변동 전표와 배당결의</summary>
+      {canGenerate && <details id="equity-source-classification" ref={classificationDetails}><summary>자본변동 전표와 배당결의</summary>
         <p>전표 등록·승인·POSTED 처리는 <Link href="/journals">전표 화면</Link>에서 완료한 뒤 자본 라인 ID를 분류합니다.</p>
-        <form onSubmit={classify}><label>POSTED 전표 라인 ID <input name="journal_line_id" required /></label>
-          <label>변동 유형 <select name="event_type">{eventTypes.map(type => <option key={type}>{type}</option>)}</select></label>
+        <form onSubmit={classify}><label>POSTED 전표 라인 ID <input name="journal_line_id" value={candidateLineId} onChange={event => setCandidateLineId(event.target.value)} required /></label>
+          <label>변동 유형 <select name="event_type" defaultValue="" required><option value="" disabled>근거에 맞는 변동 유형 선택</option>{eventTypes.map(type => <option key={type}>{type}</option>)}</select></label>
           <button disabled={busy}>원천 분류</button></form>
         <h3>검증된 변동 이벤트</h3>{events.length === 0 ? <p>등록된 기간 변동이 없습니다.</p> :
           <ul>{events.map(item => <li key={item.id}>{item.event_date} · {item.event_type} · {formatMoney(item.amount)} · 전표 {item.source_journal_id}</li>)}</ul>}
