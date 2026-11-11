@@ -20,4 +20,3 @@ CF/SCE/Notes의 기존 요청 격리와 회사별 조회, Notes의 현재 원천
 단위 10건, 전표·마감 PostgreSQL 11건, frontend 60건 및 lint/typecheck, 변경 Python Ruff/mypy가 통과했다. frontend 검증은 상태 제어·모델 테스트이며 실제 브라우저 전체 E2E는 실행하지 않았다. SCE·Notes·비교·Report Center 집중 PostgreSQL 8건도 통과했다(101.29초). 전체 Golden·전체 PostgreSQL·실고객 Pilot·운영 Release Gate는 이번 점검 범위 밖이다.
 
 PR #127의 digest 통합이 먼저 병합되어, BS/IS 화면·테스트·이 문서는 최신 main 96c632e 기준 후속 PR로 분리했다. 실제 merge는 사용자가 수행했으며 이 작업에서는 merge하지 않았다.
-
