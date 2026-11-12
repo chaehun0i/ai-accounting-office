@@ -116,7 +116,7 @@ jobs:
           tests/integration/test_journal_flow.py
           tests/integration/test_posting_concurrency.py
           tests/integration/test_agent_reporting_tools.py
-          tests/integration/test_equity_statement.py
+          tests/integration/test_equity_statement.py tests/integration/test_equity_review_concurrency.py
           tests/integration/test_disclosures.py
           tests/integration/test_comparative_statements.py
           tests/integration/test_report_center.py

@@ -46,7 +46,7 @@ def close(client, owner, writer, review, period_id):
 
 @pytest.mark.parametrize("physical_transfer", [False, True])
 def test_equity_rollforward_uses_prior_bs_and_current_is(
-    api_client, auth_service, physical_transfer
+    api_client, auth_service, physical_transfer, concurrent=False
 ):
     owner, writer, payload, connection = prepare(api_client, auth_service)
     review = reviewer(api_client, owner, connection)
@@ -329,6 +329,143 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
                 update(EquityStatementModel)
                 .where(EquityStatementModel.id == UUID(generated.json()["id"]))
                 .values(status="RECONCILED")
+            )
+        session.rollback()
+
+    review_path = f"/equity/statements/{generated.json()['id']}/review"
+    state = api_client.get(review_path, headers=writer)
+    assert state.status_code == 200 and state.json()["version"] == 0
+    assert (
+        api_client.get(review_path, headers={**writer, "X-Company-ID": str(uuid4())}).status_code
+        == 404
+    )
+    unapproved = request(
+        api_client,
+        writer,
+        "/reports/generations",
+        {
+            "report_code": "CHANGES_IN_EQUITY",
+            "format": "CSV",
+            "period_id": february["id"],
+            "period_preset": "CUSTOM",
+            "date_from": february["start_date"],
+            "date_to": february["end_date"],
+        },
+    )
+    assert unapproved.status_code == 409, unapproved.text
+    owner_request = request(
+        api_client,
+        owner,
+        review_path + "/request-review",
+        {"expected_version": 0, "reason": "검토 요청"},
+    )
+    assert owner_request.status_code == 200, owner_request.text
+    assert (
+        request(
+            api_client,
+            owner,
+            review_path + "/approve",
+            {"expected_version": 1, "reason": "요청자 자가 승인"},
+        ).status_code
+        == 409
+    )
+    rejected = request(
+        api_client,
+        review,
+        review_path + "/reject",
+        {"expected_version": 1, "reason": "근거 재확인"},
+    )
+    assert rejected.status_code == 200, rejected.text
+    requested_key = str(uuid4())
+    review_payload = {"expected_version": 2, "reason": "원천과 대사 확인"}
+    requested = request(
+        api_client, writer, review_path + "/request-review", review_payload, requested_key
+    )
+    assert requested.status_code == 200, requested.text
+    replay_review = request(
+        api_client, writer, review_path + "/request-review", review_payload, requested_key
+    )
+    assert replay_review.json()["id"] == requested.json()["id"]
+    assert (
+        request(
+            api_client,
+            writer,
+            review_path + "/request-review",
+            {**review_payload, "reason": "변경"},
+            requested_key,
+        ).status_code
+        == 409
+    )
+    assert (
+        request(
+            api_client, owner, review_path + "/approve", {"expected_version": 0, "reason": "구버전"}
+        ).status_code
+        == 409
+    )
+    assert (
+        request(
+            api_client,
+            writer,
+            review_path + "/approve",
+            {"expected_version": 1, "reason": "자가 승인"},
+        ).status_code
+        == 403
+    )
+    if concurrent:
+        from tests.integration.test_business_document_concurrency import parallel
+
+        results = parallel(
+            lambda _: request(
+                api_client,
+                owner,
+                review_path + "/approve",
+                {"expected_version": 3, "reason": "독립 검토 완료"},
+            )
+        )
+        assert sorted(row.status_code for row in results) == [200, 409]
+        approved = next(row for row in results if row.status_code == 200)
+    else:
+        approved = request(
+            api_client,
+            owner,
+            review_path + "/approve",
+            {"expected_version": 3, "reason": "독립 검토 완료"},
+        )
+    if concurrent:
+        # Replay a completed approval concurrently: neither request may append another event.
+        from tests.integration.test_business_document_concurrency import parallel
+
+        replay_key = str(uuid4())
+        results = parallel(
+            lambda _: request(
+                api_client,
+                owner,
+                review_path + "/approve",
+                {"expected_version": 3, "reason": "경합"},
+                replay_key,
+            )
+        )
+        assert sorted(row.status_code for row in results) == [409, 409]
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["source_digest"] == generated.json()["snapshot_digest"]
+    equity_approval_id = approved.json()["id"]
+    assert (
+        request(
+            api_client,
+            owner,
+            review_path + "/approve",
+            {"expected_version": 4, "reason": "중복 승인"},
+        ).status_code
+        == 409
+    )
+    from app.reporting.equity.review_models import EquityReviewModel
+
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        with pytest.raises(IntegrityError):
+            session.execute(
+                update(EquityReviewModel)
+                .where(EquityReviewModel.id == UUID(approved.json()["id"]))
+                .values(reason="변조")
             )
         session.rollback()
 
@@ -734,6 +871,7 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         if format == "CSV":
             content = download.content.decode("utf-8")
             assert "INTERNAL_VALIDATION_ONLY" in content
+            assert equity_approval_id in content
             assert "CLOSING" in content and "225.0000" in content and "140.0000" in content
         elif format == "XLSX":
             book = load_workbook(BytesIO(download.content), read_only=True, data_only=True)
@@ -777,6 +915,9 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         },
     )
     assert stale.status_code == 409
+    stale_review = api_client.get(review_path, headers=owner)
+    assert stale_review.status_code == 200
+    assert stale_review.json()["status"] == "APPROVED" and stale_review.json()["source_stale"]
     assert (
         api_client.get(f"/reports/generations/{csv_run_id}/download", headers=owner).status_code
         == 200
