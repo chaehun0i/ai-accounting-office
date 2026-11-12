@@ -199,3 +199,34 @@ def sources(
     snapshot_id: UUID, line_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
 ) -> list[dict[str, object]]:
     return service.drilldown(actor, company_id, snapshot_id, line_id)
+
+
+class ReviewCommand(Input):
+    expected_version: int = Field(ge=0)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+@router.get("/statements/{snapshot_id}/review")
+def review_detail(
+    snapshot_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> dict[str, object]:
+    from app.reporting.equity.review import EquityReviewService
+
+    return EquityReviewService(service).detail(actor, company_id, snapshot_id)
+
+
+@router.post("/statements/{snapshot_id}/review/{action}", dependencies=[Depends(csrf)])
+def review_transition(
+    snapshot_id: UUID,
+    action: Literal["request-review", "approve", "reject"],
+    payload: ReviewCommand,
+    actor: Actor,
+    company_id: CompanyScope,
+    service: Service,
+    key: Key,
+) -> dict[str, object]:
+    from app.reporting.equity.review import EquityReviewService
+
+    return EquityReviewService(service).transition(
+        actor, company_id, snapshot_id, payload.expected_version, action, payload.reason, key
+    )
