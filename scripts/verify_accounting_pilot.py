@@ -24,6 +24,7 @@ TESTS = (
     "test_posting_concurrency.py",
     "test_closing_workflow.py",
     "test_equity_statement.py",
+    "test_equity_review_concurrency.py",
     "test_disclosures.py",
     "test_comparative_statements.py",
     "test_agent_reporting_tools.py",

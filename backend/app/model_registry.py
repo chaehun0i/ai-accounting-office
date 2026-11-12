@@ -72,6 +72,7 @@ from app.reporting.center import models as report_center_models  # noqa: F401, E
 from app.reporting.comparatives import models as comparative_models  # noqa: F401, E402
 from app.reporting.disclosures import models as disclosure_models  # noqa: F401, E402
 from app.reporting.equity import models as equity_models  # noqa: F401, E402
+from app.reporting.equity import review_models as equity_review_models  # noqa: F401, E402
 from app.reporting.financial_statements.infrastructure import (  # noqa: E402
     models as financial_statement_models,  # noqa: F401, E402
 )

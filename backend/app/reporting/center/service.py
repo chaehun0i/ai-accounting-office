@@ -31,6 +31,7 @@ from app.reporting.equity.models import (
     EquityStatementLineModel,
     EquityStatementModel,
 )
+from app.reporting.equity.review import require_equity_approval
 from app.reporting.equity.service import MOVEMENTS, EquityService
 from app.reporting.financial_metrics.rules import FORMULAS, calculate
 from app.reporting.financial_statements.domain.rules import ReportSourceStale
@@ -246,6 +247,7 @@ class ReportCenterService:
                 )
                 if equity is None:
                     raise StateConflict()
+                require_equity_approval(uow, equity)
             if report_code == "NOTES":
                 note_source, issues = DisclosureService(self.factory)._sources(
                     uow, company, period_id
@@ -651,7 +653,11 @@ class ReportCenterService:
                     tuple((component.component_code, component.name) for component in components),
                 ),
             )
+            approval = require_equity_approval(uow, equity)
             metadata += (
+                ("equity_approval_id", str(approval.id)),
+                ("equity_approved_by", str(approval.actor_id)),
+                ("equity_approved_at", approval.created_at.isoformat()),
                 ("equity_snapshot_id", str(equity.id)),
                 ("equity_snapshot_generated_at", equity.generated_at.isoformat()),
                 ("equity_validation", "INTERNAL_VALIDATION_ONLY"),

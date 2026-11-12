@@ -32,7 +32,7 @@
 
 생성 요청은 회사·해석된 기간·CLOSED 마감 버전·재무제표 스냅샷·시산표와 매핑 digest를 관계형 Run에 고정합니다. CF Run은 현재 유효한 현금흐름표 스냅샷 digest를 원천으로 고정하고, 파일은 그 스냅샷의 관계형 항목만 읽습니다. 신규 요청 시 정책·원천 변경으로 기존 CF 스냅샷이 오래됐으면 거부하며, 이미 완료된 Run의 파일은 유지합니다. 완료된 파일의 이름·SHA-256·크기는 관계형 Artifact에 기록하고 파일은 기존 회사별 Storage에 저장합니다. Financial Metrics도 기존 BS/IS 스냅샷 계산을 재사용합니다. 동일 `Idempotency-Key` 재요청은 중복 Run을 만들지 않습니다. 실패 재시도는 새 Run을 만들고 기존 완료 파일을 덮어쓰지 않습니다. 원천이 변경되면 `REPORT_SOURCE_STALE`, 저장소 오류는 `STORAGE_UNAVAILABLE`, 파일 생성 오류는 `EXPORT_GENERATION_FAILED`로 기록합니다. 보고서 생성은 전표·GL·재무제표 스냅샷을 수정하지 않습니다.
 
-SCE Run은 현재 대사 상태를 다시 검사하고 SCE Snapshot digest를 고정합니다. 구성요소별 기초·변동·기말 금액은 관계형 Snapshot의 값을 그대로 렌더링합니다. 완료 파일에는 회사·기간·버전·`INTERNAL_VALIDATION_ONLY`를 표시하며 기존 Artifact 이력·권한·SHA-256 다운로드 검증을 재사용합니다. 이후 원천이 바뀌어도 기존 완료 파일과 과거 스냅샷은 유지됩니다.
+SCE Run은 현재 대사와 독립 승인 상태를 다시 검사하고 SCE Snapshot digest를 고정합니다. 미승인 신규 Export는 EQUITY_APPROVAL_REQUIRED로 차단합니다. [SCE 검토·승인 계약](equity-review-export.md)을 확인하세요. 구성요소별 기초·변동·기말 금액은 관계형 Snapshot의 값을 그대로 렌더링합니다. 완료 파일에는 회사·기간·버전·`INTERNAL_VALIDATION_ONLY`를 표시하며 기존 Artifact 이력·권한·SHA-256 다운로드 검증을 재사용합니다. 이후 원천이 바뀌어도 기존 완료 파일과 과거 스냅샷은 유지됩니다.
 
 API는 `GET /reports/catalog`, `POST /reports/generations`, `GET /reports/generations`, `GET /reports/generations/{run_id}`와 완료 Run의 `/artifact`·`/download`를 제공합니다. 생성과 재시도 요청에는 `X-Company-ID`, CSRF, `Idempotency-Key`가 적용됩니다. 지원 형식은 PDF, XLSX, UTF-8 CSV입니다.
 
