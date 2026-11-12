@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { EquityReview } from "./equity-review";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
 import type { Company } from "@/features/companies/selection-state";
@@ -260,7 +261,8 @@ export function EquityWorkspace({ company, period, statementSet }: {
             const line = equityCell(snapshot, component.id, movement);
             return <td key={component.id}>{line ? <><span>{formatMoney(line.amount)}</span> <button onClick={() => void drilldown(line)} aria-label={`${label} ${component.name} 원천 보기`}>원천</button></> : "—"}</td>;
           })}</tr>)}</tbody></table></div>
-        <Link href="/reports">Report Center에서 PDF·XLSX·CSV 내보내기</Link>
+        <EquityReview key={`${company.id}:${snapshot.id}`} company={company} snapshotId={snapshot.id} />
+        <Link href="/reports">Report Center에서 승인본 PDF·XLSX·CSV 내보내기</Link>
       </div>}
       {sourceLine && <div><h3>{sourceLine.movement_type} 원천</h3>{sources.length === 0 ? <p>연결된 전표가 없습니다.</p> :
         <table><thead><tr><th scope="col">원천</th><th scope="col">금액</th><th scope="col">증빙</th></tr></thead><tbody>{sources.map((item, index) =>

@@ -178,6 +178,7 @@ export function ReportCenter({ company }: { company: Company }) {
       <p>마감된 기간의 재무제표 스냅샷을 파일로 표현합니다. 보고서 생성은 장부를 변경하지 않습니다.</p>
       {definition?.code === "CASH_FLOW" && <p>현금흐름표는 대사 완료된 스냅샷에서만 생성합니다. <Link href="/financial-statements">현금흐름표 원천·대사 확인</Link>을 먼저 마쳐 주세요. 내려받는 파일은 내부 검증용입니다.</p>}
       {definition?.code === "CHANGES_IN_EQUITY" && <p>자본변동표는 대사 완료된 스냅샷에서만 생성합니다. <Link href="/financial-statements">자본 구성요소·원천·대사 확인</Link>을 먼저 마쳐 주세요. 내려받는 파일은 내부 검증용이며 법정 승인이나 감사 완료를 뜻하지 않습니다.</p>}
+      {definition?.code === "CHANGES_IN_EQUITY" && <p>자본변동표는 현재 원천과 일치하는 독립 승인본만 새로 내보낼 수 있습니다. <Link href="/financial-statements">자본변동표 검토·승인</Link>을 먼저 완료하세요.</p>}
       {definition?.code === "NOTES" && <p>주석 Export는 현재 원천과 일치하는 독립 승인 revision에서만 생성합니다. <Link href="/financial-statements">재무제표 주석 작성·검토·승인</Link>을 먼저 마쳐 주세요. 파일은 내부 검증용이며 법정 공시 적합성을 뜻하지 않습니다.</p>}
       {definition?.code === "COMPARATIVE_FINANCIAL_STATEMENTS" && <p>비교 보고서는 독립 승인된 BS/IS 비교 Snapshot에서만 생성합니다. 재무제표 화면에서 비교 원천·재분류·승인을 먼저 확인하세요. 파일은 내부 검증용입니다.</p>}
       {catalog.length === 0 ? <p>현재 사용할 수 있는 보고서가 없습니다.</p> : <div className="report-center-form">
