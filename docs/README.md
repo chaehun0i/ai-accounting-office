@@ -29,3 +29,5 @@ PostgreSQL CI 분할 실행과 migration 테스트 축소 기준은 [PostgreSQL 
 기존 구현과 앞으로의 개발·운영 조건은 [제품 지원 범위와 잔여 완료 조건](verification/product-capabilities.md)에서 구분합니다.
 
 SCE의 현재 대사 기준·원천 전표·차단 해결 흐름과 손익 대체 잔여 계약은 [자본변동 대사 작업함](accounting/equity-reconciliation-workflow.md)을 참고하세요. #112의 물리적 hard-close 지원 완료를 뜻하지 않습니다.
+
+SCE의 계산 대사 이후 [독립 검토·승인·Export](accounting/equity-review-export.md)는 별도 승인 이력으로 관리합니다. Notes 및 전체 제표 세트 승인과 구분합니다.
