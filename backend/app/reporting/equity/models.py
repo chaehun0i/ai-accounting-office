@@ -133,6 +133,7 @@ class DividendDeclarationModel(UUIDPrimaryKey, Base):
     created_at: Mapped[datetime]
     __table_args__ = (
         UniqueConstraint("company_id", "id"),
+        UniqueConstraint("company_id", "source_journal_id", name="uq_dividend_declaration_source"),
         ForeignKeyConstraint(
             ["company_id", "approval_id"],
             ["approvals.company_id", "approvals.id"],
