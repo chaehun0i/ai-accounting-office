@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { DividendWorkspace } from "./dividend-workspace";
 import { EquityReview } from "./equity-review";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authenticatedRequest } from "@/features/auth/session";
@@ -9,7 +10,7 @@ import { ApiError } from "@/shared/api";
 import { formatMoney, type Account, type Period, type StatementSet } from "./model";
 import {
   equityCell, equityIssueLabels, equityIssueActions, equityMovements,
-  type DividendDeclaration, type DividendPayment, type EquityComponent, type EquityEvent,
+  type EquityComponent, type EquityEvent,
   type EquityMapping, type EquityReadiness, type EquitySnapshot, type EquitySource,
 } from "./equity-model";
 
@@ -32,8 +33,6 @@ export function EquityWorkspace({ company, period, statementSet }: {
   const [mappings, setMappings] = useState<EquityMapping[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [events, setEvents] = useState<EquityEvent[]>([]);
-  const [declarations, setDeclarations] = useState<DividendDeclaration[]>([]);
-  const [payments, setPayments] = useState<Record<string, DividendPayment[]>>({});
   const [readiness, setReadiness] = useState<EquityReadiness | null>(null);
   const [history, setHistory] = useState<EquitySnapshot[]>([]);
   const [snapshotId, setSnapshotId] = useState("");
@@ -61,7 +60,7 @@ export function EquityWorkspace({ company, period, statementSet }: {
     let active = true;
     setLoading(true); setBusy(false); setError(""); setNotice("");
     setComponents([]); setMappings([]); setAccounts([]); setEvents([]);
-    setDeclarations([]); setPayments({}); setReadiness(null); setHistory([]);
+    setReadiness(null); setHistory([]);
     setCandidateLineId(""); sourceRequest.current += 1;
     setSnapshot(null); setSnapshotId(""); setSources([]); setSourceLine(null);
     retry.current = null;
@@ -69,18 +68,13 @@ export function EquityWorkspace({ company, period, statementSet }: {
       authenticatedRequest<EquityComponent[]>("/equity/components", { headers: { "X-Company-ID": company.id } }),
       authenticatedRequest<EquityMapping[]>("/equity/mappings", { headers: { "X-Company-ID": company.id } }),
       authenticatedRequest<EquityEvent[]>(`/equity/events?period_id=${encodeURIComponent(period.id)}`, { headers: { "X-Company-ID": company.id } }),
-      authenticatedRequest<DividendDeclaration[]>("/equity/dividends", { headers: { "X-Company-ID": company.id } }),
       authenticatedRequest<EquityReadiness>(`/equity/reconciliation?period_id=${encodeURIComponent(period.id)}`, { headers: { "X-Company-ID": company.id } }),
       authenticatedRequest<EquitySnapshot[]>(`/equity/statements?period_id=${encodeURIComponent(period.id)}`, { headers: { "X-Company-ID": company.id } }),
       canGenerate ? authenticatedRequest<Account[]>("/accounts", { headers: { "X-Company-ID": company.id } }) : Promise.resolve([]),
-    ]).then(([componentRows, mappingRows, eventRows, dividendRows, status, snapshots, available]) => {
+    ]).then(([componentRows, mappingRows, eventRows, status, snapshots, available]) => {
       if (!active) return;
       setComponents(componentRows); setMappings(mappingRows); setEvents(eventRows);
-      setDeclarations(dividendRows); setReadiness(status); setHistory(snapshots);
-      void Promise.all(dividendRows.map(async item => [item.id, await authenticatedRequest<DividendPayment[]>(
-        `/equity/dividends/${item.id}/payments`, { headers: { "X-Company-ID": company.id } },
-      )] as const)).then(rows => { if (active) setPayments(Object.fromEntries(rows)); })
-        .catch(reason => { if (active) setError(fail(reason)); });
+      setReadiness(status); setHistory(snapshots);
       setAccounts(available.filter(account => account.account_type === "EQUITY" && account.posting_allowed));
       setSnapshotId(snapshots[0]?.id ?? "");
     }).catch(reason => { if (active) setError(fail(reason)); })
@@ -137,25 +131,6 @@ export function EquityWorkspace({ company, period, statementSet }: {
     void post("/equity/events", {
       journal_line_id: form.get("journal_line_id"), event_type: form.get("event_type"),
     }, "POSTED 전표의 자본변동 원천을 분류했습니다.");
-  }
-
-  function declare(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    void post("/equity/dividends", {
-      resolution_date: form.get("resolution_date"),
-      payable_date: form.get("payable_date") || null,
-      total_amount: form.get("total_amount"),
-      source_journal_id: form.get("source_journal_id") || null,
-    }, "배당결의를 기록했습니다. 실제 지급은 별도 CF 원천으로 연결합니다.");
-  }
-
-  function recordPayment(event: FormEvent<HTMLFormElement>, declarationId: string) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    void post(`/equity/dividends/${declarationId}/payments`, {
-      cash_flow_event_id: form.get("cash_flow_event_id"),
-    }, "POSTED 지급 전표와 CF 재무활동 원천을 연결했습니다.");
   }
 
   async function generate() {
@@ -241,18 +216,8 @@ export function EquityWorkspace({ company, period, statementSet }: {
           <button disabled={busy}>원천 분류</button></form>
         <h3>검증된 변동 이벤트</h3>{events.length === 0 ? <p>등록된 기간 변동이 없습니다.</p> :
           <ul>{events.map(item => <li key={item.id}>{item.event_date} · {item.event_type} · {formatMoney(item.amount)} · 전표 {item.source_journal_id}</li>)}</ul>}
-        <form onSubmit={declare}><h3>배당결의</h3>
-          <label>결의일 <input name="resolution_date" type="date" defaultValue={period.start_date} required /></label>
-          <label>지급 예정일 <input name="payable_date" type="date" /></label>
-          <label>금액 <input name="total_amount" type="number" step="0.0001" min="0.0001" required /></label>
-          <label>POSTED 결의 전표 ID <input name="source_journal_id" /></label>
-          <button disabled={busy}>결의 기록</button>
-        </form>
-        {declarations.map(item => <div key={item.id}><p>결의 {item.resolution_date} · {formatMoney(item.total_amount)} · {item.status} · 지급 예정 {item.payable_date ?? "미정"} · 현금 지급은 별도</p>
-          {(payments[item.id] ?? []).map(payment => <p key={payment.id}>실제 지급 {payment.payment_date} · {formatMoney(payment.amount)} · 전표 {payment.journal_id} · CF 원천 {payment.cash_flow_event_id}</p>)}
-          {item.status === "APPROVED" && <form onSubmit={event => recordPayment(event, item.id)}><label>CF 재무활동 현금유출 이벤트 ID <input name="cash_flow_event_id" required /></label><button disabled={busy}>실제 지급 연결</button></form>}
-        </div>)}
       </details>}
+      <DividendWorkspace key={`${company.id}:${period.id}`} company={company} period={period} onChanged={() => setRevision(value => value + 1)} />
       {history.length > 0 && <div><label>자본변동표 이력 <select value={snapshotId} onChange={event => setSnapshotId(event.target.value)}>
         {history.map(item => <option key={item.id} value={item.id}>마감 v{item.close_version} · {item.generated_at.slice(0, 10)} · {item.snapshot_digest.slice(0, 12)}</option>)}</select></label></div>}
       {snapshot && <div><p>{currentSnapshot ? "현재 원천 대사 완료" : "과거 스냅샷 · 현재 원천과 다름"} · {snapshot.status} · digest {snapshot.snapshot_digest.slice(0, 12)}…</p>
