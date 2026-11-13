@@ -132,6 +132,24 @@ def declarations(
     return service.declarations(actor, company_id)
 
 
+@router.get("/dividend-sources")
+def dividend_sources(
+    period_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> list[dict[str, object]]:
+    from app.reporting.equity.dividend_sources import DividendSources
+
+    return DividendSources(service).declarations(actor, company_id, period_id)
+
+
+@router.get("/dividends/{declaration_id}/payment-sources")
+def dividend_payment_sources(
+    declaration_id: UUID, period_id: UUID, actor: Actor, company_id: CompanyScope, service: Service
+) -> dict[str, object]:
+    from app.reporting.equity.dividend_sources import DividendSources
+
+    return DividendSources(service).payments(actor, company_id, declaration_id, period_id)
+
+
 @router.post("/dividends", status_code=201, dependencies=[Depends(csrf)])
 def declare_dividend(
     payload: DividendCreate, actor: Actor, company_id: CompanyScope, service: Service
