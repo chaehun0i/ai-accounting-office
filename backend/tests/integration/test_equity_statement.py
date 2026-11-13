@@ -221,17 +221,96 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         "/equity/reconciliation", headers=owner, params={"period_id": february["id"]}
     )
     assert "UNCLASSIFIED_EQUITY_SOURCE" in unclassified.json()["issues"]
-    declared = api_client.post(
-        "/equity/dividends",
-        headers=writer,
-        json={
-            "resolution_date": "2026-02-04",
-            "payable_date": "2026-03-10",
-            "total_amount": "10.0000",
-            "source_journal_id": dividend["id"],
-        },
+    source_candidates = api_client.get(
+        "/equity/dividend-sources", headers=writer, params={"period_id": february["id"]}
     )
+    assert source_candidates.status_code == 200, source_candidates.text
+    source = next(row for row in source_candidates.json() if row["journal_id"] == dividend["id"])
+    assert source["status"] == "AVAILABLE" and Decimal(source["amount"]) == Decimal("10")
+    assert (
+        api_client.get(
+            "/equity/dividend-sources",
+            headers={**writer, "X-Company-ID": str(uuid4())},
+            params={"period_id": february["id"]},
+        ).status_code
+        == 404
+    )
+    declaration_payload = {
+        "resolution_date": "2026-02-04",
+        "payable_date": "2026-03-10",
+        "total_amount": "10.0000",
+        "source_journal_id": dividend["id"],
+    }
+    if concurrent:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(
+                pool.map(
+                    lambda _: api_client.post(
+                        "/equity/dividends", headers=writer, json=declaration_payload
+                    ),
+                    range(2),
+                )
+            )
+        assert all(row.status_code == 201 for row in responses)
+        assert responses[0].json()["id"] == responses[1].json()["id"]
+        declared = responses[0]
+    else:
+        declared = api_client.post("/equity/dividends", headers=writer, json=declaration_payload)
     assert declared.status_code == 201, declared.text
+    declaration_payload = {
+        "resolution_date": "2026-02-04",
+        "payable_date": "2026-03-10",
+        "total_amount": "10.0000",
+        "source_journal_id": dividend["id"],
+    }
+    replay_declaration = api_client.post(
+        "/equity/dividends", headers=writer, json=declaration_payload
+    )
+    assert (
+        replay_declaration.status_code == 201
+        and replay_declaration.json()["id"] == declared.json()["id"]
+    )
+    assert (
+        api_client.post(
+            "/equity/dividends",
+            headers=writer,
+            json={**declaration_payload, "payable_date": "2026-03-11"},
+        ).status_code
+        == 409
+    )
+    source_candidates = api_client.get(
+        "/equity/dividend-sources", headers=writer, params={"period_id": february["id"]}
+    ).json()
+    assert (
+        next(row for row in source_candidates if row["journal_id"] == dividend["id"])["status"]
+        == "LINKED"
+    )
+    from app.reporting.equity.models import DividendDeclarationModel
+
+    with Session(connection, join_transaction_mode="create_savepoint") as session:
+        existing = session.get(DividendDeclarationModel, UUID(declared.json()["id"]))
+        assert existing is not None
+        with pytest.raises(IntegrityError):
+            session.add(
+                DividendDeclarationModel(
+                    **{
+                        column.name: uuid4()
+                        if column.name == "id"
+                        else getattr(existing, column.name)
+                        for column in DividendDeclarationModel.__table__.columns
+                    }
+                )
+            )
+            session.flush()
+        session.rollback()
+    missing_cf = api_client.get(
+        f"/equity/dividends/{declared.json()['id']}/payment-sources",
+        headers=writer,
+        params={"period_id": february["id"]},
+    )
+    assert missing_cf.status_code == 200 and missing_cf.json()["issue"] == "CF_SNAPSHOT_MISSING"
     assert (
         api_client.get(f"/equity/dividends/{declared.json()['id']}/payments", headers=owner).json()
         == []
@@ -560,11 +639,46 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     event_ids = {event["journal_id"]: event["id"] for event in events}
     assert set(event_ids) == {first_payment["id"], excess_payment["id"]}
     payment_url = f"/equity/dividends/{declared.json()['id']}/payments"
-    paid = api_client.post(
-        payment_url, headers=writer, json={"cash_flow_event_id": event_ids[first_payment["id"]]}
+    choices_url = f"/equity/dividends/{declared.json()['id']}/payment-sources"
+    choices = api_client.get(choices_url, headers=writer, params={"period_id": march["id"]})
+    assert choices.status_code == 200, choices.text
+    assert Decimal(choices.json()["remaining_amount"]) == Decimal("10")
+    assert all(row["status"] == "AVAILABLE" for row in choices.json()["candidates"])
+    assert (
+        api_client.get(
+            choices_url,
+            headers={**writer, "X-Company-ID": str(uuid4())},
+            params={"period_id": march["id"]},
+        ).status_code
+        == 404
     )
+    if concurrent:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(
+                pool.map(
+                    lambda _: api_client.post(
+                        payment_url,
+                        headers=writer,
+                        json={"cash_flow_event_id": event_ids[first_payment["id"]]},
+                    ),
+                    range(2),
+                )
+            )
+        assert all(row.status_code == 201 for row in responses)
+        assert responses[0].json()["id"] == responses[1].json()["id"]
+        paid = responses[0]
+    else:
+        paid = api_client.post(
+            payment_url, headers=writer, json={"cash_flow_event_id": event_ids[first_payment["id"]]}
+        )
     assert paid.status_code == 201, paid.text
     assert Decimal(paid.json()["amount"]) == Decimal("5")
+    choices = api_client.get(choices_url, headers=writer, params={"period_id": march["id"]}).json()
+    assert Decimal(choices["paid_amount"]) == Decimal("5")
+    assert Decimal(choices["remaining_amount"]) == Decimal("5")
+    issues = {row["journal_id"]: row["issue"] for row in choices["candidates"]}
+    assert issues[first_payment["id"]] == "PAYMENT_ALREADY_LINKED"
+    assert issues[excess_payment["id"]] == "PAYMENT_EXCEEDS_DECLARATION"
     replayed_payment = api_client.post(
         payment_url, headers=writer, json={"cash_flow_event_id": event_ids[first_payment["id"]]}
     )
@@ -891,6 +1005,68 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
         api_client.get(f"/reports/generations/{csv_run_id}/artifact", headers=owner).status_code
         == 200
     )
+    policy = api_client.post(
+        "/cash-flow/policies",
+        headers=writer,
+        json={
+            "effective_from": "2026-03-01",
+            "interest_paid": "OPERATING",
+            "interest_received": "OPERATING",
+            "income_tax_paid": "OPERATING",
+        },
+    )
+    assert policy.status_code == 201, policy.text
+    stale_choices = api_client.get(choices_url, headers=writer, params={"period_id": march["id"]})
+    assert stale_choices.status_code == 200, stale_choices.text
+    assert (
+        next(
+            row
+            for row in stale_choices.json()["candidates"]
+            if row["journal_id"] == excess_payment["id"]
+        )["issue"]
+        == "PAYMENT_SOURCE_STALE"
+    )
+    bridge = api_client.get(
+        "/cash-flow/indirect-bridge", headers=writer, params={"period_id": march["id"]}
+    )
+    assert bridge.status_code == 200 and bridge.json()["status"] == "READY", bridge.text
+    new_cash_flow = request(
+        api_client,
+        writer,
+        "/cash-flow/generate",
+        {
+            key: bridge.json()[key]
+            for key in (
+                "period_id",
+                "statement_set_id",
+                "close_version",
+                "source_digest",
+                "mapping_digest",
+            )
+        },
+    )
+    assert new_cash_flow.status_code == 201 and new_cash_flow.json()["id"] != cash_flow.json()["id"]
+    new_events = api_client.get(
+        f"/cash-flow/{new_cash_flow.json()['id']}/drilldown", headers=writer
+    ).json()["events"]
+    duplicate_event = next(row for row in new_events if row["journal_id"] == first_payment["id"])
+    assert duplicate_event["id"] != event_ids[first_payment["id"]]
+    assert (
+        api_client.post(
+            payment_url, headers=writer, json={"cash_flow_event_id": duplicate_event["id"]}
+        ).status_code
+        == 409
+    )
+    new_choices = api_client.get(
+        choices_url, headers=writer, params={"period_id": march["id"]}
+    ).json()
+    assert (
+        next(row for row in new_choices["candidates"] if row["event_id"] == duplicate_event["id"])[
+            "issue"
+        ]
+        == "PAYMENT_ALREADY_LINKED"
+    )
+    assert Decimal(new_choices["paid_amount"]) == Decimal("5")
     changed = api_client.post(
         "/equity/components",
         headers=writer,
