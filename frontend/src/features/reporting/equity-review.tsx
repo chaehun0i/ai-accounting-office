@@ -16,7 +16,7 @@ const labels: Record<string, string> = {
   APPROVED: "내부 검토 승인", REJECTED: "반려",
 };
 
-export function EquityReview({ company, snapshotId }: { company: Company; snapshotId: string }) {
+export function EquityReview({ company, snapshotId, basePath = "/equity/statements", title = "자본변동표" }: { company: Company; snapshotId: string; basePath?: string; title?: string }) {
   const [review, setReview] = useState<Review | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -24,7 +24,7 @@ export function EquityReview({ company, snapshotId }: { company: Company; snapsh
   const [refresh, setRefresh] = useState(0);
   const requests = useRef(new RequestScope());
   const retry = useRef<{ fingerprint: string; key: string } | null>(null);
-  const path = `/equity/statements/${snapshotId}/review`;
+  const path = `${basePath}/${snapshotId}/review`;
   useEffect(() => {
     const scope = requests.current;
     const current = scope.start("read");
@@ -54,8 +54,8 @@ export function EquityReview({ company, snapshotId }: { company: Company; snapsh
   }
 
   const actions = review ? equityReviewActions(review.status, review.source_stale, company.permissions) : [];
-  return <section aria-label="자본변동표 독립 검토">
-    <h4>자본변동표 독립 검토</h4>
+  return <section aria-label={`${title} 독립 검토`}>
+    <h4>{title} 독립 검토</h4>
     <p>생성자·검토 요청자와 다른 검토자가 승인합니다. 승인은 내부 검증용이며 법정 공시·감사 완료를 뜻하지 않습니다.</p>
     {error && <p role="alert">{error}</p>}
     {!review ? <p role="status">{error ? "검토 상태를 다시 조회해 주세요." : "검토 상태 확인 중…"}</p> : <>
