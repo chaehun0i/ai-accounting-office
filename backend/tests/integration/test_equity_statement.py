@@ -58,6 +58,22 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert open_readiness.status_code == 200, open_readiness.text
     assert open_readiness.json()["issues"] == ["PERIOD_NOT_CLOSED"]
     assert open_readiness.json()["income_statement_profit"] is None
+    set_open = api_client.get(
+        "/financial-statement-sets/readiness",
+        headers=writer,
+        params={"period_id": payload["accounting_period_id"]},
+    )
+    assert set_open.status_code == 200 and set_open.json()["status"] == "BLOCKED"
+    assert "PERIOD_NOT_CLOSED" in set_open.json()["issues"]
+    assert (
+        request(
+            api_client,
+            writer,
+            "/financial-statement-sets/generate",
+            {"period_id": payload["accounting_period_id"]},
+        ).status_code
+        == 409
+    )
     foreign = api_client.get(
         "/equity/reconciliation",
         headers={**writer, "X-Company-ID": str(uuid4())},
@@ -876,6 +892,20 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
     assert approved.status_code == 200, approved.text
     assert approved.json()["status"] == "APPROVED"
     assert approved.json()["approved_by"] != approved.json()["created_by"]
+    from tests.integration.statement_set_journey import exercise
+
+    bundle, bundle_report, bundle_run = exercise(
+        api_client,
+        owner,
+        writer,
+        review,
+        march,
+        march_equity.json(),
+        approved.json(),
+        connection,
+        concurrent,
+    )
+
     with Session(connection, join_transaction_mode="create_savepoint") as session:
         with pytest.raises(ProgrammingError):
             session.execute(
@@ -1056,6 +1086,14 @@ def test_equity_rollforward_uses_prior_bs_and_current_is(
             payment_url, headers=writer, json={"cash_flow_event_id": duplicate_event["id"]}
         ).status_code
         == 409
+    )
+    assert api_client.get(f"/financial-statement-sets/{bundle['id']}", headers=writer).json()[
+        "source_stale"
+    ]
+    assert request(api_client, writer, "/reports/generations", bundle_report).status_code == 409
+    assert (
+        api_client.get(f"/reports/generations/{bundle_run}/download", headers=owner).status_code
+        == 200
     )
     new_choices = api_client.get(
         choices_url, headers=writer, params={"period_id": march["id"]}
