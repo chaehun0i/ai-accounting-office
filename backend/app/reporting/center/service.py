@@ -50,6 +50,7 @@ REPORTS = (
     ("FINANCIAL_METRICS", "재무비율", "RANGE"),
     ("CASH_FLOW", "현금흐름표", "RANGE"),
     ("CHANGES_IN_EQUITY", "자본변동표", "RANGE"),
+    ("FINANCIAL_STATEMENT_SET", "승인 재무제표 세트", "RANGE"),
     ("NOTES", "재무제표 주석", "RANGE"),
     ("COMPARATIVE_FINANCIAL_STATEMENTS", "비교 재무제표", "RANGE"),
 )
@@ -281,6 +282,23 @@ class ReportCenterService:
                     or notes_equity.status != "RECONCILED"
                 ):
                     raise StateConflict()
+            bundle = None
+            if report_code == "FINANCIAL_STATEMENT_SET":
+                from app.reporting.statement_sets.models import StatementSetRevisionModel
+                from app.reporting.statement_sets.review import require_set_approval
+                from app.reporting.statement_sets.service import StatementSetService
+
+                state = StatementSetService(self.factory).collect(uow, company, period_id)
+                bundle = uow.session.scalar(
+                    select(StatementSetRevisionModel).where(
+                        StatementSetRevisionModel.company_id == company,
+                        StatementSetRevisionModel.period_id == period_id,
+                        StatementSetRevisionModel.snapshot_digest == state["source_digest"],
+                    )
+                )
+                if state["issues"] or bundle is None:
+                    raise StateConflict()
+                require_set_approval(uow, bundle)
             formula_version = max(formula.version for formula in FORMULAS)
             if comparative is not None:
                 assert comparative.review_digest is not None
@@ -306,6 +324,8 @@ class ReportCenterService:
                         )
                     )
                 )
+            if bundle is not None:
+                source_digest = bundle.snapshot_digest
             now = uow.now()
             run = ReportRun(
                 id=uuid4(),
@@ -485,6 +505,10 @@ class ReportCenterService:
             or income.snapshot_digest != run.income_statement_digest
         ):
             raise StateConflict()
+        if run.report_code == "FINANCIAL_STATEMENT_SET":
+            from app.reporting.statement_sets.export import render_set
+
+            return render_set(uow, run, company_name)
         if run.report_code not in {
             "CASH_FLOW",
             "CHANGES_IN_EQUITY",

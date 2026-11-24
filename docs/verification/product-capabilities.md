@@ -8,7 +8,7 @@
 | BS/IS/CF/SCE | 관계형 Snapshot·원천 대사·조회·Export | SCE 물리적 손익 대체의 IS 충돌은 차단 유지. [#112](https://github.com/chaehun0i/ai-accounting-office/issues/112). `reporting/equity/service.py` |
 | Notes | 구조화 Fact·Narrative·독립 승인·불변 revision·Export | 미지원 Asset/Inventory/Tax 세부 공시를 추정하지 않음. `reporting/disclosures/` |
 | 비교 재무제표 | 같은 taxonomy BS/IS·표시 재분류·독립 승인·Export | CF/SCE/Notes 비교, taxonomy bridge와 restatement 미지원. `reporting/comparatives/` |
-| 전체 제표 세트 승인 | Notes·비교 승인과 구분 | BS/IS/CF/SCE/Notes의 정확한 revision을 한 승인 대상에 고정하는 전체 세트 승인 필요. BS/IS GENERATED를 APPROVED로 해석하지 않음 |
+| 전체 제표 세트 승인 | Notes·비교 승인과 구분 | Issue #131에서 정확한 다섯 원천 ID 고정·독립 승인·세트 Export를 구현. PR 병합 전 main 완료로 표시하지 않음. BS/IS GENERATED는 유지하며 전체 세트 승인과 구분. [계약](../accounting/statement-set-approval.md) |
 | 고정자산 | 정액법 Decimal 계산과 Domain entity | `assets/domain/`의 계산 규칙만 존재. 정책·대장 영속화, POSTED 취득 원천, 감가상각 제안→독립 승인→Posting, 처분/손상·GL 대사·화면 필요 |
 | 재고·선택 원가 | 기존 전표로 회계 표현 가능 | 품목·창고·수불·평가·실사·GL 대사 Subledger 미구현. 업종별 선택 Capability와 기본 회계 분리 |
 | 세무 | Profile·VAT/원천세 준비 V1 | `tax/rules.py`의 Rule/Form 미검증 차단 유지. 검증된 규칙·효력일·승인·후속 Profile·사용자 화면 필요. 제출 가능으로 표시하지 않음 |

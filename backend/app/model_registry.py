@@ -76,6 +76,10 @@ from app.reporting.equity import review_models as equity_review_models  # noqa: 
 from app.reporting.financial_statements.infrastructure import (  # noqa: E402
     models as financial_statement_models,  # noqa: F401, E402
 )
+from app.reporting.statement_sets import models as statement_set_models  # noqa: F401, E402
+from app.reporting.statement_sets import (  # noqa: E402
+    review_models as statement_set_review_models,  # noqa: F401, E402
+)
 
 # 파일과 증빙·인테이크 메타데이터를 등록합니다.
 from app.storage.infrastructure import models as storage_models  # noqa: F401, E402
