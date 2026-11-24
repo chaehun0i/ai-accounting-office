@@ -38,6 +38,7 @@ class ReportCatalogRead(BaseModel):
         "CASH_FLOW",
         "CHANGES_IN_EQUITY",
         "NOTES",
+        "FINANCIAL_STATEMENT_SET",
         "COMPARATIVE_FINANCIAL_STATEMENTS",
     ]
     label: str
@@ -56,6 +57,7 @@ class ReportRequest(BaseModel):
         "CASH_FLOW",
         "CHANGES_IN_EQUITY",
         "NOTES",
+        "FINANCIAL_STATEMENT_SET",
         "COMPARATIVE_FINANCIAL_STATEMENTS",
     ]
     format: Literal["PDF", "XLSX", "CSV"]
