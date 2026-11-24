@@ -38,6 +38,7 @@ from app.reporting.equity.api import router as equity_router
 from app.reporting.financial_metrics.api import router as metric_router
 from app.reporting.financial_statements.api.router import router as statement_router
 from app.reporting.periods.api import router as report_period_router
+from app.reporting.statement_sets.api import router as statement_sets_router
 from app.tax.api import router as tax_router
 
 
@@ -134,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(report_center_router)
     app.include_router(cash_flow_router)
     app.include_router(equity_router)
+    app.include_router(statement_sets_router)
     app.include_router(disclosure_router)
     app.include_router(metric_router)
     app.include_router(tax_router)
