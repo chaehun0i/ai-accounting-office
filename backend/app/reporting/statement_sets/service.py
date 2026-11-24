@@ -165,8 +165,13 @@ class StatementSetService(DisclosureService):
             if row is None:
                 raise ResourceNotFound()
             state = self.collect(uow, company, row.period_id)
+            from app.reporting.statement_sets.contents import frozen_contents
+
+            rows, narratives = frozen_contents(uow, row)
             return {
                 **_row(row),
+                "rows": rows,
+                "narratives": narratives,
                 "source_stale": state["source_digest"] != row.snapshot_digest
                 or bool(state["issues"]),
                 "issues": state["issues"],

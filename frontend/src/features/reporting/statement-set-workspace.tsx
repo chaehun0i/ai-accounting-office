@@ -18,6 +18,7 @@ export function StatementSetWorkspace({ company, period }: { company: Company; p
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [selected, setSelected] = useState("");
+  const [detail, setDetail] = useState<{ rows: string[][]; narratives: string[][] } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -40,6 +41,15 @@ export function StatementSetWorkspace({ company, period }: { company: Company; p
       .finally(() => { if (current()) setLoading(false); });
     return () => scope.invalidate();
   }, [company.id, period.id, refresh]);
+  useEffect(() => {
+    let active = true;
+    setDetail(null);
+    if (!selected) return () => { active = false; };
+    authenticatedRequest<{ rows: string[][]; narratives: string[][] }>(`/financial-statement-sets/${selected}`, { headers: { "X-Company-ID": company.id } })
+      .then(value => { if (active) setDetail(value); })
+      .catch(reason => { if (active) setError(reason instanceof ApiError ? reason.message : "고정된 세트 내용을 조회하지 못했습니다."); });
+    return () => { active = false; };
+  }, [company.id, selected]);
   async function generate() {
     if (busy || readiness?.status !== "READY") return;
     const current = requests.current.start("generate");
@@ -70,6 +80,11 @@ export function StatementSetWorkspace({ company, period }: { company: Company; p
       {revision && <>
         <p>{setSourceCurrent(readiness?.status, readiness?.source_digest, revision.snapshot_digest) ? "현재 원천 일치" : "과거 원천 · 새 승인/Export 전 현재성을 확인하세요"}</p>
         <dl>{(["balance_id", "income_id", "cash_id", "equity_id", "notes_id"] as const).map(key => <div key={key}><dt>{{balance_id:"재무상태표",income_id:"손익계산서",cash_id:"현금흐름표",equity_id:"자본변동표",notes_id:"승인 주석"}[key]}</dt><dd>{revision[key]}</dd></div>)}</dl>
+        {detail && <details><summary>고정된 제표 금액과 승인 주석</summary>
+          <table><thead><tr><th>제표</th><th>항목</th><th>금액·내용</th><th>원천 ID</th></tr></thead>
+            <tbody>{detail.rows.map((row, index) => <tr key={index}>{row.map((value, column) => <td key={column}>{value}</td>)}</tr>)}</tbody></table>
+          {detail.narratives.map((row, index) => <p key={index}>{row[1]}</p>)}
+        </details>}
         <p>원천 금액·전표·증빙은 이 화면의 각 제표 및 주석 원천 조회에서 확인하세요.</p>
         <EquityReview key={`${company.id}:${revision.id}`} company={company} snapshotId={revision.id} basePath="/financial-statement-sets" title="재무제표 세트" />
         <Link href="/reports">Report Center에서 승인 재무제표 세트 내보내기</Link>
