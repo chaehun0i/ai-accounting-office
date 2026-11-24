@@ -32,4 +32,6 @@ SCE의 현재 대사 기준·원천 전표·차단 해결 흐름과 손익 대�
 
 SCE의 계산 대사 이후 [독립 검토·승인·Export](accounting/equity-review-export.md)는 별도 승인 이력으로 관리합니다. Notes 및 전체 제표 세트 승인과 구분합니다.
 
+다섯 제표의 정확한 원천 조합을 고정하는 [재무제표 전체 세트 승인](accounting/statement-set-approval.md)은 개별 제표 승인과 구분되며 승인본을 기존 Report Center에서 내보냅니다.
+
 SCE의 [배당 원천 선택·부분 지급 연결](accounting/dividend-source-workflow.md)은 검증된 전표와 CF 원천을 선택하고 중복·초과·stale 지급을 차단합니다. 물리적 손익마감 제한은 유지합니다.
