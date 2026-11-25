@@ -202,6 +202,7 @@ def create_services(settings: Settings) -> tuple[Engine, Services]:
     registry.register(comparative_tool(container.comparative_statements))
     assert container.report_center is not None
     registry.register(approved_report_tool(container.report_center))
+    registry.register(approved_report_tool(container.report_center, statement_set=True))
     audit = RuntimeAudit(lambda: RuntimeSQLAlchemyUnitOfWork(sessions))
     registry.record = audit.record_tool
     registry.started = audit.tool_started

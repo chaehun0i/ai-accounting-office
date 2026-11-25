@@ -13,7 +13,7 @@ from app.agents.runtime.service import AgentProposalPreview, AgentRuntime
 from app.contracts.errors import DatabaseUnavailable
 from app.identity.auth.api.dependencies import csrf
 from app.jobs.domain.runtime import EventRead, RunRead, StepRead
-from app.tools.approved_reports import ApprovedReportInput
+from app.tools.approved_reports import ApprovedReportInput, ApprovedSetInput
 from app.tools.comparatives import ComparisonInput
 
 router = APIRouter(tags=["회계 제안 실행"])
@@ -36,6 +36,10 @@ class ReviewPeriod(BaseModel):
 
 
 class ConfirmApprovedExport(ApprovedReportInput):
+    confirmed: Literal[True]
+
+
+class ConfirmApprovedSet(ApprovedSetInput):
     confirmed: Literal[True]
 
 
@@ -97,12 +101,22 @@ def export_approved_comparison(
     key: Key,
     service: Service,
 ) -> RunRead:
-    return service.export_approved_comparison(
+    return service.export_approved_report(
         actor,
         company_id,
         ApprovedReportInput.model_validate(payload.model_dump(exclude={"confirmed"})),
         key,
     )
+
+
+@router.post(
+    "/agent/actions/approved-set-export", response_model=RunRead, dependencies=[Depends(csrf)]
+)
+def export_approved_set(
+    payload: ConfirmApprovedSet, actor: Actor, company_id: CompanyScope, key: Key, service: Service
+) -> RunRead:
+    target = ApprovedSetInput.model_validate(payload.model_dump(exclude={"confirmed"}))
+    return service.export_approved_report(actor, company_id, target, key)
 
 
 @router.get("/agent/runs/{run_id}", response_model=RunRead)

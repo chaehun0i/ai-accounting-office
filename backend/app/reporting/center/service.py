@@ -102,7 +102,7 @@ class ReportCenterService:
         frozen_target = (approved_snapshot_id, expected_version, expected_review_digest)
         if any(value is not None for value in frozen_target) and (
             any(value is None for value in frozen_target)
-            or report_code != "COMPARATIVE_FINANCIAL_STATEMENTS"
+            or report_code not in {"COMPARATIVE_FINANCIAL_STATEMENTS", "FINANCIAL_STATEMENT_SET"}
         ):
             raise InvalidInput()
         modes = {code: mode for code, _, mode in REPORTS}
@@ -298,7 +298,13 @@ class ReportCenterService:
                 )
                 if state["issues"] or bundle is None:
                     raise StateConflict()
-                require_set_approval(uow, bundle)
+                approval = require_set_approval(uow, bundle)
+                if approved_snapshot_id is not None and (
+                    bundle.id != approved_snapshot_id
+                    or approval.version != expected_version
+                    or bundle.snapshot_digest != expected_review_digest
+                ):
+                    raise ReportSourceStale()
             formula_version = max(formula.version for formula in FORMULAS)
             if comparative is not None:
                 assert comparative.review_digest is not None
