@@ -47,7 +47,8 @@ class ToolRegistry:
         if definition.tool_code in self._tools or definition.tool_code in FORBIDDEN:
             raise ValueError("중복되거나 금지된 도구입니다.")
         approved_export = (
-            definition.tool_code == "reports.export_approved_comparison"
+            definition.tool_code
+            in {"reports.export_approved_comparison", "reports.export_approved_set"}
             and definition.tool_class == "COMMAND"
             and definition.side_effect_level == "REPORT"
         )

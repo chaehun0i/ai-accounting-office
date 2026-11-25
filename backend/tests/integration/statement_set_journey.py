@@ -251,4 +251,32 @@ def exercise(client, owner, writer, reviewer, period, equity, note, connection, 
             ).status_code
             == 404
         )
+    if not concurrent:
+        from tests.integration.test_agent_reporting_tools import runtime_for
+
+        runtime_for(client, connection, connection.engine)
+    action_url = "/agent/actions/approved-set-export"
+    target = {
+        key: value for key, value in report.items() if key not in {"report_code", "period_preset"}
+    }
+    target.update(
+        confirmed=True,
+        approved_snapshot_id=bundle["id"],
+        expected_version=approved.json()["version"],
+        expected_review_digest=bundle["snapshot_digest"],
+    )
+    refused = request(client, writer, action_url, {**target, "confirmed": False})
+    assert refused.status_code == 422, refused.text
+    wrong = request(client, writer, action_url, {**target, "expected_review_digest": "0" * 64})
+    assert wrong.status_code == 200 and wrong.json()["status"] == "FAILED", wrong.text
+    key = str(uuid4())
+    export = request(client, writer, action_url, target, key)
+    assert export.status_code == 200 and export.json()["status"] == "COMPLETED", export.text
+    assert export.json()["answer_source_digest"] == bundle["snapshot_digest"]
+    replay = request(client, writer, action_url, target, key)
+    assert replay.json()["answer_resource_id"] == export.json()["answer_resource_id"]
+    artifact = client.get(
+        f"/reports/generations/{export.json()['answer_resource_id']}/download", headers=owner
+    )
+    assert artifact.status_code == 200 and bundle["snapshot_digest"] in artifact.content.decode()
     return bundle, report, run_id

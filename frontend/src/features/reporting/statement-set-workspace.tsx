@@ -86,7 +86,7 @@ export function StatementSetWorkspace({ company, period }: { company: Company; p
           {detail.narratives.map((row, index) => <p key={index}>{row[1]}</p>)}
         </details>}
         <p>원천 금액·전표·증빙은 이 화면의 각 제표 및 주석 원천 조회에서 확인하세요.</p>
-        <EquityReview key={`${company.id}:${revision.id}`} company={company} snapshotId={revision.id} basePath="/financial-statement-sets" title="재무제표 세트" />
+        <EquityReview key={`${company.id}:${revision.id}`} company={company} snapshotId={revision.id} basePath="/financial-statement-sets" title="재무제표 세트" exportTarget={{ period_id: period.id, date_from: period.start_date, date_to: period.end_date, expected_review_digest: revision.snapshot_digest }} />
         <Link href="/reports">Report Center에서 승인 재무제표 세트 내보내기</Link>
       </>}
     </>}

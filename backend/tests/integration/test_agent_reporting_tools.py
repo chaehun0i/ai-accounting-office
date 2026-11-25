@@ -52,6 +52,7 @@ def runtime_for(client, connection, engine):
     )
     registry.register(comparison_tool(services.comparative_statements))
     registry.register(approved_report_tool(services.report_center))
+    registry.register(approved_report_tool(services.report_center, statement_set=True))
     registry.record = audit.record_tool
     registry.started = audit.tool_started
     checkpoints = PostgresCheckpoints(

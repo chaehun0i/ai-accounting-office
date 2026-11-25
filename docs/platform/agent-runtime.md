@@ -129,3 +129,9 @@ Registry의 `reports.export_approved_comparison` COMMAND는 서버가 주입한 
 Report Center가 같은 요청 transaction에서 승인 snapshot ID/version/review digest와 현재 회계 원천을 검사한다. 생성 단계도 기존 source validation을 다시 수행한다. 중단 후 같은 요청 키는 같은 Agent Run 및 Report Run을 재사용하므로 중복 Artifact를 만들지 않는다. 생성 실패를 완료 상태로 표시하지 않는다. 파일과 실행 이력은 기존 Report Center에서 조회한다. 변경된 요청을 같은 키로 보내면 충돌한다.
 
 이 경로는 자동 승인·자율 회계처리가 아니며, READ 검토와 사람 확인 및 승인된 결과의 산출물 생성만 연결한다. 운영 queue worker·취소·외부 스케줄러는 여전히 미구현이다.
+
+## 사람 확인을 거친 전체 재무제표 세트 Export
+
+재무제표 화면에서 현재 원천과 일치하는 독립 승인 세트를 선택하고, 승인 버전·원천 digest·파일 형식을 확인해 내보낸다. `POST /agent/actions/approved-set-export`는 명시적 확인과 멱등 키를 요구한다. 기존 실행 이력에 결과 Report Run과 원천 digest를 기록하며 Report Center에서 파일을 다운로드한다.
+
+`reports.export_approved_set`은 사람 확인 문맥에서만 실행하는 보고서 명령이다. Report Center는 선택한 세트 ID·승인 버전·digest와 현재 원천을 비교한 뒤 고정된 승인 세트로 산출물을 생성한다. 요청 시 확인한 대상이 현재 원천과 달라지면 새 산출물 생성이 차단된다. 연말 손익 대체의 원천 식별과 IS 표시 계약은 #112에 남아 있다.
