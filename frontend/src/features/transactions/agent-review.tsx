@@ -16,6 +16,65 @@ type AgentRun = {
   error_code: string | null;
   version: number;
 };
+type RunStep = {
+  id: string;
+  step_no: number;
+  node_name: string;
+  status: string;
+  error_code: string | null;
+};
+type RunEvent = {
+  event_seq: number;
+  event_type: string;
+  stage: string;
+  message_code: string | null;
+  created_at: string;
+};
+
+function ProposalAudit({ companyId, runId, version }: {
+  companyId: string; runId: string; version: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState<{ steps: RunStep[]; events: RunEvent[]; version: number } | null>(null);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    const headers = { "X-Company-ID": companyId };
+    Promise.all([
+      authenticatedRequest<RunStep[]>(`/agent/runs/${runId}/steps`, { headers }),
+      authenticatedRequest<RunEvent[]>(`/agent/runs/${runId}/events`, { headers }),
+    ]).then(([steps, events]) => {
+      if (active) { setHistory({ steps, events, version }); setError(""); }
+    }).catch(reason => {
+      if (active) setError(reason instanceof ApiError ? reason.message : "실행 이력을 불러오지 못했습니다.");
+    });
+    return () => { active = false; };
+  }, [open, companyId, runId, version, attempt]);
+
+  return <details onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>전표 제안 실행 이력</summary>
+    {open && <>
+      <p>실행 ID {runId}</p>
+      {error ? <><p role="alert">{error}</p>
+        <button type="button" onClick={() => { setError(""); setAttempt(value => value + 1); }}>이력 다시 불러오기</button>
+      </> : history?.version !== version ? <p role="status">실행 이력 확인 중…</p> : <>
+        <h5>처리 단계</h5>
+        {history.steps.length ? <ol>{history.steps.map(step => <li key={step.id}>
+          {step.node_name} · {step.status}{step.error_code ? ` · ${step.error_code}` : ""}
+        </li>)}</ol> : <p>기록된 처리 단계가 없습니다.</p>}
+        <h5>감사 이벤트</h5>
+        {history.events.length ? <ol>{history.events.map(event => <li key={event.event_seq}>
+          <time dateTime={event.created_at}>{new Date(event.created_at).toLocaleString("ko-KR")}</time>
+          {" · "}{event.event_type} · {event.stage}{event.message_code ? ` · ${event.message_code}` : ""}
+        </li>)}</ol> : <p>기록된 감사 이벤트가 없습니다.</p>}
+      </>}
+    </>}
+  </details>;
+}
+
 type ProposalLine = {
   account_id: string;
   account_code: string;
@@ -125,11 +184,13 @@ export function AgentReview({ company, transaction }: {
     } finally { setBusy(false); }
   }
 
+  const canRequest = !run || (["BLOCKED", "FAILED", "COMPLETED"].includes(run.status) && !run.result_journal_id);
+
   return <section className="panel" aria-label="AI 전표 제안">
     <h4>AI 전표 제안</h4>
     <p>선택한 거래의 계정과 금액을 검증해 초안을 제안합니다. 검토 후 진행해도 전표 승인이나 장부 반영은 하지 않습니다.</p>
     {!eligible ? <p>회계 담당자의 거래·계정 조회 및 전표 작성 권한이 필요합니다.</p> : <>
-      {(!run || ["BLOCKED", "FAILED"].includes(run.status)) &&
+      {canRequest &&
         <button type="button" disabled={busy} onClick={() => void start()}>{busy ? "확인 중…" : run ? "새 제안 요청" : "전표 제안 받기"}</button>}
       {run && <p role="status">{run.status === "WAITING_FOR_INPUT" ? "사람 검토 대기" : run.status === "COMPLETED"
         ? run.result_journal_id ? "전표 초안 작성 완료" : "제안 거절 완료"
@@ -138,7 +199,7 @@ export function AgentReview({ company, transaction }: {
       {preview && run?.status === "WAITING_FOR_INPUT" && <>
         <p>원천 거래: {transaction.description} · {transaction.amount}원 · 원천 버전 {preview.source_version}</p>
         <p>제안일 {preview.entry_date} · 증빙 {preview.evidence_count}건 · 검증 {preview.controller_verdict}</p>
-        {transaction.version !== preview.source_version && <p role="alert">거래가 변경됐습니다. 이 제안은 진행하지 말고 새로 요청해 주세요.</p>}
+        {transaction.version !== preview.source_version && <p role="alert">거래가 변경됐습니다. 이 제안을 거절한 뒤 최신 거래로 새 제안을 요청하세요.</p>}
         <div className="table-scroll"><table><thead><tr><th>계정</th><th>차변</th><th>대변</th></tr></thead><tbody>
           {preview.lines.map((line, index) => <tr key={`${line.account_id}:${index}`}><th scope="row">{line.account_code} · {line.account_name}</th><td>{line.debit_amount}</td><td>{line.credit_amount}</td></tr>)}
         </tbody></table></div>
@@ -148,6 +209,7 @@ export function AgentReview({ company, transaction }: {
             onClick={() => void decide("CONTINUE")}>검토 후 전표 초안 만들기</button>
         </div>
       </>}
+      {run && <ProposalAudit key={`${company.id}:${run.id}`} companyId={company.id} runId={run.id} version={run.version} />}
       {run?.result_journal_id && <p><Link href={`/journals#journal-${run.result_journal_id}`}>작성된 전표 초안 확인하기</Link> · 제출·독립 승인·장부 반영은 전표 화면에서 진행합니다.</p>}
     </>}
     {error && <p role="alert">{error}</p>}
